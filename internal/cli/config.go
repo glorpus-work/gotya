@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -48,7 +49,7 @@ func newConfigSetCmd() *cobra.Command {
 		Long:  "Set a configuration key to a specific value",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConfigSet(cmd, args[0], args[1])
+			return runConfigSet(args[0], args[1])
 		},
 	}
 
@@ -62,7 +63,7 @@ func newConfigGetCmd() *cobra.Command {
 		Long:  "Get the value of a specific configuration key",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConfigGet(cmd, args[0])
+			return runConfigGet(args[0])
 		},
 	}
 
@@ -77,7 +78,7 @@ func newConfigInitCmd() *cobra.Command {
 		Short: "Initialize configuration file",
 		Long:  "Create a default configuration file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConfigInit(cmd, force)
+			return runConfigInit(force)
 		},
 	}
 
@@ -86,7 +87,7 @@ func newConfigInitCmd() *cobra.Command {
 	return cmd
 }
 
-func runConfigShow(cmd *cobra.Command, args []string) error {
+func runConfigShow(*cobra.Command, []string) error {
 	cfg, _, err := loadConfigAndManager()
 	if err != nil {
 		return err
@@ -123,7 +124,7 @@ func runConfigShow(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runConfigSet(cmd *cobra.Command, key, value string) error {
+func runConfigSet(key, value string) error {
 	cfg, _, err := loadConfigAndManager()
 	if err != nil {
 		return err
@@ -138,11 +139,11 @@ func runConfigSet(cmd *cobra.Command, key, value string) error {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
-	fmt.Printf("Configuration updated: %s = %s\n", key, value)
+	Success("Configuration updated", logrus.Fields{"key": key, "value": value})
 	return nil
 }
 
-func runConfigGet(cmd *cobra.Command, key string) error {
+func runConfigGet(key string) error {
 	cfg, _, err := loadConfigAndManager()
 	if err != nil {
 		return err
@@ -157,7 +158,7 @@ func runConfigGet(cmd *cobra.Command, key string) error {
 	return nil
 }
 
-func runConfigInit(cmd *cobra.Command, force bool) error {
+func runConfigInit(force bool) error {
 	configPath := getConfigPath()
 
 	// Check if config file already exists
@@ -178,7 +179,7 @@ func runConfigInit(cmd *cobra.Command, force bool) error {
 		return fmt.Errorf("failed to save default configuration: %w", err)
 	}
 
-	fmt.Printf("Configuration file created at: %s\n", configPath)
+	Success("Configuration file created", logrus.Fields{"path": configPath})
 	return nil
 }
 
@@ -197,7 +198,7 @@ func createDefaultConfig() *config.Config {
 	cfg.Settings.CacheDir = "" // Will use default
 	cfg.Settings.OutputFormat = "table"
 	cfg.Settings.ColorOutput = true
-	cfg.Settings.VerboseLogging = false
+	cfg.Settings.LogLevel = "info"
 	cfg.Repositories = make([]config.RepositoryConfig, 0)
 
 	return cfg
@@ -216,12 +217,8 @@ func setConfigValue(cfg *config.Config, key, value string) error {
 			return fmt.Errorf("invalid boolean value for %s: %s", key, value)
 		}
 		cfg.Settings.ColorOutput = boolVal
-	case "verbose_logging":
-		boolVal, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("invalid boolean value for %s: %s", key, value)
-		}
-		cfg.Settings.VerboseLogging = boolVal
+	case "log_level":
+		cfg.Settings.LogLevel = value
 	default:
 		return fmt.Errorf("unknown configuration key: %s", key)
 	}
@@ -237,8 +234,8 @@ func getConfigValue(cfg *config.Config, key string) (string, error) {
 		return cfg.Settings.OutputFormat, nil
 	case "color_output":
 		return strconv.FormatBool(cfg.Settings.ColorOutput), nil
-	case "verbose_logging":
-		return strconv.FormatBool(cfg.Settings.VerboseLogging), nil
+	case "log_level":
+		return cfg.Settings.LogLevel, nil
 	default:
 		return "", fmt.Errorf("unknown configuration key: %s", key)
 	}

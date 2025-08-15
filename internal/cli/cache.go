@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -93,9 +94,7 @@ func runCacheClean(all, indexes, packages bool) error {
 		all = true
 	}
 
-	if config.Settings.VerboseLogging {
-		fmt.Println("Cleaning cache...")
-	}
+	Debug("Cleaning cache...")
 
 	var cleaned int64
 
@@ -103,30 +102,26 @@ func runCacheClean(all, indexes, packages bool) error {
 	cacheDir := getCacheDir(config)
 
 	if all || indexes {
-		if config.Settings.VerboseLogging {
-			fmt.Println("Cleaning repository indexes...")
-		}
+		Debug("Cleaning repository indexes...")
 		size, err := cleanIndexCache(cacheDir)
 		if err != nil {
 			return fmt.Errorf("failed to clean index cache: %w", err)
 		}
 		cleaned += size
-		fmt.Printf("Cleaned %s of repository indexes\n", formatSize(size))
+		Info("Cleaned repository indexes", logrus.Fields{"size": formatSize(size)})
 	}
 
 	if all || packages {
-		if config.Settings.VerboseLogging {
-			fmt.Println("Cleaning downloaded packages...")
-		}
+		Debug("Cleaning downloaded packages...")
 		size, err := cleanPackageCache(cacheDir)
 		if err != nil {
 			return fmt.Errorf("failed to clean package cache: %w", err)
 		}
 		cleaned += size
-		fmt.Printf("Cleaned %s of downloaded packages\n", formatSize(size))
+		Info("Cleaned downloaded packages", logrus.Fields{"size": formatSize(size)})
 	}
 
-	fmt.Printf("Total space freed: %s\n", formatSize(cleaned))
+	Success("Cache cleaning completed", logrus.Fields{"total_freed": formatSize(cleaned)})
 	return nil
 }
 

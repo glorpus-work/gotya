@@ -38,9 +38,9 @@ type Settings struct {
 	MaxConcurrent int           `yaml:"max_concurrent_syncs"`
 
 	// Output settings
-	OutputFormat   string `yaml:"output_format"` // json, table, yaml
-	ColorOutput    bool   `yaml:"color_output"`
-	VerboseLogging bool   `yaml:"verbose_logging"`
+	OutputFormat string `yaml:"output_format"` // json, table, yaml
+	ColorOutput  bool   `yaml:"color_output"`
+	LogLevel     string `yaml:"log_level"` // panic, fatal, error, warn, info, debug, trace
 }
 
 // DefaultConfig returns a configuration with sensible defaults
@@ -48,13 +48,13 @@ func DefaultConfig() *Config {
 	return &Config{
 		Repositories: []RepositoryConfig{},
 		Settings: Settings{
-			CacheTTL:       24 * time.Hour,
-			AutoSync:       false,
-			HTTPTimeout:    30 * time.Second,
-			MaxConcurrent:  3,
-			OutputFormat:   "table",
-			ColorOutput:    true,
-			VerboseLogging: false,
+			CacheTTL:      24 * time.Hour,
+			AutoSync:      false,
+			HTTPTimeout:   30 * time.Second,
+			MaxConcurrent: 3,
+			OutputFormat:  "table",
+			ColorOutput:   true,
+			LogLevel:      "info",
 		},
 	}
 }
@@ -157,6 +157,9 @@ func (c *Config) applyDefaults() error {
 	if c.Settings.OutputFormat == "" {
 		c.Settings.OutputFormat = defaults.Settings.OutputFormat
 	}
+	if c.Settings.LogLevel == "" {
+		c.Settings.LogLevel = defaults.Settings.LogLevel
+	}
 
 	// Set enabled to true by default for repositories if not explicitly set
 	for i := range c.Repositories {
@@ -203,6 +206,11 @@ func (c *Config) Validate() error {
 	validFormats := map[string]bool{"json": true, "table": true, "yaml": true}
 	if !validFormats[c.Settings.OutputFormat] {
 		return fmt.Errorf("invalid output_format '%s', must be one of: json, table, yaml", c.Settings.OutputFormat)
+	}
+
+	validLogLevels := map[string]bool{"panic": true, "fatal": true, "error": true, "warn": true, "info": true, "debug": true, "trace": true}
+	if !validLogLevels[c.Settings.LogLevel] {
+		return fmt.Errorf("invalid log_level '%s', must be one of: panic, fatal, error, warn, info, debug, trace", c.Settings.LogLevel)
 	}
 
 	return nil

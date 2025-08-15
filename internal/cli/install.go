@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -51,49 +51,53 @@ Use --all to update all installed packages.`,
 }
 
 func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) error {
-	config, manager, err := loadConfigAndManager()
+	_, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
 
-	if config.Settings.VerboseLogging {
-		fmt.Printf("Installing packages: %s\n", strings.Join(packages, ", "))
-		if skipDeps {
-			fmt.Println("Dependency resolution disabled")
-		}
+	Debug("Installing packages", logrus.Fields{
+		"packages":  packages,
+		"force":     force,
+		"skip_deps": skipDeps,
+	})
+
+	if skipDeps {
+		Debug("Dependency resolution disabled")
 	}
 
 	for _, pkg := range packages {
-		if config.Settings.VerboseLogging {
-			fmt.Printf("Installing package: %s\n", pkg)
-		}
+		Debug("Installing package", logrus.Fields{"package": pkg})
 
 		if err := manager.InstallPackage(cmd.Context(), pkg, force, !skipDeps); err != nil {
+			Error("Failed to install package", logrus.Fields{
+				"package": pkg,
+				"error":   err.Error(),
+			})
 			return fmt.Errorf("failed to install package %s: %w", pkg, err)
 		}
 
-		fmt.Printf("Successfully installed: %s\n", pkg)
+		Success("Successfully installed package", logrus.Fields{"package": pkg})
 	}
 
 	return nil
 }
 
 func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
-	config, manager, err := loadConfigAndManager()
+	_, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
 
 	if all {
-		if config.Settings.VerboseLogging {
-			fmt.Println("Updating all installed packages...")
-		}
+		Debug("Updating all installed packages")
 
 		if err := manager.UpdateAllPackages(cmd.Context()); err != nil {
+			Error("Failed to update all packages", logrus.Fields{"error": err.Error()})
 			return fmt.Errorf("failed to update packages: %w", err)
 		}
 
-		fmt.Println("All packages updated successfully")
+		Success("All packages updated successfully")
 		return nil
 	}
 
@@ -101,20 +105,20 @@ func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
 		return fmt.Errorf("specify packages to update or use --all flag")
 	}
 
-	if config.Settings.VerboseLogging {
-		fmt.Printf("Updating packages: %s\n", strings.Join(packages, ", "))
-	}
+	Debug("Updating packages", logrus.Fields{"packages": packages})
 
 	for _, pkg := range packages {
-		if config.Settings.VerboseLogging {
-			fmt.Printf("Updating package: %s\n", pkg)
-		}
+		Debug("Updating package", logrus.Fields{"package": pkg})
 
 		if err := manager.UpdatePackage(cmd.Context(), pkg); err != nil {
+			Error("Failed to update package", logrus.Fields{
+				"package": pkg,
+				"error":   err.Error(),
+			})
 			return fmt.Errorf("failed to update package %s: %w", pkg, err)
 		}
 
-		fmt.Printf("Successfully updated: %s\n", pkg)
+		Success("Successfully updated package", logrus.Fields{"package": pkg})
 	}
 
 	return nil

@@ -612,14 +612,14 @@ func (m *Manager) SearchPackages(query string, exactMatch bool, limit int) ([]*P
 }
 
 // GetInstalledPackages returns all installed packages
-func (m *Manager) GetInstalledPackages(ctx context.Context) ([]*Package, error) {
+func (m *Manager) GetInstalledPackages() ([]*Package, error) {
 	// This would typically read from a local database or file system
 	// For now, return empty slice
 	return []*Package{}, nil
 }
 
 // GetAvailablePackages returns all available packages from all repositories
-func (m *Manager) GetAvailablePackages(ctx context.Context) ([]*Package, error) {
+func (m *Manager) GetAvailablePackages() ([]*Package, error) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 

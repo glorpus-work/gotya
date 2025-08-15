@@ -5,6 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -55,14 +56,16 @@ func NewListCmd() *cobra.Command {
 }
 
 func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) error {
-	config, manager, err := loadConfigAndManager()
+	_, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
 
-	if config.Settings.VerboseLogging {
-		fmt.Printf("Searching for: %s\n", query)
-	}
+	Debug("Searching for packages", logrus.Fields{
+		"query":       query,
+		"exact_match": exactMatch,
+		"limit":       limit,
+	})
 
 	results, err := manager.SearchPackages(query, exactMatch, limit)
 	if err != nil {
@@ -70,7 +73,7 @@ func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) err
 	}
 
 	if len(results) == 0 {
-		fmt.Printf("No packages found matching: %s\n", query)
+		Info("No packages found matching query", logrus.Fields{"query": query})
 		return nil
 	}
 
@@ -88,7 +91,7 @@ func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) err
 	}
 
 	w.Flush()
-	fmt.Printf("\nFound %d package(s)\n", len(results))
+	Info("Search completed", logrus.Fields{"found": len(results)})
 	return nil
 }
 
@@ -108,7 +111,7 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 	fmt.Fprintln(w, "----\t-------\t------\t-----------")
 
 	if showInstalled {
-		installed, err := manager.GetInstalledPackages(cmd.Context())
+		installed, err := manager.GetInstalledPackages()
 		if err != nil {
 			return fmt.Errorf("failed to get installed packages: %w", err)
 		}
@@ -123,7 +126,7 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 	}
 
 	if showAvailable {
-		available, err := manager.GetAvailablePackages(cmd.Context())
+		available, err := manager.GetAvailablePackages()
 		if err != nil {
 			return fmt.Errorf("failed to get available packages: %w", err)
 		}

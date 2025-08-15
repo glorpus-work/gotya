@@ -20,19 +20,17 @@ package lists from configured repositories.`,
 }
 
 func runSync(cmd *cobra.Command, args []string) error {
-	config, manager, err := loadConfigAndManager()
+	_, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
 
-	if config.Settings.VerboseLogging {
-		fmt.Println("Synchronizing repository indexes...")
-	}
+	Debug("Synchronizing repository indexes...")
 
 	if err := manager.SyncRepositories(cmd.Context()); err != nil {
 		return fmt.Errorf("failed to sync repositories: %w", err)
 	}
 
-	fmt.Println("Repository indexes synchronized successfully")
+	Success("Repository indexes synchronized successfully")
 	return nil
 }

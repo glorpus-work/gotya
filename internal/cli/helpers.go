@@ -48,8 +48,11 @@ func loadConfigAndManager() (*config.Config, *repo.Manager, error) {
 		cfg.Settings.ColorOutput = false
 	}
 	if Verbose != nil && *Verbose {
-		cfg.Settings.VerboseLogging = true
+		cfg.Settings.LogLevel = "debug"
 	}
+
+	// Initialize logger with config settings
+	InitLogger(cfg.Settings.LogLevel, !cfg.Settings.ColorOutput)
 
 	// Create manager
 	var manager *repo.Manager
