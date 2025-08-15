@@ -2,7 +2,9 @@ package repo
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -10,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	pkg "github.com/cperrin88/gotya/pkg/package"
 )
 
 // Repository represents a single repository with its URL and cached index
@@ -28,6 +32,8 @@ type Manager struct {
 	repositories map[string]*Repository
 	httpClient   *http.Client
 	cacheDir     string
+	installedDB  *pkg.InstalledDatabase
+	installDir   string
 	mutex        sync.RWMutex
 }
 
@@ -49,12 +55,27 @@ func NewManagerWithCacheDir(cacheDir string) (*Manager, error) {
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
+	// Initialize package database
+	dbPath := filepath.Join(cacheDir, "packages.db")
+	installedDB, err := pkg.LoadInstalledDatabase(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize package database: %w", err)
+	}
+
+	// Default install directory (can be overridden)
+	installDir := "/usr/local"
+	if runtime.GOOS == "windows" {
+		installDir = "C:\\Program Files\\gotya"
+	}
+
 	manager := &Manager{
 		repositories: make(map[string]*Repository),
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		cacheDir: indexDir,
+		cacheDir:    indexDir,
+		installedDB: installedDB,
+		installDir:  installDir,
 	}
 
 	// Load existing cached indexes
@@ -72,10 +93,25 @@ func NewManagerWithClient(client *http.Client, cacheDir string) (*Manager, error
 		return nil, fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
+	// Initialize package database
+	dbPath := filepath.Join(cacheDir, "packages.db")
+	installedDB, err := pkg.LoadInstalledDatabase(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize package database: %w", err)
+	}
+
+	// Default install directory
+	installDir := "/usr/local"
+	if runtime.GOOS == "windows" {
+		installDir = "C:\\Program Files\\gotya"
+	}
+
 	manager := &Manager{
 		repositories: make(map[string]*Repository),
 		httpClient:   client,
 		cacheDir:     indexDir,
+		installedDB:  installedDB,
+		installDir:   installDir,
 	}
 
 	if err := manager.loadCachedIndexes(); err != nil {
@@ -639,15 +675,123 @@ func (m *Manager) GetAvailablePackages() ([]*Package, error) {
 
 // IsPackageInstalled checks if a package is installed
 func (m *Manager) IsPackageInstalled(name string) bool {
-	// This would typically check a local database or file system
-	// For now, return false
-	return false
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+
+	if m.installedDB == nil {
+		return false
+	}
+	return m.installedDB.IsPackageInstalled(name)
 }
 
 // InstallPackage installs a package
 func (m *Manager) InstallPackage(ctx context.Context, name string, force, resolveDeps bool) error {
-	// Implementation would download and install the package
-	return fmt.Errorf("install functionality not yet implemented")
+	// Find package in repositories
+	searchResults, err := m.SearchPackages(name, true, 1)
+	if err != nil {
+		return fmt.Errorf("failed to search for package '%s': %w", name, err)
+	}
+
+	if len(searchResults) == 0 {
+		return fmt.Errorf("package '%s' not found in any repository", name)
+	}
+
+	packageResult := searchResults[0]
+	pkg := &packageResult.Package
+
+	// Check if already installed
+	if m.IsPackageInstalled(name) && !force {
+		return fmt.Errorf("package '%s' is already installed (use --force to reinstall)", name)
+	}
+
+	// Download package
+	packagePath, err := m.downloadPackage(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("failed to download package: %w", err)
+	}
+	defer os.Remove(packagePath) // Clean up downloaded file
+
+	// Create temporary extraction directory
+	tempDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-install-%s-", pkg.Name))
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Extract package
+	structure, err := pkg.ExtractPackage(packagePath, tempDir)
+	if err != nil {
+		return fmt.Errorf("failed to extract package: %w", err)
+	}
+
+	// Validate metadata matches what we expect
+	if structure.Metadata.Name != pkg.Name {
+		return fmt.Errorf("package metadata mismatch: expected '%s', got '%s'", pkg.Name, structure.Metadata.Name)
+	}
+
+	// Resolve dependencies if requested
+	if resolveDeps {
+		if err := m.resolveDependencies(ctx, structure.Metadata.Dependencies, force); err != nil {
+			return fmt.Errorf("failed to resolve dependencies: %w", err)
+		}
+	}
+
+	// Execute pre-install script
+	if structure.ScriptsDir != "" {
+		preInstallScript := filepath.Join(structure.ScriptsDir, "pre-install")
+		env := []string{
+			fmt.Sprintf("PACKAGE_NAME=%s", pkg.Name),
+			fmt.Sprintf("PACKAGE_VERSION=%s", pkg.Version),
+		}
+		if err := pkg.ExecuteScript(preInstallScript, env); err != nil {
+			return fmt.Errorf("pre-install script failed: %w", err)
+		}
+	}
+
+	// Install files
+	var installedFiles []string
+	if structure.FilesDir != "" {
+		installedFiles, err = pkg.CopyFiles(structure.FilesDir, m.installDir)
+		if err != nil {
+			return fmt.Errorf("failed to install files: %w", err)
+		}
+	}
+
+	// Update installed packages database
+	installedPkg := pkg.InstalledPackage{
+		Name:          pkg.Name,
+		Version:       pkg.Version,
+		Description:   pkg.Description,
+		InstalledAt:   time.Now(),
+		InstalledFrom: fmt.Sprintf("repository:%s", packageResult.RepositoryName),
+		Files:         installedFiles,
+		Checksum:      pkg.Checksum,
+	}
+
+	m.mutex.Lock()
+	m.installedDB.AddPackage(installedPkg)
+	if err := m.installedDB.Save(m.getInstalledDBPath()); err != nil {
+		m.mutex.Unlock()
+		// Try to rollback file installation
+		pkg.RemoveFiles(installedFiles)
+		return fmt.Errorf("failed to update installed packages database: %w", err)
+	}
+	m.mutex.Unlock()
+
+	// Execute post-install script
+	if structure.ScriptsDir != "" {
+		postInstallScript := filepath.Join(structure.ScriptsDir, "post-install")
+		env := []string{
+			fmt.Sprintf("PACKAGE_NAME=%s", pkg.Name),
+			fmt.Sprintf("PACKAGE_VERSION=%s", pkg.Version),
+		}
+		if err := pkg.ExecuteScript(postInstallScript, env); err != nil {
+			// Post-install failure is not fatal, but we should warn
+			fmt.Printf("Warning: post-install script failed: %v\n", err)
+		}
+	}
+
+	return nil
 }
 
 // UpdatePackage updates a specific package
@@ -690,4 +834,109 @@ func generateRepoNameFromURL(url string) string {
 		return strings.ReplaceAll(parts[2], ".", "-")
 	}
 	return "repo-" + fmt.Sprintf("%x", url)[:8]
+}
+
+// getInstalledDBPath returns the path to the installed packages database
+func (m *Manager) getInstalledDBPath() string {
+	return filepath.Join(filepath.Dir(m.cacheDir), "packages.db")
+}
+
+// downloadPackage downloads a package to a temporary file and verifies checksum
+func (m *Manager) downloadPackage(ctx context.Context, pkg *Package) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", pkg.URL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create download request: %w", err)
+	}
+
+	resp, err := m.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to download package: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("download failed with status: %d", resp.StatusCode)
+	}
+
+	// Create temporary file
+	tempFile, err := os.CreateTemp(filepath.Dir(m.cacheDir), "package_*.tar.xz")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	defer tempFile.Close()
+
+	// Download and verify checksum
+	hasher := sha256.New()
+	writer := io.MultiWriter(tempFile, hasher)
+
+	if _, err := io.Copy(writer, resp.Body); err != nil {
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("failed to download package data: %w", err)
+	}
+
+	// Verify checksum
+	calculatedChecksum := fmt.Sprintf("%x", hasher.Sum(nil))
+	if pkg.Checksum != "" && calculatedChecksum != pkg.Checksum {
+		os.Remove(tempFile.Name())
+		return "", fmt.Errorf("checksum verification failed: expected %s, got %s", pkg.Checksum, calculatedChecksum)
+	}
+
+	return tempFile.Name(), nil
+}
+
+// resolveDependencies resolves and installs package dependencies
+func (m *Manager) resolveDependencies(ctx context.Context, dependencies []string, force bool) error {
+	for _, dep := range dependencies {
+		if !m.IsPackageInstalled(dep) {
+			if err := m.InstallPackage(ctx, dep, force, true); err != nil {
+				return fmt.Errorf("failed to install dependency %s: %w", dep, err)
+			}
+		}
+	}
+	return nil
+}
+
+// RemovePackage removes an installed package
+func (m *Manager) RemovePackage(ctx context.Context, name string) error {
+	// Check if package is installed
+	installedPkg := m.installedDB.FindPackage(name)
+	if installedPkg == nil {
+		return fmt.Errorf("package '%s' is not installed", name)
+	}
+
+	// Execute pre-remove script if it exists
+	// This would typically be stored in the package metadata or a scripts cache
+
+	// Remove files (in reverse order)
+	for i := len(installedPkg.Files) - 1; i >= 0; i-- {
+		file := installedPkg.Files[i]
+		if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove file %s: %w", file, err)
+		}
+	}
+
+	// Remove from database
+	if !m.installedDB.RemovePackage(name) {
+		return fmt.Errorf("failed to remove package from database")
+	}
+
+	if err := m.installedDB.Save(m.getInstalledDBPath()); err != nil {
+		return fmt.Errorf("failed to save database after removal: %w", err)
+	}
+
+	return nil
+}
+
+// SetInstallDir sets the installation directory
+func (m *Manager) SetInstallDir(installDir string) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	m.installDir = installDir
+}
+
+// GetInstallDir returns the current installation directory
+func (m *Manager) GetInstallDir() string {
+	m.mutex.RLock()
+	defer m.mutex.RUnlock()
+	return m.installDir
 }

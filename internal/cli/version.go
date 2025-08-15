@@ -24,7 +24,7 @@ func NewVersionCmd() *cobra.Command {
 	return cmd
 }
 
-func runVersion(cmd *cobra.Command, args []string) {
+func runVersion(*cobra.Command, []string) {
 	fmt.Printf("gotya version %s\n", Version)
 	fmt.Printf("Build date: %s\n", BuildDate)
 	fmt.Printf("Git commit: %s\n", GitCommit)
