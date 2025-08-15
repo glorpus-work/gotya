@@ -1,0 +1,257 @@
+package cli
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strconv"
+	"text/tabwriter"
+
+	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/spf13/cobra"
+)
+
+// NewConfigCmd creates the config command with subcommands
+func NewConfigCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "Manage configuration",
+		Long:  "View and modify gotya configuration settings",
+	}
+
+	cmd.AddCommand(
+		newConfigShowCmd(),
+		newConfigSetCmd(),
+		newConfigGetCmd(),
+		newConfigInitCmd(),
+	)
+
+	return cmd
+}
+
+func newConfigShowCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "show",
+		Short: "Show current configuration",
+		Long:  "Display the current configuration settings",
+		RunE:  runConfigShow,
+	}
+
+	return cmd
+}
+
+func newConfigSetCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "set KEY VALUE",
+		Short: "Set a configuration value",
+		Long:  "Set a configuration key to a specific value",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runConfigSet(cmd, args[0], args[1])
+		},
+	}
+
+	return cmd
+}
+
+func newConfigGetCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get KEY",
+		Short: "Get a configuration value",
+		Long:  "Get the value of a specific configuration key",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runConfigGet(cmd, args[0])
+		},
+	}
+
+	return cmd
+}
+
+func newConfigInitCmd() *cobra.Command {
+	var force bool
+
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Initialize configuration file",
+		Long:  "Create a default configuration file",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runConfigInit(cmd, force)
+		},
+	}
+
+	cmd.Flags().BoolVar(&force, "force", false, "Overwrite existing configuration file")
+
+	return cmd
+}
+
+func runConfigShow(cmd *cobra.Command, args []string) error {
+	cfg, _, err := loadConfigAndManager()
+	if err != nil {
+		return err
+	}
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "SETTING\tVALUE")
+	fmt.Fprintln(w, "-------\t-----")
+
+	// Display settings using reflection to access fields
+	settingsValue := reflect.ValueOf(cfg.Settings)
+	settingsType := reflect.TypeOf(cfg.Settings)
+
+	for i := 0; i < settingsValue.NumField(); i++ {
+		field := settingsType.Field(i)
+		value := settingsValue.Field(i)
+
+		// Convert field name to snake_case
+		fieldName := toSnakeCase(field.Name)
+		fmt.Fprintf(w, "%s\t%v\n", fieldName, value.Interface())
+	}
+
+	w.Flush()
+
+	fmt.Printf("\nRepositories (%d):\n", len(cfg.Repositories))
+	for _, repo := range cfg.Repositories {
+		status := "enabled"
+		if !repo.Enabled {
+			status = "disabled"
+		}
+		fmt.Printf("  %s: %s (%s)\n", repo.Name, repo.URL, status)
+	}
+
+	return nil
+}
+
+func runConfigSet(cmd *cobra.Command, key, value string) error {
+	cfg, _, err := loadConfigAndManager()
+	if err != nil {
+		return err
+	}
+
+	if err := setConfigValue(cfg, key, value); err != nil {
+		return fmt.Errorf("failed to set configuration value: %w", err)
+	}
+
+	configPath := getConfigPath()
+	if err := cfg.SaveConfig(configPath); err != nil {
+		return fmt.Errorf("failed to save configuration: %w", err)
+	}
+
+	fmt.Printf("Configuration updated: %s = %s\n", key, value)
+	return nil
+}
+
+func runConfigGet(cmd *cobra.Command, key string) error {
+	cfg, _, err := loadConfigAndManager()
+	if err != nil {
+		return err
+	}
+
+	value, err := getConfigValue(cfg, key)
+	if err != nil {
+		return fmt.Errorf("failed to get configuration value: %w", err)
+	}
+
+	fmt.Println(value)
+	return nil
+}
+
+func runConfigInit(cmd *cobra.Command, force bool) error {
+	configPath := getConfigPath()
+
+	// Check if config file already exists
+	if !force {
+		if _, err := os.Stat(configPath); err == nil {
+			return fmt.Errorf("configuration file already exists at %s (use --force to overwrite)", configPath)
+		}
+	}
+
+	// Create config directory if it doesn't exist
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Create default config
+	defaultConfig := createDefaultConfig()
+	if err := defaultConfig.SaveConfig(configPath); err != nil {
+		return fmt.Errorf("failed to save default configuration: %w", err)
+	}
+
+	fmt.Printf("Configuration file created at: %s\n", configPath)
+	return nil
+}
+
+func getConfigPath() string {
+	if ConfigPath != nil && *ConfigPath != "" {
+		return *ConfigPath
+	}
+
+	defaultPath, _ := config.GetDefaultConfigPath()
+	return defaultPath
+}
+
+func createDefaultConfig() *config.Config {
+	// This creates a default configuration
+	cfg := &config.Config{}
+	cfg.Settings.CacheDir = "" // Will use default
+	cfg.Settings.OutputFormat = "table"
+	cfg.Settings.ColorOutput = true
+	cfg.Settings.VerboseLogging = false
+	cfg.Repositories = make([]config.RepositoryConfig, 0)
+
+	return cfg
+}
+
+// Helper function to set a configuration value by key
+func setConfigValue(cfg *config.Config, key, value string) error {
+	switch key {
+	case "cache_dir":
+		cfg.Settings.CacheDir = value
+	case "output_format":
+		cfg.Settings.OutputFormat = value
+	case "color_output":
+		boolVal, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("invalid boolean value for %s: %s", key, value)
+		}
+		cfg.Settings.ColorOutput = boolVal
+	case "verbose_logging":
+		boolVal, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("invalid boolean value for %s: %s", key, value)
+		}
+		cfg.Settings.VerboseLogging = boolVal
+	default:
+		return fmt.Errorf("unknown configuration key: %s", key)
+	}
+	return nil
+}
+
+// Helper function to get a configuration value by key
+func getConfigValue(cfg *config.Config, key string) (string, error) {
+	switch key {
+	case "cache_dir":
+		return cfg.Settings.CacheDir, nil
+	case "output_format":
+		return cfg.Settings.OutputFormat, nil
+	case "color_output":
+		return strconv.FormatBool(cfg.Settings.ColorOutput), nil
+	case "verbose_logging":
+		return strconv.FormatBool(cfg.Settings.VerboseLogging), nil
+	default:
+		return "", fmt.Errorf("unknown configuration key: %s", key)
+	}
+}
+
+// Helper function to convert CamelCase to snake_case
+func toSnakeCase(str string) string {
+	var result []rune
+	for i, r := range str {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result = append(result, '_')
+		}
+		result = append(result, r)
+	}
+	return string(result)
+}
