@@ -2,7 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"strings"
+	"text/tabwriter"
 
+	pkg "github.com/cperrin88/gotya/pkg/package"
+	"github.com/cperrin88/gotya/pkg/repository"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -54,7 +59,7 @@ func NewListCmd() *cobra.Command {
 }
 
 func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) error {
-	_, _, err := loadConfigAndManager()
+	_, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
@@ -65,38 +70,105 @@ func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) err
 		"limit":       limit,
 	})
 
-	// TODO: Implement package search functionality
-	// This would typically involve:
-	// 1. Get all repositories from repoManager
-	// 2. Search through repository indexes for matching packages
-	// 3. Apply exact match and limit filters
-	// 4. Return sorted results
+	// Get all repositories
+	repos := manager.ListRepositories()
+	if len(repos) == 0 {
+		Error("No repositories configured")
+		return fmt.Errorf("no repositories configured")
+	}
 
-	Error("Package search not yet implemented")
-	return fmt.Errorf("package search functionality is not yet implemented")
-
-	// When implemented, the display logic would be:
-	/*
-		// Display results in table format
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tVERSION\tDESCRIPTION")
-		fmt.Fprintln(w, "----\t-------\t-----------")
-
-		for _, pkg := range results {
-			description := pkg.Description
-			if len(description) > 50 {
-				description = description[:47] + "..."
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\n", pkg.Name, pkg.Version, description)
+	// Search through all enabled repositories
+	var allResults []SearchResult
+	for _, repo := range repos {
+		if !repo.Enabled {
+			continue
 		}
 
-		w.Flush()
-		Info("Search completed", logrus.Fields{"found": len(results)})
-	*/
+		Debug("Searching repository", logrus.Fields{"repository": repo.Name})
+
+		// Get repository index
+		index, err := manager.GetRepositoryIndex(repo.Name)
+		if err != nil {
+			Warn("Failed to get index for repository", logrus.Fields{
+				"repository": repo.Name,
+				"error":      err.Error(),
+			})
+			continue
+		}
+
+		// Search in this repository's index
+		results := searchInIndex(index, repo.Name, query, exactMatch)
+		allResults = append(allResults, results...)
+	}
+
+	// Apply limit
+	if len(allResults) > limit {
+		allResults = allResults[:limit]
+	}
+
+	if len(allResults) == 0 {
+		Info("No packages found matching the query")
+		return nil
+	}
+
+	// Display results in table format
+	displaySearchResults(allResults)
+	Info("Search completed", logrus.Fields{"found": len(allResults)})
+
+	return nil
+}
+
+type SearchResult struct {
+	Name        string
+	Version     string
+	Description string
+	Repository  string
+}
+
+func searchInIndex(index repository.Index, repoName, query string, exactMatch bool) []SearchResult {
+	var results []SearchResult
+
+	packages := index.GetPackages()
+	for _, pkg := range packages {
+		var matches bool
+		if exactMatch {
+			matches = pkg.Name == query
+		} else {
+			matches = strings.Contains(strings.ToLower(pkg.Name), strings.ToLower(query)) ||
+				strings.Contains(strings.ToLower(pkg.Description), strings.ToLower(query))
+		}
+
+		if matches {
+			results = append(results, SearchResult{
+				Name:        pkg.Name,
+				Version:     pkg.Version,
+				Description: pkg.Description,
+				Repository:  repoName,
+			})
+		}
+	}
+
+	return results
+}
+
+func displaySearchResults(results []SearchResult) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "NAME\tVERSION\tREPOSITORY\tDESCRIPTION")
+	fmt.Fprintln(w, "----\t-------\t----------\t-----------")
+
+	for _, pkg := range results {
+		description := pkg.Description
+		if len(description) > 50 {
+			description = description[:47] + "..."
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", pkg.Name, pkg.Version, pkg.Repository, description)
+	}
+
+	w.Flush()
 }
 
 func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
-	_, _, err := loadConfigAndManager()
+	cfg, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
@@ -106,32 +178,108 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 		showInstalled = true
 	}
 
-	// TODO: Implement package listing functionality
-	// This would typically involve:
-	// 1. For installed: Load installed packages database
-	// 2. For available: Get packages from all repository indexes
-	// 3. Cross-reference to show status correctly
+	var packages []PackageListItem
 
-	Error("Package listing not yet implemented")
-	return fmt.Errorf("package listing functionality is not yet implemented")
-
-	// When implemented, the display logic would be:
-	/*
-		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "NAME\tVERSION\tSTATUS\tDESCRIPTION")
-		fmt.Fprintln(w, "----\t-------\t------\t-----------")
-
-		if showInstalled {
-			// Load installed packages from database
-			// Display installed packages
+	// Load installed packages if requested
+	if showInstalled {
+		installedDB, err := pkg.LoadInstalledDatabase(cfg.GetDatabasePath())
+		if err != nil {
+			Warn("Failed to load installed packages database", logrus.Fields{"error": err.Error()})
+		} else {
+			installedPackages := installedDB.GetInstalledPackages()
+			for _, installedPkg := range installedPackages {
+				packages = append(packages, PackageListItem{
+					Name:        installedPkg.Name,
+					Version:     installedPkg.Version,
+					Description: installedPkg.Description,
+					Status:      "installed",
+					Repository:  "-",
+				})
+			}
 		}
+	}
 
-		if showAvailable {
-			// Get packages from repository indexes
-			// Check installation status
-			// Display available packages
+	// Load available packages if requested
+	if showAvailable {
+		repos := manager.ListRepositories()
+		for _, repo := range repos {
+			if !repo.Enabled {
+				continue
+			}
+
+			index, err := manager.GetRepositoryIndex(repo.Name)
+			if err != nil {
+				Warn("Failed to get index for repository", logrus.Fields{
+					"repository": repo.Name,
+					"error":      err.Error(),
+				})
+				continue
+			}
+
+			repoPackages := index.GetPackages()
+			for _, repoPkg := range repoPackages {
+				// Check if package is already installed
+				var status string
+				if showInstalled {
+					// Check if we already have this package in our list (installed)
+					found := false
+					for _, existing := range packages {
+						if existing.Name == repoPkg.Name {
+							found = true
+							break
+						}
+					}
+					status = "available"
+					if found {
+						status = "installed"
+					}
+				} else {
+					status = "available"
+				}
+
+				packages = append(packages, PackageListItem{
+					Name:        repoPkg.Name,
+					Version:     repoPkg.Version,
+					Description: repoPkg.Description,
+					Status:      status,
+					Repository:  repo.Name,
+				})
+			}
 		}
+	}
 
-		w.Flush()
-	*/
+	if len(packages) == 0 {
+		Info("No packages found")
+		return nil
+	}
+
+	// Display results in table format
+	displayPackageList(packages)
+	Info("Package listing completed", logrus.Fields{"total": len(packages)})
+
+	return nil
+}
+
+type PackageListItem struct {
+	Name        string
+	Version     string
+	Description string
+	Status      string
+	Repository  string
+}
+
+func displayPackageList(packages []PackageListItem) {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "NAME\tVERSION\tSTATUS\tREPOSITORY\tDESCRIPTION")
+	fmt.Fprintln(w, "----\t-------\t------\t----------\t-----------")
+
+	for _, pkg := range packages {
+		description := pkg.Description
+		if len(description) > 50 {
+			description = description[:47] + "..."
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", pkg.Name, pkg.Version, pkg.Status, pkg.Repository, description)
+	}
+
+	w.Flush()
 }

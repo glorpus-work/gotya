@@ -49,20 +49,19 @@ func extractTarBz2(packagePath, extractDir string) error {
 	return extractTar(bz2Reader, extractDir)
 }
 
-// ExtractArchive extracts various archive formats based on file extension
+// ExtractArchive extracts tar.bz2 archive files
 func ExtractArchive(packagePath, extractDir string) error {
 	// Create extraction directory
 	if err := os.MkdirAll(extractDir, 0755); err != nil {
 		return fmt.Errorf("failed to create extraction directory: %w", err)
 	}
 
-	// Determine extraction method based on file extension
-	switch {
-	case strings.HasSuffix(packagePath, ".tar.bz2") || strings.HasSuffix(packagePath, ".tbz2"):
-		return extractTarBz2(packagePath, extractDir)
-	default:
-		return fmt.Errorf("unsupported archive format: %s (supported: .tar.bz2, .tbz2, .tar.gz, .tgz, .tar)", packagePath)
+	// Check for supported file extension
+	if !strings.HasSuffix(packagePath, ".tar.bz2") && !strings.HasSuffix(packagePath, ".tbz2") {
+		return fmt.Errorf("unsupported archive format: %s (only .tar.bz2 and .tbz2 files are supported)", packagePath)
 	}
+
+	return extractTarBz2(packagePath, extractDir)
 }
 
 // extractTar extracts a tar stream to the specified directory
