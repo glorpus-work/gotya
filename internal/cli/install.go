@@ -51,7 +51,7 @@ Use --all to update all installed packages.`,
 }
 
 func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) error {
-	_, manager, err := loadConfigAndManager()
+	_, _, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
@@ -69,22 +69,24 @@ func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) err
 	for _, pkg := range packages {
 		Debug("Installing package", logrus.Fields{"package": pkg})
 
-		if err := manager.InstallPackage(cmd.Context(), pkg, force, !skipDeps); err != nil {
-			Error("Failed to install package", logrus.Fields{
-				"package": pkg,
-				"error":   err.Error(),
-			})
-			return fmt.Errorf("failed to install package %s: %w", pkg, err)
-		}
+		// TODO: Implement package installation logic
+		// This would typically involve:
+		// 1. Search for package in repositories
+		// 2. Resolve dependencies if !skipDeps
+		// 3. Download package
+		// 4. Install package files
+		// 5. Update installed packages database
 
-		Success("Successfully installed package", logrus.Fields{"package": pkg})
+		// For now, return an error indicating this needs implementation
+		Error("Package installation not yet implemented", logrus.Fields{"package": pkg})
+		return fmt.Errorf("package installation functionality is not yet implemented")
 	}
 
 	return nil
 }
 
 func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
-	_, manager, err := loadConfigAndManager()
+	_, _, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
@@ -92,13 +94,14 @@ func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
 	if all {
 		Debug("Updating all installed packages")
 
-		if err := manager.UpdateAllPackages(cmd.Context()); err != nil {
-			Error("Failed to update all packages", logrus.Fields{"error": err.Error()})
-			return fmt.Errorf("failed to update packages: %w", err)
-		}
+		// TODO: Implement update all packages logic
+		// This would typically involve:
+		// 1. Get list of installed packages
+		// 2. Check for updates in repositories
+		// 3. Download and install updates
 
-		Success("All packages updated successfully")
-		return nil
+		Error("Update all packages not yet implemented")
+		return fmt.Errorf("update all packages functionality is not yet implemented")
 	}
 
 	if len(packages) == 0 {
@@ -110,15 +113,14 @@ func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
 	for _, pkg := range packages {
 		Debug("Updating package", logrus.Fields{"package": pkg})
 
-		if err := manager.UpdatePackage(cmd.Context(), pkg); err != nil {
-			Error("Failed to update package", logrus.Fields{
-				"package": pkg,
-				"error":   err.Error(),
-			})
-			return fmt.Errorf("failed to update package %s: %w", pkg, err)
-		}
+		// TODO: Implement package update logic
+		// This would typically involve:
+		// 1. Check if package is installed
+		// 2. Find newer version in repositories
+		// 3. Download and install update
 
-		Success("Successfully updated package", logrus.Fields{"package": pkg})
+		Error("Package update not yet implemented", logrus.Fields{"package": pkg})
+		return fmt.Errorf("package update functionality is not yet implemented")
 	}
 
 	return nil

@@ -1,4 +1,4 @@
-package repo
+package repository
 
 import (
 	"encoding/json"
@@ -7,28 +7,40 @@ import (
 	"time"
 )
 
-// Index represents the repository index structure
-type Index struct {
+// IndexImpl implements the Index interface
+type IndexImpl struct {
 	FormatVersion string    `json:"format_version"`
 	LastUpdate    time.Time `json:"last_update"`
 	Packages      []Package `json:"packages"`
 }
 
-// Package represents a package in the repository
-type Package struct {
-	Name         string            `json:"name"`
-	Version      string            `json:"version"`
-	Description  string            `json:"description"`
-	URL          string            `json:"url"`
-	Checksum     string            `json:"checksum"`
-	Size         int64             `json:"size"`
-	Dependencies []string          `json:"dependencies,omitempty"`
-	Metadata     map[string]string `json:"metadata,omitempty"`
+// NewIndex creates a new index with the current timestamp
+func NewIndex(formatVersion string) *IndexImpl {
+	return &IndexImpl{
+		FormatVersion: formatVersion,
+		LastUpdate:    time.Now(),
+		Packages:      make([]Package, 0),
+	}
+}
+
+// GetFormatVersion returns the format version
+func (idx *IndexImpl) GetFormatVersion() string {
+	return idx.FormatVersion
+}
+
+// GetLastUpdate returns the last update timestamp as string
+func (idx *IndexImpl) GetLastUpdate() string {
+	return idx.LastUpdate.Format(time.RFC3339)
+}
+
+// GetPackages returns all packages
+func (idx *IndexImpl) GetPackages() []Package {
+	return idx.Packages
 }
 
 // ParseIndex parses an index from JSON data
-func ParseIndex(data []byte) (*Index, error) {
-	var index Index
+func ParseIndex(data []byte) (*IndexImpl, error) {
+	var index IndexImpl
 	if err := json.Unmarshal(data, &index); err != nil {
 		return nil, fmt.Errorf("failed to parse index: %w", err)
 	}
@@ -42,7 +54,7 @@ func ParseIndex(data []byte) (*Index, error) {
 }
 
 // ParseIndexFromReader parses an index from an io.Reader
-func ParseIndexFromReader(reader io.Reader) (*Index, error) {
+func ParseIndexFromReader(reader io.Reader) (*IndexImpl, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read index data: %w", err)
@@ -52,12 +64,12 @@ func ParseIndexFromReader(reader io.Reader) (*Index, error) {
 }
 
 // ToJSON converts the index to JSON bytes
-func (idx *Index) ToJSON() ([]byte, error) {
+func (idx *IndexImpl) ToJSON() ([]byte, error) {
 	return json.MarshalIndent(idx, "", "  ")
 }
 
 // FindPackage finds a package by name
-func (idx *Index) FindPackage(name string) *Package {
+func (idx *IndexImpl) FindPackage(name string) *Package {
 	for i := range idx.Packages {
 		if idx.Packages[i].Name == name {
 			return &idx.Packages[i]
@@ -67,7 +79,7 @@ func (idx *Index) FindPackage(name string) *Package {
 }
 
 // AddPackage adds a package to the index
-func (idx *Index) AddPackage(pkg Package) {
+func (idx *IndexImpl) AddPackage(pkg Package) {
 	// Remove existing package with same name if it exists
 	for i, existingPkg := range idx.Packages {
 		if existingPkg.Name == pkg.Name {
@@ -83,7 +95,7 @@ func (idx *Index) AddPackage(pkg Package) {
 }
 
 // RemovePackage removes a package from the index
-func (idx *Index) RemovePackage(name string) bool {
+func (idx *IndexImpl) RemovePackage(name string) bool {
 	for i, pkg := range idx.Packages {
 		if pkg.Name == name {
 			idx.Packages = append(idx.Packages[:i], idx.Packages[i+1:]...)
@@ -92,13 +104,4 @@ func (idx *Index) RemovePackage(name string) bool {
 		}
 	}
 	return false
-}
-
-// NewIndex creates a new index with the current timestamp
-func NewIndex(formatVersion string) *Index {
-	return &Index{
-		FormatVersion: formatVersion,
-		LastUpdate:    time.Now(),
-		Packages:      make([]Package, 0),
-	}
 }

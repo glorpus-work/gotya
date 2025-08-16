@@ -21,9 +21,10 @@ type Config struct {
 
 // RepositoryConfig represents a single repository configuration
 type RepositoryConfig struct {
-	Name    string `yaml:"name"`
-	URL     string `yaml:"url"`
-	Enabled bool   `yaml:"enabled"`
+	Name     string `yaml:"name"`
+	URL      string `yaml:"url"`
+	Enabled  bool   `yaml:"enabled"`
+	Priority int    `yaml:"priority"`
 }
 
 // Settings represents general application settings
@@ -241,9 +242,10 @@ func (c *Config) AddRepository(name, url string, enabled bool) error {
 
 	// Add new repository
 	c.Repositories = append(c.Repositories, RepositoryConfig{
-		Name:    name,
-		URL:     url,
-		Enabled: enabled,
+		Name:     name,
+		URL:      url,
+		Enabled:  enabled,
+		Priority: 0,
 	})
 
 	return nil
@@ -279,50 +281,4 @@ func (c *Config) EnableRepository(name string, enabled bool) bool {
 		}
 	}
 	return false
-}
-
-// Manager interface defines the methods needed for repository management
-type Manager interface {
-	AddRepository(name, url string)
-	EnableRepository(name string, enabled bool) error
-	ListRepositories() []RepositoryInfo
-}
-
-// RepositoryInfo represents repository information from a manager
-type RepositoryInfo struct {
-	Name    string
-	URL     string
-	Enabled bool
-}
-
-// ApplyToManager applies configuration settings to a repository manager
-func (c *Config) ApplyToManager(manager interface{}) error {
-	// Type assert to get the manager interface we need
-	if mgr, ok := manager.(interface {
-		AddRepository(name, url string)
-		EnableRepository(name string, enabled bool) error
-	}); ok {
-		// Add configured repositories to manager
-		for _, repo := range c.Repositories {
-			mgr.AddRepository(repo.Name, repo.URL)
-			if err := mgr.EnableRepository(repo.Name, repo.Enabled); err != nil {
-				return fmt.Errorf("failed to configure repository %s: %w", repo.Name, err)
-			}
-		}
-	}
-
-	return nil
-}
-
-// LoadFromManager loads repository configuration from a manager
-func (c *Config) LoadFromManager(manager Manager) {
-	c.Repositories = c.Repositories[:0] // Clear existing repositories
-
-	for _, repo := range manager.ListRepositories() {
-		c.Repositories = append(c.Repositories, RepositoryConfig{
-			Name:    repo.Name,
-			URL:     repo.URL,
-			Enabled: repo.Enabled,
-		})
-	}
 }

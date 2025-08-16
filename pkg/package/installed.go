@@ -9,17 +9,6 @@ import (
 	"time"
 )
 
-// InstalledPackage represents an installed package with its files
-type InstalledPackage struct {
-	Name          string    `json:"name"`
-	Version       string    `json:"version"`
-	Description   string    `json:"description"`
-	InstalledAt   time.Time `json:"installed_at"`
-	InstalledFrom string    `json:"installed_from"` // URL or repository where it was installed from
-	Files         []string  `json:"files"`          // List of files installed by this package
-	Checksum      string    `json:"checksum"`       // Checksum of the original package
-}
-
 // InstalledDatabase represents the database of installed packages
 type InstalledDatabase struct {
 	FormatVersion string             `json:"format_version"`

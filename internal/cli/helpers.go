@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cperrin88/gotya/pkg/config"
-	"github.com/cperrin88/gotya/pkg/repo"
+	"github.com/cperrin88/gotya/pkg/repository"
 )
 
 // These variables will be set by the main package
@@ -17,7 +17,7 @@ var (
 
 // loadConfigAndManager loads the configuration and creates a manager
 // This is a bridge function that the CLI commands can use
-func loadConfigAndManager() (*config.Config, *repo.Manager, error) {
+func loadConfigAndManager() (*config.Config, repository.Manager, error) {
 	var cfg *config.Config
 	var err error
 
@@ -54,21 +54,17 @@ func loadConfigAndManager() (*config.Config, *repo.Manager, error) {
 	// Initialize logger with config settings
 	InitLogger(cfg.Settings.LogLevel, !cfg.Settings.ColorOutput)
 
-	// Create manager
-	var manager *repo.Manager
-	if cfg.Settings.CacheDir != "" {
-		manager, err = repo.NewManagerWithCacheDir(cfg.Settings.CacheDir)
-	} else {
-		manager, err = repo.NewManager()
-	}
+	// Create repository manager
+	manager := repository.NewManager()
 
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create manager: %w", err)
-	}
-
-	// Apply config to manager
-	if err := cfg.ApplyToManager(manager); err != nil {
-		return nil, nil, fmt.Errorf("failed to apply config: %w", err)
+	// Apply config repositories to manager
+	for _, repo := range cfg.Repositories {
+		if err := manager.AddRepository(repo.Name, repo.URL); err != nil {
+			return nil, nil, fmt.Errorf("failed to add repository %s: %w", repo.Name, err)
+		}
+		if err := manager.EnableRepository(repo.Name, repo.Enabled); err != nil {
+			return nil, nil, fmt.Errorf("failed to configure repository %s: %w", repo.Name, err)
+		}
 	}
 
 	return cfg, manager, nil

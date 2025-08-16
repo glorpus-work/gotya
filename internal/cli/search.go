@@ -2,8 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
-	"text/tabwriter"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -56,7 +54,7 @@ func NewListCmd() *cobra.Command {
 }
 
 func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) error {
-	_, manager, err := loadConfigAndManager()
+	_, _, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
@@ -67,36 +65,38 @@ func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) err
 		"limit":       limit,
 	})
 
-	results, err := manager.SearchPackages(query, exactMatch, limit)
-	if err != nil {
-		return fmt.Errorf("search failed: %w", err)
-	}
+	// TODO: Implement package search functionality
+	// This would typically involve:
+	// 1. Get all repositories from repoManager
+	// 2. Search through repository indexes for matching packages
+	// 3. Apply exact match and limit filters
+	// 4. Return sorted results
 
-	if len(results) == 0 {
-		Info("No packages found matching query", logrus.Fields{"query": query})
-		return nil
-	}
+	Error("Package search not yet implemented")
+	return fmt.Errorf("package search functionality is not yet implemented")
 
-	// Display results in table format
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tVERSION\tDESCRIPTION")
-	fmt.Fprintln(w, "----\t-------\t-----------")
+	// When implemented, the display logic would be:
+	/*
+		// Display results in table format
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tVERSION\tDESCRIPTION")
+		fmt.Fprintln(w, "----\t-------\t-----------")
 
-	for _, pkg := range results {
-		description := pkg.Package.Description
-		if len(description) > 50 {
-			description = description[:47] + "..."
+		for _, pkg := range results {
+			description := pkg.Description
+			if len(description) > 50 {
+				description = description[:47] + "..."
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\n", pkg.Name, pkg.Version, description)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\n", pkg.Package.Name, pkg.Package.Version, description)
-	}
 
-	w.Flush()
-	Info("Search completed", logrus.Fields{"found": len(results)})
-	return nil
+		w.Flush()
+		Info("Search completed", logrus.Fields{"found": len(results)})
+	*/
 }
 
 func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
-	_, manager, err := loadConfigAndManager()
+	_, _, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
@@ -106,44 +106,32 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 		showInstalled = true
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tVERSION\tSTATUS\tDESCRIPTION")
-	fmt.Fprintln(w, "----\t-------\t------\t-----------")
+	// TODO: Implement package listing functionality
+	// This would typically involve:
+	// 1. For installed: Load installed packages database
+	// 2. For available: Get packages from all repository indexes
+	// 3. Cross-reference to show status correctly
 
-	if showInstalled {
-		installed, err := manager.GetInstalledPackages()
-		if err != nil {
-			return fmt.Errorf("failed to get installed packages: %w", err)
+	Error("Package listing not yet implemented")
+	return fmt.Errorf("package listing functionality is not yet implemented")
+
+	// When implemented, the display logic would be:
+	/*
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tVERSION\tSTATUS\tDESCRIPTION")
+		fmt.Fprintln(w, "----\t-------\t------\t-----------")
+
+		if showInstalled {
+			// Load installed packages from database
+			// Display installed packages
 		}
 
-		for _, pkg := range installed {
-			description := pkg.Description
-			if len(description) > 40 {
-				description = description[:37] + "..."
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", pkg.Name, pkg.Version, "installed", description)
-		}
-	}
-
-	if showAvailable {
-		available, err := manager.GetAvailablePackages()
-		if err != nil {
-			return fmt.Errorf("failed to get available packages: %w", err)
+		if showAvailable {
+			// Get packages from repository indexes
+			// Check installation status
+			// Display available packages
 		}
 
-		for _, pkg := range available {
-			description := pkg.Description
-			if len(description) > 40 {
-				description = description[:37] + "..."
-			}
-			status := "available"
-			if manager.IsPackageInstalled(pkg.Name) {
-				status = "installed"
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", pkg.Name, pkg.Version, status, description)
-		}
-	}
-
-	w.Flush()
-	return nil
+		w.Flush()
+	*/
 }

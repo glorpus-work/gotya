@@ -4,22 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-)
 
-// CacheInfo represents cache information
-type CacheInfo struct {
-	Directory    string
-	TotalSize    int64
-	IndexSize    int64
-	IndexFiles   int
-	PackageSize  int64
-	PackageFiles int
-	LastCleaned  time.Time
-}
+	"github.com/cperrin88/gotya/pkg/cache"
+)
 
 // NewCacheCmd creates the cache command with subcommands
 func NewCacheCmd() *cobra.Command {
@@ -89,39 +80,32 @@ func runCacheClean(all, indexes, packages bool) error {
 		return err
 	}
 
-	// Default to cleaning all if no specific flags are set
-	if !indexes && !packages {
-		all = true
-	}
+	// Create cache manager
+	cacheDir := getCacheDir(config)
+	cacheManager := cache.NewManager(cacheDir)
 
 	Debug("Cleaning cache...")
 
-	var cleaned int64
-
-	// Get cache directory
-	cacheDir := getCacheDir(config)
-
-	if all || indexes {
-		Debug("Cleaning repository indexes...")
-		size, err := cleanIndexCache(cacheDir)
-		if err != nil {
-			return fmt.Errorf("failed to clean index cache: %w", err)
-		}
-		cleaned += size
-		Info("Cleaned repository indexes", logrus.Fields{"size": formatSize(size)})
+	// Clean using the cache manager
+	options := cache.CleanOptions{
+		All:      all,
+		Indexes:  indexes,
+		Packages: packages,
 	}
 
-	if all || packages {
-		Debug("Cleaning downloaded packages...")
-		size, err := cleanPackageCache(cacheDir)
-		if err != nil {
-			return fmt.Errorf("failed to clean package cache: %w", err)
-		}
-		cleaned += size
-		Info("Cleaned downloaded packages", logrus.Fields{"size": formatSize(size)})
+	result, err := cacheManager.Clean(options)
+	if err != nil {
+		return fmt.Errorf("failed to clean cache: %w", err)
 	}
 
-	Success("Cache cleaning completed", logrus.Fields{"total_freed": formatSize(cleaned)})
+	if result.IndexFreed > 0 {
+		Info("Cleaned repository indexes", logrus.Fields{"size": humanize.Bytes(uint64(result.IndexFreed))})
+	}
+	if result.PackageFreed > 0 {
+		Info("Cleaned downloaded packages", logrus.Fields{"size": humanize.Bytes(uint64(result.PackageFreed))})
+	}
+
+	Success("Cache cleaning completed", logrus.Fields{"total_freed": humanize.Bytes(uint64(result.TotalFreed))})
 	return nil
 }
 
@@ -131,16 +115,19 @@ func runCacheInfo(*cobra.Command, []string) error {
 		return err
 	}
 
+	// Create cache manager
 	cacheDir := getCacheDir(config)
-	info, err := getCacheInfo(cacheDir)
+	cacheManager := cache.NewManager(cacheDir)
+
+	info, err := cacheManager.GetInfo()
 	if err != nil {
 		return fmt.Errorf("failed to get cache information: %w", err)
 	}
 
 	fmt.Printf("Cache Directory: %s\n", info.Directory)
-	fmt.Printf("Total Size: %s\n", formatSize(info.TotalSize))
-	fmt.Printf("Index Cache: %s (%d files)\n", formatSize(info.IndexSize), info.IndexFiles)
-	fmt.Printf("Package Cache: %s (%d files)\n", formatSize(info.PackageSize), info.PackageFiles)
+	fmt.Printf("Total Size: %s\n", humanize.Bytes(uint64(info.TotalSize)))
+	fmt.Printf("Index Cache: %s (%d files)\n", humanize.Bytes(uint64(info.IndexSize)), info.IndexFiles)
+	fmt.Printf("Package Cache: %s (%d files)\n", humanize.Bytes(uint64(info.PackageSize)), info.PackageFiles)
 	fmt.Printf("Last Cleaned: %s\n", info.LastCleaned.Format("2006-01-02 15:04:05"))
 
 	return nil
@@ -152,8 +139,11 @@ func runCacheDir(*cobra.Command, []string) error {
 		return err
 	}
 
+	// Create cache manager
 	cacheDir := getCacheDir(config)
-	fmt.Println(cacheDir)
+	cacheManager := cache.NewManager(cacheDir)
+
+	fmt.Println(cacheManager.GetDirectory())
 	return nil
 }
 
@@ -172,115 +162,4 @@ func getCacheDir(config interface{}) string {
 		return "/tmp/gotya-cache"
 	}
 	return filepath.Join(homeDir, ".cache", "gotya")
-}
-
-// Helper function to clean index cache
-func cleanIndexCache(cacheDir string) (int64, error) {
-	indexDir := filepath.Join(cacheDir, "indexes")
-	return cleanDirectory(indexDir)
-}
-
-// Helper function to clean package cache
-func cleanPackageCache(cacheDir string) (int64, error) {
-	packageDir := filepath.Join(cacheDir, "packages")
-	return cleanDirectory(packageDir)
-}
-
-// Helper function to clean a directory and return bytes freed
-func cleanDirectory(dir string) (int64, error) {
-	var totalSize int64
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return 0, nil
-	}
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			totalSize += info.Size()
-		}
-		return nil
-	})
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to calculate directory size: %w", err)
-	}
-
-	// Remove the directory
-	if err := os.RemoveAll(dir); err != nil {
-		return 0, fmt.Errorf("failed to remove directory %s: %w", dir, err)
-	}
-
-	// Recreate empty directory
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return totalSize, fmt.Errorf("failed to recreate directory %s: %w", dir, err)
-	}
-
-	return totalSize, nil
-}
-
-// Helper function to get cache information
-func getCacheInfo(cacheDir string) (*CacheInfo, error) {
-	info := &CacheInfo{
-		Directory:   cacheDir,
-		LastCleaned: time.Now(), // This would ideally be stored somewhere
-	}
-
-	// Calculate package cache size
-	packageDir := filepath.Join(cacheDir, "packages")
-	packageSize, packageFiles, err := getDirSizeAndFiles(packageDir)
-	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("failed to get package cache info: %w", err)
-	}
-	info.PackageSize = packageSize
-	info.PackageFiles = packageFiles
-
-	info.TotalSize = info.IndexSize + info.PackageSize
-
-	return info, nil
-}
-
-// Helper function to get directory size and file count
-func getDirSizeAndFiles(dir string) (int64, int, error) {
-	var totalSize int64
-	var fileCount int
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return 0, 0, nil
-	}
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			totalSize += info.Size()
-			fileCount++
-		}
-		return nil
-	})
-
-	return totalSize, fileCount, err
-}
-
-// Helper function to format file sizes
-func formatSize(bytes int64) string {
-	const (
-		KB = 1024
-		MB = KB * 1024
-		GB = MB * 1024
-	)
-
-	switch {
-	case bytes >= GB:
-		return fmt.Sprintf("%.1fGB", float64(bytes)/GB)
-	case bytes >= MB:
-		return fmt.Sprintf("%.1fMB", float64(bytes)/MB)
-	case bytes >= KB:
-		return fmt.Sprintf("%.1fKB", float64(bytes)/KB)
-	default:
-		return fmt.Sprintf("%dB", bytes)
-	}
 }
