@@ -5,6 +5,7 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/repository"
+	"github.com/sirupsen/logrus"
 )
 
 // These variables will be set by the main package
@@ -54,8 +55,19 @@ func loadConfigAndManager() (*config.Config, repository.Manager, error) {
 	// Initialize logger with config settings
 	InitLogger(cfg.Settings.LogLevel, !cfg.Settings.ColorOutput)
 
-	// Create repository manager
-	manager := repository.NewManager()
+	// Create repository manager with platform settings from config
+	manager := repository.NewManagerWithPlatform(
+		"", // cacheDir will be set by the manager if empty
+		cfg.Settings.Platform.OS,
+		cfg.Settings.Platform.Arch,
+		cfg.Settings.Platform.PreferNative,
+	)
+
+	Debug("Initialized repository manager with platform settings", logrus.Fields{
+		"os":           cfg.Settings.Platform.OS,
+		"arch":         cfg.Settings.Platform.Arch,
+		"preferNative": cfg.Settings.Platform.PreferNative,
+	})
 
 	// Apply config repositories to manager
 	for _, repo := range cfg.Repositories {

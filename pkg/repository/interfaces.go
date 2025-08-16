@@ -47,6 +47,8 @@ type Package struct {
 	URL          string            `json:"url"`
 	Checksum     string            `json:"checksum"`
 	Size         int64             `json:"size"`
+	OS           string            `json:"os,omitempty"`
+	Arch         string            `json:"arch,omitempty"`
 	Dependencies []string          `json:"dependencies,omitempty"`
 	Metadata     map[string]string `json:"metadata,omitempty"`
 }

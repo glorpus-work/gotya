@@ -6,9 +6,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/platform"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -130,6 +132,32 @@ func runConfigSet(key, value string) error {
 		return err
 	}
 
+	// Special handling for platform settings
+	switch key {
+	case "platform.os":
+		if value != "" {
+			// Validate OS value
+			normalized := platform.NormalizeOS(value)
+			if normalized == "" && value != "" {
+				return fmt.Errorf("invalid OS value: %s. Valid values are: %v",
+					value, platform.GetValidOS())
+			}
+			value = normalized // Use normalized value
+		}
+	case "platform.arch":
+		if value != "" {
+			// Validate Arch value
+			normalized := platform.NormalizeArch(value)
+			if normalized == "" && value != "" {
+				return fmt.Errorf("invalid architecture value: %s. Valid values are: %v",
+					value, platform.GetValidArch())
+			}
+			value = normalized // Use normalized value
+		}
+	case "platform.prefer_native":
+		// Handled by the bool parser in setConfigValue
+	}
+
 	if err := setConfigValue(cfg, key, value); err != nil {
 		return fmt.Errorf("failed to set configuration value: %w", err)
 	}
@@ -140,6 +168,12 @@ func runConfigSet(key, value string) error {
 	}
 
 	Success("Configuration updated", logrus.Fields{"key": key, "value": value})
+
+	// If platform settings were updated, suggest restarting the CLI
+	if strings.HasPrefix(key, "platform.") {
+		Info("Note: Platform settings take effect on the next command")
+	}
+
 	return nil
 }
 

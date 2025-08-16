@@ -28,6 +28,21 @@ type RepositoryConfig struct {
 	Priority int    `yaml:"priority"`
 }
 
+// PlatformConfig represents platform-specific configuration
+type PlatformConfig struct {
+	// OS overrides the target operating system (e.g., "windows", "linux", "darwin")
+	// If empty, the system will auto-detect the current OS
+	OS string `yaml:"os,omitempty"`
+
+	// Arch overrides the target architecture (e.g., "amd64", "arm64", "386")
+	// If empty, the system will auto-detect the current architecture
+	Arch string `yaml:"arch,omitempty"`
+
+	// PreferNative controls whether to prefer native packages when available
+	// If true, native packages will be preferred over platform-agnostic packages
+	PreferNative bool `yaml:"prefer_native,omitempty"`
+}
+
 // Settings represents general application settings
 type Settings struct {
 	// Cache settings
@@ -38,6 +53,9 @@ type Settings struct {
 	// Network settings
 	HTTPTimeout   time.Duration `yaml:"http_timeout"`
 	MaxConcurrent int           `yaml:"max_concurrent_syncs"`
+
+	// Platform settings
+	Platform PlatformConfig `yaml:"platform,omitempty"`
 
 	// Output settings
 	OutputFormat string `yaml:"output_format"` // json, table, yaml
@@ -54,9 +72,13 @@ func DefaultConfig() *Config {
 			AutoSync:      false,
 			HTTPTimeout:   30 * time.Second,
 			MaxConcurrent: 3,
-			OutputFormat:  "table",
-			ColorOutput:   true,
-			LogLevel:      "info",
+			Platform: PlatformConfig{
+				// OS and Arch are empty by default for auto-detection
+				PreferNative: true,
+			},
+			OutputFormat: "table",
+			ColorOutput:  true,
+			LogLevel:     "info",
 		},
 	}
 }
@@ -192,6 +214,27 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("repository '%s': duplicate repository name", repo.Name)
 		}
 		repoNames[repo.Name] = true
+	}
+
+	// Validate platform settings
+	if c.Settings.Platform.OS != "" {
+		switch c.Settings.Platform.OS {
+		case "windows", "linux", "darwin", "freebsd", "openbsd", "netbsd":
+			// Valid OS
+		default:
+			return fmt.Errorf("invalid OS: %s, must be one of: windows, linux, darwin, freebsd, openbsd, netbsd",
+				c.Settings.Platform.OS)
+		}
+	}
+
+	if c.Settings.Platform.Arch != "" {
+		switch c.Settings.Platform.Arch {
+		case "amd64", "386", "arm", "arm64":
+			// Valid architecture
+		default:
+			return fmt.Errorf("invalid architecture: %s, must be one of: amd64, 386, arm, arm64",
+				c.Settings.Platform.Arch)
+		}
 	}
 
 	// Validate settings

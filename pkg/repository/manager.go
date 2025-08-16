@@ -3,10 +3,12 @@ package repository
 import (
 	"context"
 	"fmt"
-	"os"
+	goos "os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/cperrin88/gotya/pkg/platform"
 )
 
 // RepositoryManager implements the Manager interface
@@ -14,6 +16,11 @@ type RepositoryManager struct {
 	repositories map[string]*repositoryEntry
 	syncer       *Syncer
 	mu           sync.RWMutex
+
+	// Platform settings
+	platformOS   string
+	platformArch string
+	preferNative bool
 }
 
 type repositoryEntry struct {
@@ -28,8 +35,13 @@ func NewManager() *RepositoryManager {
 
 // NewManagerWithCacheDir creates a new repository manager with a specific cache directory
 func NewManagerWithCacheDir(cacheDir string) *RepositoryManager {
+	return NewManagerWithPlatform(cacheDir, "", "", true)
+}
+
+// NewManagerWithPlatform creates a new repository manager with platform settings
+func NewManagerWithPlatform(cacheDir, os, arch string, preferNative bool) *RepositoryManager {
 	if cacheDir == "" {
-		userCacheDir, err := os.UserCacheDir()
+		userCacheDir, err := goos.UserCacheDir()
 		if err != nil {
 			cacheDir = "/tmp/gotya-cache"
 		} else {
@@ -37,9 +49,23 @@ func NewManagerWithCacheDir(cacheDir string) *RepositoryManager {
 		}
 	}
 
+	// If OS/arch are empty, use the current platform
+	if os == "" {
+		current := platform.CurrentPlatform()
+		os = current.OS
+	}
+
+	if arch == "" {
+		current := platform.CurrentPlatform()
+		arch = current.Arch
+	}
+
 	return &RepositoryManager{
 		repositories: make(map[string]*repositoryEntry),
 		syncer:       NewSyncer(cacheDir, 30*time.Second),
+		platformOS:   os,
+		platformArch: arch,
+		preferNative: preferNative,
 	}
 }
 
@@ -80,8 +106,40 @@ func (rm *RepositoryManager) RemoveRepository(name string) error {
 	return nil
 }
 
-// GetRepositoryIndex gets the cached index for a repository
+// GetRepositoryIndex gets the cached index for a repository, filtered by the current platform settings
 func (rm *RepositoryManager) GetRepositoryIndex(name string) (Index, error) {
+	index, err := rm.getRawRepositoryIndex(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Always filter packages based on the current platform settings
+	// The platform settings are either from config or auto-detected
+	var filteredPkgs []Package
+
+	// First, try to find exact matches
+	filteredPkgs = FilterPackages(index.GetPackages(), rm.platformOS, rm.platformArch)
+
+	// If no exact matches and preferNative is false, try to find packages with "any" platform
+	if len(filteredPkgs) == 0 && !rm.preferNative {
+		anyPkgs := FilterPackages(index.GetPackages(), "", "")
+		if len(anyPkgs) > 0 {
+			filteredPkgs = anyPkgs
+		}
+	}
+
+	// Create a filtered copy of the index
+	filteredIndex := &IndexImpl{
+		FormatVersion: index.GetFormatVersion(),
+		LastUpdate:    index.(*IndexImpl).LastUpdate,
+		Packages:      filteredPkgs,
+	}
+
+	return filteredIndex, nil
+}
+
+// getRawRepositoryIndex gets the raw repository index without platform filtering
+func (rm *RepositoryManager) getRawRepositoryIndex(name string) (Index, error) {
 	rm.mu.RLock()
 	repo, exists := rm.repositories[name]
 	rm.mu.RUnlock()

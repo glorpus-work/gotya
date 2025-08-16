@@ -237,12 +237,24 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 					status = "available"
 				}
 
+				// Use "any" if OS/Arch are empty
+				os := repoPkg.OS
+				if os == "" {
+					os = "any"
+				}
+				arch := repoPkg.Arch
+				if arch == "" {
+					arch = "any"
+				}
+
 				packages = append(packages, PackageListItem{
 					Name:        repoPkg.Name,
 					Version:     repoPkg.Version,
 					Description: repoPkg.Description,
 					Status:      status,
 					Repository:  repo.Name,
+					OS:          os,
+					Arch:        arch,
 				})
 			}
 		}
@@ -260,25 +272,29 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 	return nil
 }
 
+// PackageListItem represents a package in the list output
 type PackageListItem struct {
 	Name        string
 	Version     string
 	Description string
 	Status      string
 	Repository  string
+	OS          string
+	Arch        string
 }
 
 func displayPackageList(packages []PackageListItem) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tVERSION\tSTATUS\tREPOSITORY\tDESCRIPTION")
-	fmt.Fprintln(w, "----\t-------\t------\t----------\t-----------")
+	fmt.Fprintln(w, "NAME\tVERSION\tPLATFORM\tSTATUS\tREPOSITORY\tDESCRIPTION")
 
 	for _, pkg := range packages {
-		description := pkg.Description
-		if len(description) > 50 {
-			description = description[:47] + "..."
+		desc := pkg.Description
+		if len(desc) > 40 {
+			desc = desc[:37] + "..."
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", pkg.Name, pkg.Version, pkg.Status, pkg.Repository, description)
+		platform := fmt.Sprintf("%s/%s", pkg.OS, pkg.Arch)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			pkg.Name, pkg.Version, platform, pkg.Status, pkg.Repository, desc)
 	}
 
 	w.Flush()
