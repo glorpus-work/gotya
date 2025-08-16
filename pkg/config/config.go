@@ -273,14 +273,13 @@ func GetDefaultConfigPath() (string, error) {
 	return filepath.Join(gotyaConfigDir, "config.yaml"), nil
 }
 
-// AddRepository adds a repository to the configuration
+// AddRepository adds a repository to the configuration.
+// Returns an error if a repository with the same name already exists.
 func (c *Config) AddRepository(name, url string, enabled bool) error {
 	// Check if repository already exists
-	for i, repo := range c.Repositories {
+	for _, repo := range c.Repositories {
 		if repo.Name == name {
-			c.Repositories[i].URL = url
-			c.Repositories[i].Enabled = enabled
-			return nil
+			return fmt.Errorf("repository '%s' already exists", name)
 		}
 	}
 
@@ -329,7 +328,7 @@ func (c *Config) EnableRepository(name string, enabled bool) bool {
 
 // GetDatabasePath returns the path to the installed packages database
 func (c *Config) GetDatabasePath() string {
-	stateDir, err := getUserStateDir()
+	stateDir, err := getUserDataDir()
 	if err != nil {
 		// Fallback to temp directory if we can't determine state dir
 		stateDir = filepath.Join(os.TempDir(), "gotya")
@@ -338,10 +337,10 @@ func (c *Config) GetDatabasePath() string {
 	return filepath.Join(stateDir, "gotya", "state", "installed.json")
 }
 
-// getUserStateDir returns the user state directory following platform conventions
-func getUserStateDir() (string, error) {
+// getUserDataDir returns the user state directory following platform conventions
+func getUserDataDir() (string, error) {
 	// Check for XDG_STATE_HOME environment variable - if set, always use it
-	if dir := os.Getenv("XDG_STATE_HOME"); dir != "" {
+	if dir := os.Getenv("XDG_DATA_HOME"); dir != "" {
 		return dir, nil
 	}
 
@@ -351,7 +350,7 @@ func getUserStateDir() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to get user home directory: %w", err)
 		}
-		return filepath.Join(homeDir, ".local", "state"), nil
+		return filepath.Join(homeDir, ".local", "share", "gotya", "state"), nil
 	}
 
 	// For all other platforms (Windows, macOS, etc.), use UserConfigDir + gotya/state
