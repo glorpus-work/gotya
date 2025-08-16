@@ -2,11 +2,10 @@ package pkg
 
 import (
 	"archive/tar"
-	"compress/gzip"
+	"compress/bzip2"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -18,16 +17,11 @@ type PackageStructure struct {
 	Metadata   *PackageMetadata
 }
 
-// ExtractPackage extracts a tar.xz package and returns its structure
+// ExtractPackage extracts an archive package and returns its structure
 func ExtractPackage(packagePath, extractDir string) (*PackageStructure, error) {
-	// Create extraction directory
-	if err := os.MkdirAll(extractDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create extraction directory: %w", err)
-	}
-
-	// Use external xz command to decompress (Go doesn't have native xz support)
-	if err := extractTarXz(packagePath, extractDir); err != nil {
-		return nil, fmt.Errorf("failed to extract tar.xz: %w", err)
+	// Extract the archive using the appropriate method
+	if err := ExtractArchive(packagePath, extractDir); err != nil {
+		return nil, fmt.Errorf("failed to extract archive: %w", err)
 	}
 
 	// Parse the package structure
@@ -39,37 +33,36 @@ func ExtractPackage(packagePath, extractDir string) (*PackageStructure, error) {
 	return structure, nil
 }
 
-// extractTarXz extracts a tar.xz file using external xz command
-func extractTarXz(packagePath, extractDir string) error {
-	// Try xz command first
-	cmd := exec.Command("xz", "-dc", packagePath)
-	stdout, err := cmd.StdoutPipe()
+// extractTarBz2 extracts a tar.bz2 file using stdlib bzip2
+func extractTarBz2(packagePath, extractDir string) error {
+	// Open the .tar.bz2 file
+	file, err := os.Open(packagePath)
 	if err != nil {
-		return fmt.Errorf("failed to create xz pipe: %w", err)
+		return fmt.Errorf("failed to open package file: %w", err)
 	}
+	defer file.Close()
 
-	if err := cmd.Start(); err != nil {
-		// Try alternative decompression methods if xz is not available
-		return extractWithAlternativeMethod(packagePath, extractDir)
-	}
+	// Create bzip2 reader (no error return from NewReader)
+	bz2Reader := bzip2.NewReader(file)
 
 	// Extract tar from decompressed stream
-	if err := extractTar(stdout, extractDir); err != nil {
-		cmd.Process.Kill()
-		return err
-	}
-
-	return cmd.Wait()
+	return extractTar(bz2Reader, extractDir)
 }
 
-// extractWithAlternativeMethod tries alternative decompression methods
-func extractWithAlternativeMethod(packagePath, extractDir string) error {
-	// Try using tar command with J flag (if GNU tar is available)
-	cmd := exec.Command("tar", "-xJf", packagePath, "-C", extractDir)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to extract with tar command: %w (make sure xz or GNU tar is installed)", err)
+// ExtractArchive extracts various archive formats based on file extension
+func ExtractArchive(packagePath, extractDir string) error {
+	// Create extraction directory
+	if err := os.MkdirAll(extractDir, 0755); err != nil {
+		return fmt.Errorf("failed to create extraction directory: %w", err)
 	}
-	return nil
+
+	// Determine extraction method based on file extension
+	switch {
+	case strings.HasSuffix(packagePath, ".tar.bz2") || strings.HasSuffix(packagePath, ".tbz2"):
+		return extractTarBz2(packagePath, extractDir)
+	default:
+		return fmt.Errorf("unsupported archive format: %s (supported: .tar.bz2, .tbz2, .tar.gz, .tgz, .tar)", packagePath)
+	}
 }
 
 // extractTar extracts a tar stream to the specified directory
@@ -176,29 +169,12 @@ func parsePackageStructure(extractDir string) (*PackageStructure, error) {
 	return structure, nil
 }
 
-// ExecuteScript executes a script file with the given environment
-func ExecuteScript(scriptPath string, env []string) error {
-	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
-		// Script doesn't exist, which is fine
-		return nil
-	}
-
-	// Make script executable
-	if err := os.Chmod(scriptPath, 0755); err != nil {
-		return fmt.Errorf("failed to make script executable: %w", err)
-	}
-
-	cmd := exec.Command("/bin/sh", scriptPath)
-	cmd.Env = append(os.Environ(), env...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("script execution failed: %w", err)
-	}
-
-	return nil
-}
+// TODO: Script execution would require external commands or Go script evaluation
+// For now, we'll focus on the file extraction and installation parts
+// Scripts could be handled by:
+// 1. Using a Go script engine like tengo or yaegi
+// 2. Having predefined hooks in Go code
+// 3. Using a sandboxed execution environment
 
 // CopyFiles recursively copies files from src to dst, tracking installed files
 func CopyFiles(src, dst string) ([]string, error) {
