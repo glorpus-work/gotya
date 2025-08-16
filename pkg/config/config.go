@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -281,4 +282,39 @@ func (c *Config) EnableRepository(name string, enabled bool) bool {
 		}
 	}
 	return false
+}
+
+// GetDatabasePath returns the path to the installed packages database
+func (c *Config) GetDatabasePath() string {
+	stateDir, err := getUserStateDir()
+	if err != nil {
+		// Fallback to temp directory if we can't determine state dir
+		stateDir = filepath.Join(os.TempDir(), "gotya")
+	}
+
+	return filepath.Join(stateDir, "gotya", "state", "installed.json")
+}
+
+// getUserStateDir returns the user state directory following platform conventions
+func getUserStateDir() (string, error) {
+	// Check for XDG_STATE_HOME environment variable - if set, always use it
+	if dir := os.Getenv("XDG_STATE_HOME"); dir != "" {
+		return dir, nil
+	}
+
+	// Special case for Linux: follow XDG Base Directory Specification
+	if runtime.GOOS == "linux" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		return filepath.Join(homeDir, ".local", "state"), nil
+	}
+
+	// For all other platforms (Windows, macOS, etc.), use UserConfigDir + gotya/state
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user config directory: %w", err)
+	}
+	return filepath.Join(configDir, "gotya", "state"), nil
 }

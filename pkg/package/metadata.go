@@ -4,24 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"time"
 )
-
-// PackageMetadata represents the metadata stored in a package tar.xz file
-type PackageMetadata struct {
-	Name         string            `json:"name"`
-	Version      string            `json:"version"`
-	Description  string            `json:"description"`
-	Author       string            `json:"author,omitempty"`
-	Homepage     string            `json:"homepage,omitempty"`
-	License      string            `json:"license,omitempty"`
-	Dependencies []string          `json:"dependencies,omitempty"`
-	Conflicts    []string          `json:"conflicts,omitempty"`
-	Provides     []string          `json:"provides,omitempty"`
-	Architecture string            `json:"architecture,omitempty"`
-	Metadata     map[string]string `json:"metadata,omitempty"`
-	CreatedAt    time.Time         `json:"created_at"`
-}
 
 // ParseMetadata parses package metadata from JSON data
 func ParseMetadata(data []byte) (*PackageMetadata, error) {

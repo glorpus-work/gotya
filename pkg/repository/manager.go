@@ -29,11 +29,11 @@ func NewManager() *RepositoryManager {
 // NewManagerWithCacheDir creates a new repository manager with a specific cache directory
 func NewManagerWithCacheDir(cacheDir string) *RepositoryManager {
 	if cacheDir == "" {
-		homeDir, err := os.UserHomeDir()
+		userCacheDir, err := os.UserCacheDir()
 		if err != nil {
 			cacheDir = "/tmp/gotya-cache"
 		} else {
-			cacheDir = filepath.Join(homeDir, ".cache", "gotya")
+			cacheDir = filepath.Join(userCacheDir, "gotya")
 		}
 	}
 

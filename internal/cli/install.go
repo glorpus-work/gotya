@@ -152,7 +152,7 @@ func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) err
 	return nil
 }
 
-func findPackageInRepositories(manager repository.Manager, packageName string) (*pkg.PackageMetadata, string, error) {
+func findPackageInRepositories(manager repository.Manager, packageName string) (*repository.Package, string, error) {
 	repos := manager.ListRepositories()
 
 	for _, repo := range repos {
@@ -206,7 +206,7 @@ func installSinglePackage(cfg *config.Config, manager repository.Manager, instal
 		InstalledAt:   time.Now(),
 		InstalledFrom: repoName,
 		Files:         []string{}, // Would be populated during real installation
-		Checksum:      "",         // Would be calculated from package file
+		Checksum:      packageInfo.Checksum,
 	}
 
 	// Add to database
@@ -342,7 +342,7 @@ func updateSinglePackage(cfg *config.Config, manager repository.Manager, install
 		InstalledAt:   time.Now(),
 		InstalledFrom: repoName,
 		Files:         installedPkg.Files, // Keep existing files for now
-		Checksum:      "",                 // Would be recalculated
+		Checksum:      packageInfo.Checksum,
 	}
 
 	installedDB.AddPackage(updatedPkg)

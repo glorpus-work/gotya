@@ -1,6 +1,9 @@
 package repository
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Manager defines the interface for repository management operations
 type Manager interface {
@@ -10,8 +13,12 @@ type Manager interface {
 	DisableRepository(name string) error
 	ListRepositories() []Info
 	GetRepository(name string) *Info
+	GetRepositoryIndex(name string) (Index, error)
 	SyncRepository(ctx context.Context, name string) error
 	SyncRepositories(ctx context.Context) error
+	IsCacheStale(name string, maxAge time.Duration) bool
+	GetCacheAge(name string) (time.Duration, error)
+	SyncIfStale(ctx context.Context, name string, maxAge time.Duration) error
 }
 
 // Info represents repository information

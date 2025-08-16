@@ -1,0 +1,14 @@
+repositories:
+  - name: test-repo
+    url: http://localhost:52221
+    enabled: true
+    priority: 0
+
+settings:
+  cache_ttl: 1h
+  auto_sync: false
+  http_timeout: 10s
+  max_concurrent_syncs: 2
+  output_format: table
+  color_output: true
+  log_level: debug
