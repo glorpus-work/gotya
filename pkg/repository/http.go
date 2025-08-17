@@ -25,32 +25,68 @@ func NewHTTPClient(timeout time.Duration) *HTTPClient {
 	}
 }
 
-// DownloadIndex downloads the repository index from the given URL
-func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string) (*IndexImpl, error) {
+// ErrNotModified is returned when the index hasn't been modified since the last request
+var ErrNotModified = fmt.Errorf("index not modified")
+
+// DownloadIndex downloads the repository index from the given URL.
+// If lastModified is not zero, it will be used to make a conditional request.
+// Returns the index and its last modified time, or ErrNotModified if the index hasn't changed.
+func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, lastModified time.Time) (*IndexImpl, time.Time, error) {
 	indexURL, err := hc.buildIndexURL(repoURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build index URL: %w", err)
+		return nil, time.Time{}, fmt.Errorf("failed to build index URL: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", indexURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, time.Time{}, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("User-Agent", hc.userAgent)
 	req.Header.Set("Accept", "application/json")
 
+	// Add If-Modified-Since header if we have a last modified time
+	if !lastModified.IsZero() {
+		req.Header.Set("If-Modified-Since", lastModified.UTC().Format(http.TimeFormat))
+	}
+
 	resp, err := hc.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download index: %w", err)
+		return nil, time.Time{}, fmt.Errorf("failed to download index: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download index: HTTP %d", resp.StatusCode)
+	switch resp.StatusCode {
+	case http.StatusNotModified:
+		return nil, lastModified, ErrNotModified
+	case http.StatusOK:
+		// Continue processing
+	default:
+		return nil, time.Time{}, fmt.Errorf("failed to download index: HTTP %d", resp.StatusCode)
 	}
 
-	return ParseIndexFromReader(resp.Body)
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Get the Last-Modified header if available
+	var modifiedTime time.Time
+	if lastModifiedStr := resp.Header.Get("Last-Modified"); lastModifiedStr != "" {
+		modifiedTime, err = http.ParseTime(lastModifiedStr)
+		if err != nil {
+			modifiedTime = time.Now()
+		}
+	} else {
+		modifiedTime = time.Now()
+	}
+
+	index, err := ParseIndex(data)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
+	return index, modifiedTime, nil
 }
 
 // DownloadPackage downloads a package file from the repository

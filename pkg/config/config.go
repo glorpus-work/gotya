@@ -73,6 +73,8 @@ func DefaultConfig() *Config {
 			HTTPTimeout:   30 * time.Second,
 			MaxConcurrent: 3,
 			Platform: PlatformConfig{
+				OS:   runtime.GOOS,
+				Arch: runtime.GOARCH,
 				// OS and Arch are empty by default for auto-detection
 				PreferNative: true,
 			},

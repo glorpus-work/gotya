@@ -7,4 +7,3 @@ gotya is a lightweight personal package manager (like apt) with:
 
 ## Install
 - Go 1.24+
-- make (optional)
