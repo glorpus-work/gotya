@@ -6,6 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/cperrin88/gotya/pkg/logger"
 	pkg "github.com/cperrin88/gotya/pkg/package"
 	"github.com/cperrin88/gotya/pkg/repository"
 	"github.com/sirupsen/logrus"
@@ -64,7 +65,7 @@ func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) err
 		return err
 	}
 
-	Debug("Searching for packages", logrus.Fields{
+	logger.Debug("Searching for packages", logrus.Fields{
 		"query":       query,
 		"exact_match": exactMatch,
 		"limit":       limit,
@@ -73,7 +74,7 @@ func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) err
 	// Get all repositories
 	repos := manager.ListRepositories()
 	if len(repos) == 0 {
-		Error("No repositories configured")
+		logger.Error("No repositories configured")
 		return fmt.Errorf("no repositories configured")
 	}
 
@@ -84,12 +85,12 @@ func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) err
 			continue
 		}
 
-		Debug("Searching repository", logrus.Fields{"repository": repo.Name})
+		logger.Debug("Searching repository", logrus.Fields{"repository": repo.Name})
 
 		// Get repository index
 		index, err := manager.GetRepositoryIndex(repo.Name)
 		if err != nil {
-			Warn("Failed to get index for repository", logrus.Fields{
+			logger.Warn("Failed to get index for repository", logrus.Fields{
 				"repository": repo.Name,
 				"error":      err.Error(),
 			})
@@ -107,13 +108,13 @@ func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) err
 	}
 
 	if len(allResults) == 0 {
-		Info("No packages found matching the query")
+		logger.Info("No packages found matching the query")
 		return nil
 	}
 
 	// Display results in table format
 	displaySearchResults(allResults)
-	Info("Search completed", logrus.Fields{"found": len(allResults)})
+	logger.Info("Search completed", logrus.Fields{"found": len(allResults)})
 
 	return nil
 }
@@ -184,7 +185,7 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 	if showInstalled {
 		installedDB, err := pkg.LoadInstalledDatabase(cfg.GetDatabasePath())
 		if err != nil {
-			Warn("Failed to load installed packages database", logrus.Fields{"error": err.Error()})
+			logger.Warn("Failed to load installed packages database", logrus.Fields{"error": err.Error()})
 		} else {
 			installedPackages := installedDB.GetInstalledPackages()
 			for _, installedPkg := range installedPackages {
@@ -209,7 +210,7 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 
 			index, err := manager.GetRepositoryIndex(repo.Name)
 			if err != nil {
-				Warn("Failed to get index for repository", logrus.Fields{
+				logger.Warn("Failed to get index for repository", logrus.Fields{
 					"repository": repo.Name,
 					"error":      err.Error(),
 				})
@@ -261,13 +262,13 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 	}
 
 	if len(packages) == 0 {
-		Info("No packages found")
+		logger.Info("No packages found")
 		return nil
 	}
 
 	// Display results in table format
 	displayPackageList(packages)
-	Info("Package listing completed", logrus.Fields{"total": len(packages)})
+	logger.Info("Package listing completed", logrus.Fields{"total": len(packages)})
 
 	return nil
 }

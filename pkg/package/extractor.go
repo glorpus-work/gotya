@@ -2,7 +2,7 @@ package pkg
 
 import (
 	"archive/tar"
-	"compress/bzip2"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -33,23 +33,27 @@ func ExtractPackage(packagePath, extractDir string) (*PackageStructure, error) {
 	return structure, nil
 }
 
-// extractTarBz2 extracts a tar.bz2 file using stdlib bzip2
-func extractTarBz2(packagePath, extractDir string) error {
-	// Open the .tar.bz2 file
+// extractTarGz extracts a tar.gz file using stdlib gzip
+func extractTarGz(packagePath, extractDir string) error {
+	// Open the .tar.gz file
 	file, err := os.Open(packagePath)
 	if err != nil {
 		return fmt.Errorf("failed to open package file: %w", err)
 	}
 	defer file.Close()
 
-	// Create bzip2 reader (no error return from NewReader)
-	bz2Reader := bzip2.NewReader(file)
+	// Create gzip reader
+	gzReader, err := gzip.NewReader(file)
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzReader.Close()
 
 	// Extract tar from decompressed stream
-	return extractTar(bz2Reader, extractDir)
+	return extractTar(gzReader, extractDir)
 }
 
-// ExtractArchive extracts tar.bz2 archive files
+// ExtractArchive extracts tar.gz archive files
 func ExtractArchive(packagePath, extractDir string) error {
 	// Create extraction directory
 	if err := os.MkdirAll(extractDir, 0755); err != nil {
@@ -57,11 +61,11 @@ func ExtractArchive(packagePath, extractDir string) error {
 	}
 
 	// Check for supported file extension
-	if !strings.HasSuffix(packagePath, ".tar.bz2") && !strings.HasSuffix(packagePath, ".tbz2") {
-		return fmt.Errorf("unsupported archive format: %s (only .tar.bz2 and .tbz2 files are supported)", packagePath)
+	if !strings.HasSuffix(packagePath, ".tar.gz") && !strings.HasSuffix(packagePath, ".tgz") {
+		return fmt.Errorf("unsupported archive format: %s (only .tar.gz and .tgz files are supported)", packagePath)
 	}
 
-	return extractTarBz2(packagePath, extractDir)
+	return extractTarGz(packagePath, extractDir)
 }
 
 // extractTar extracts a tar stream to the specified directory

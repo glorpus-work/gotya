@@ -2,7 +2,7 @@ package pkg
 
 import (
 	"archive/tar"
-	"compress/bzip2"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -10,8 +10,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
-	"time"
 )
 
 // Metadata represents the structure of package.json
@@ -108,12 +106,12 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 	}
 	defer file.Close()
 
-	// Create bzip2 writer
-	bzipWriter := bzip2.NewWriter(file)
-	defer bzipWriter.Close()
+	// Create gzip writer
+	gzipWriter := gzip.NewWriter(file)
+	defer gzipWriter.Close()
 
 	// Create tar writer
-	tarWriter := tar.NewWriter(bzipWriter)
+	tarWriter := tar.NewWriter(gzipWriter)
 	defer tarWriter.Close()
 
 	// Add metadata files

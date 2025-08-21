@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cperrin88/gotya/pkg/logger"
 	"github.com/dustin/go-humanize"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -84,7 +85,7 @@ func runCacheClean(all, indexes, packages bool) error {
 	cacheDir := getCacheDir(config)
 	cacheManager := cache.NewManager(cacheDir)
 
-	Debug("Cleaning cache...")
+	logger.Debug("Cleaning cache...")
 
 	// Clean using the cache manager
 	options := cache.CleanOptions{
@@ -99,13 +100,13 @@ func runCacheClean(all, indexes, packages bool) error {
 	}
 
 	if result.IndexFreed > 0 {
-		Info("Cleaned repository indexes", logrus.Fields{"size": humanize.Bytes(uint64(result.IndexFreed))})
+		logger.Info("Cleaned repository indexes", logrus.Fields{"size": humanize.Bytes(uint64(result.IndexFreed))})
 	}
 	if result.PackageFreed > 0 {
-		Info("Cleaned downloaded packages", logrus.Fields{"size": humanize.Bytes(uint64(result.PackageFreed))})
+		logger.Info("Cleaned downloaded packages", logrus.Fields{"size": humanize.Bytes(uint64(result.PackageFreed))})
 	}
 
-	Success("Cache cleaning completed", logrus.Fields{"total_freed": humanize.Bytes(uint64(result.TotalFreed))})
+	logger.Success("Cache cleaning completed", logrus.Fields{"total_freed": humanize.Bytes(uint64(result.TotalFreed))})
 	return nil
 }
 

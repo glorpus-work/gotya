@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/logger"
 	"github.com/cperrin88/gotya/pkg/repository"
 	"github.com/sirupsen/logrus"
 )
@@ -53,7 +54,7 @@ func loadConfigAndManager() (*config.Config, repository.Manager, error) {
 	}
 
 	// Initialize logger with config settings
-	InitLogger(cfg.Settings.LogLevel, !cfg.Settings.ColorOutput)
+	logger.InitLogger(cfg.Settings.LogLevel, !cfg.Settings.ColorOutput)
 
 	// Create repository manager with platform settings from config
 	manager := repository.NewManagerWithPlatform(
@@ -63,7 +64,7 @@ func loadConfigAndManager() (*config.Config, repository.Manager, error) {
 		cfg.Settings.Platform.PreferNative,
 	)
 
-	Debug("Initialized repository manager with platform settings", logrus.Fields{
+	logger.Debug("Initialized repository manager with platform settings", logrus.Fields{
 		"os":           cfg.Settings.Platform.OS,
 		"arch":         cfg.Settings.Platform.Arch,
 		"preferNative": cfg.Settings.Platform.PreferNative,

@@ -5,6 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/cperrin88/gotya/pkg/logger"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -91,7 +92,7 @@ func runRepoAdd(url, name string) error {
 		return err
 	}
 
-	Debug("Adding repository", logrus.Fields{"url": url, "name": name})
+	logger.Debug("Adding repository", logrus.Fields{"url": url, "name": name})
 
 	manager.AddRepository(name, url)
 
@@ -99,7 +100,7 @@ func runRepoAdd(url, name string) error {
 	if repoName == "" {
 		repoName = url
 	}
-	Success("Successfully added repository", logrus.Fields{"repository": repoName})
+	logger.Success("Successfully added repository", logrus.Fields{"repository": repoName})
 	return nil
 }
 
@@ -109,11 +110,11 @@ func runRepoRemove(name string) error {
 		return err
 	}
 
-	Debug("Removing repository", logrus.Fields{"name": name})
+	logger.Debug("Removing repository", logrus.Fields{"name": name})
 
 	manager.RemoveRepository(name)
 
-	Success("Successfully removed repository", logrus.Fields{"repository": name})
+	logger.Success("Successfully removed repository", logrus.Fields{"repository": name})
 	return nil
 }
 
@@ -126,7 +127,7 @@ func runRepoList(*cobra.Command, []string) error {
 	repos := manager.ListRepositories()
 
 	if len(repos) == 0 {
-		Info("No repositories configured")
+		logger.Info("No repositories configured")
 		return nil
 	}
 
@@ -154,19 +155,19 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 
 	if len(args) == 0 {
 		// Update all repositories
-		Debug("Updating all repositories...")
+		logger.Debug("Updating all repositories...")
 		if err := manager.SyncRepositories(cmd.Context()); err != nil {
 			return fmt.Errorf("failed to update repositories: %w", err)
 		}
-		Success("All repositories updated successfully")
+		logger.Success("All repositories updated successfully")
 	} else {
 		// Update specific repositories
 		for _, repoName := range args {
-			Debug("Updating repository", logrus.Fields{"repository": repoName})
+			logger.Debug("Updating repository", logrus.Fields{"repository": repoName})
 			if err := manager.SyncRepository(cmd.Context(), repoName); err != nil {
 				return fmt.Errorf("failed to update repository %s: %w", repoName, err)
 			}
-			Success("Repository updated successfully", logrus.Fields{"repository": repoName})
+			logger.Success("Repository updated successfully", logrus.Fields{"repository": repoName})
 		}
 	}
 

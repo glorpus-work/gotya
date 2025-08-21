@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/logger"
 	pkg "github.com/cperrin88/gotya/pkg/package"
 	"github.com/cperrin88/gotya/pkg/repository"
 	"github.com/sirupsen/logrus"
@@ -60,7 +61,7 @@ func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) err
 		return err
 	}
 
-	Debug("Installing packages", logrus.Fields{
+	logger.Debug("Installing packages", logrus.Fields{
 		"packages":  packages,
 		"force":     force,
 		"skip_deps": skipDeps,
@@ -73,26 +74,26 @@ func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) err
 	}
 
 	if skipDeps {
-		Debug("Dependency resolution disabled")
+		logger.Debug("Dependency resolution disabled")
 	}
 
 	for _, packageName := range packages {
-		Debug("Installing package", logrus.Fields{"package": packageName})
+		logger.Debug("Installing package", logrus.Fields{"package": packageName})
 
 		// Check if package is already installed
 		if !force && installedDB.IsPackageInstalled(packageName) {
-			Warn("Package already installed", logrus.Fields{"package": packageName})
+			logger.Warn("Package already installed", logrus.Fields{"package": packageName})
 			continue
 		}
 
 		// Find package in repositories
 		packageInfo, repoName, err := findPackageInRepositories(manager, packageName)
 		if err != nil {
-			Error("Package not found", logrus.Fields{"package": packageName, "error": err.Error()})
+			logger.Error("Package not found", logrus.Fields{"package": packageName, "error": err.Error()})
 			continue
 		}
 
-		Info("Found package", logrus.Fields{
+		logger.Info("Found package", logrus.Fields{
 			"package":    packageName,
 			"version":    packageInfo.Version,
 			"repository": repoName,
@@ -101,7 +102,7 @@ func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) err
 		// Resolve dependencies if enabled
 		var dependenciesToInstall []string
 		if !skipDeps && len(packageInfo.Dependencies) > 0 {
-			Debug("Resolving dependencies", logrus.Fields{
+			logger.Debug("Resolving dependencies", logrus.Fields{
 				"package":      packageName,
 				"dependencies": packageInfo.Dependencies,
 			})
@@ -114,14 +115,14 @@ func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) err
 
 			// Install dependencies first
 			if len(dependenciesToInstall) > 0 {
-				Info("Installing dependencies", logrus.Fields{
+				logger.Info("Installing dependencies", logrus.Fields{
 					"package":      packageName,
 					"dependencies": dependenciesToInstall,
 				})
 
 				for _, dep := range dependenciesToInstall {
 					if err := installSinglePackage(cfg, manager, installedDB, dep, false); err != nil {
-						Error("Failed to install dependency", logrus.Fields{
+						logger.Error("Failed to install dependency", logrus.Fields{
 							"package":    packageName,
 							"dependency": dep,
 							"error":      err.Error(),
@@ -134,14 +135,14 @@ func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) err
 
 		// Install the main package
 		if err := installSinglePackage(cfg, manager, installedDB, packageName, force); err != nil {
-			Error("Failed to install package", logrus.Fields{
+			logger.Error("Failed to install package", logrus.Fields{
 				"package": packageName,
 				"error":   err.Error(),
 			})
 			return fmt.Errorf("failed to install package %s: %w", packageName, err)
 		}
 
-		Success("Package installed successfully", logrus.Fields{"package": packageName})
+		logger.Success("Package installed successfully", logrus.Fields{"package": packageName})
 	}
 
 	// Save the updated database
@@ -196,7 +197,7 @@ func installSinglePackage(cfg *config.Config, manager repository.Manager, instal
 	// 4. Run pre/post install scripts
 	// 5. Update the installed packages database
 
-	Debug("Simulating package installation", logrus.Fields{"package": packageName})
+	logger.Debug("Simulating package installation", logrus.Fields{"package": packageName})
 
 	// Create installed package entry
 	installedPkg := pkg.InstalledPackage{
@@ -228,21 +229,21 @@ func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
 	}
 
 	if all {
-		Debug("Updating all installed packages")
+		logger.Debug("Updating all installed packages")
 
 		installedPackages := installedDB.GetInstalledPackages()
 		if len(installedPackages) == 0 {
-			Info("No packages installed")
+			logger.Info("No packages installed")
 			return nil
 		}
 
-		Info("Checking for updates", logrus.Fields{"installed_packages": len(installedPackages)})
+		logger.Info("Checking for updates", logrus.Fields{"installed_packages": len(installedPackages)})
 
 		var updatedCount int
 		for _, installedPkg := range installedPackages {
 			updated, err := updateSinglePackage(cfg, manager, installedDB, installedPkg.Name)
 			if err != nil {
-				Warn("Failed to update package", logrus.Fields{
+				logger.Warn("Failed to update package", logrus.Fields{
 					"package": installedPkg.Name,
 					"error":   err.Error(),
 				})
@@ -253,7 +254,7 @@ func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
 			}
 		}
 
-		Info("Update completed", logrus.Fields{
+		logger.Info("Update completed", logrus.Fields{
 			"checked": len(installedPackages),
 			"updated": updatedCount,
 		})
@@ -262,20 +263,20 @@ func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
 			return fmt.Errorf("specify packages to update or use --all flag")
 		}
 
-		Debug("Updating packages", logrus.Fields{"packages": packages})
+		logger.Debug("Updating packages", logrus.Fields{"packages": packages})
 
 		for _, packageName := range packages {
-			Debug("Updating package", logrus.Fields{"package": packageName})
+			logger.Debug("Updating package", logrus.Fields{"package": packageName})
 
 			// Check if package is installed
 			if !installedDB.IsPackageInstalled(packageName) {
-				Warn("Package not installed", logrus.Fields{"package": packageName})
+				logger.Warn("Package not installed", logrus.Fields{"package": packageName})
 				continue
 			}
 
 			updated, err := updateSinglePackage(cfg, manager, installedDB, packageName)
 			if err != nil {
-				Error("Failed to update package", logrus.Fields{
+				logger.Error("Failed to update package", logrus.Fields{
 					"package": packageName,
 					"error":   err.Error(),
 				})
@@ -283,9 +284,9 @@ func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
 			}
 
 			if updated {
-				Success("Package updated successfully", logrus.Fields{"package": packageName})
+				logger.Success("Package updated successfully", logrus.Fields{"package": packageName})
 			} else {
-				Info("Package is already up to date", logrus.Fields{"package": packageName})
+				logger.Info("Package is already up to date", logrus.Fields{"package": packageName})
 			}
 		}
 	}
@@ -313,14 +314,14 @@ func updateSinglePackage(cfg *config.Config, manager repository.Manager, install
 
 	// Compare versions (simple string comparison for now)
 	if packageInfo.Version == installedPkg.Version {
-		Debug("Package is already up to date", logrus.Fields{
+		logger.Debug("Package is already up to date", logrus.Fields{
 			"package": packageName,
 			"version": packageInfo.Version,
 		})
 		return false, nil
 	}
 
-	Info("Updating package", logrus.Fields{
+	logger.Info("Updating package", logrus.Fields{
 		"package":     packageName,
 		"old_version": installedPkg.Version,
 		"new_version": packageInfo.Version,
