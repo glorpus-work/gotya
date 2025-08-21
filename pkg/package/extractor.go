@@ -103,6 +103,19 @@ func (e *tarExtractor) validatePath(header *tar.Header) (string, error) {
 	return targetPath, nil
 }
 
+// safeFileMode converts tar header mode to os.FileMode safely
+func safeFileMode(mode int64) os.FileMode {
+	// Use type assertion to ensure we handle the conversion safely
+	var perm os.FileMode
+	if mode >= 0 && mode <= 0777 {
+		perm = os.FileMode(mode)
+	} else {
+		// If mode is out of bounds, use a safe default (read/write for owner, read for others)
+		perm = 0644
+	}
+	return perm
+}
+
 // extractDirectory handles the extraction of a directory entry
 func (e *tarExtractor) extractDirectory(header *tar.Header, targetPath string) error {
 	// Ensure the directory exists with secure permissions
@@ -112,7 +125,7 @@ func (e *tarExtractor) extractDirectory(header *tar.Header, targetPath string) e
 
 	// Set the original mode if it's more restrictive than our default
 	if header.Mode&0777 < 0750 {
-		if err := os.Chmod(targetPath, os.FileMode(header.Mode)); err != nil {
+		if err := os.Chmod(targetPath, safeFileMode(header.Mode)); err != nil {
 			return fmt.Errorf("failed to set permissions for %s: %w", targetPath, err)
 		}
 	}
@@ -126,8 +139,8 @@ func (e *tarExtractor) extractRegularFile(header *tar.Header, targetPath string)
 		return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
 	}
 
-	// Create the file with the specified mode
-	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
+	// Create the file with the specified mode (using safe conversion)
+	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, safeFileMode(header.Mode))
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", targetPath, err)
 	}

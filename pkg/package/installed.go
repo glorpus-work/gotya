@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/util"
@@ -28,12 +29,20 @@ func NewInstalledDatabase() *InstalledDatabase {
 
 // LoadInstalledDatabase loads the installed packages database from file
 func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+	// Clean and validate the database path
+	cleanPath := filepath.Clean(dbPath)
+	if !filepath.IsAbs(cleanPath) {
+		return nil, fmt.Errorf("database path must be absolute: %s", dbPath)
+	}
+
+	// Check if file exists with cleaned path
+	if _, err := os.Stat(cleanPath); os.IsNotExist(err) {
 		// Database doesn't exist, return new empty database
 		return NewInstalledDatabase(), nil
 	}
 
-	file, err := os.Open(dbPath)
+	// Open the file with the cleaned path
+	file, err := os.Open(cleanPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -59,13 +68,19 @@ func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, err
 
 // Save saves the installed packages database to file
 func (db *InstalledDatabase) Save(dbPath string) (err error) {
-	// Ensure directory exists
-	if err = util.EnsureFileDir(dbPath); err != nil {
+	// Clean and validate the database path
+	cleanPath := filepath.Clean(dbPath)
+	if !filepath.IsAbs(cleanPath) {
+		return fmt.Errorf("database path must be absolute: %s", dbPath)
+	}
+
+	// Ensure directory exists with secure permissions
+	if err := util.EnsureDir(filepath.Dir(cleanPath)); err != nil {
 		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	// Create temporary file first
-	tempPath := dbPath + ".tmp"
+	// Create a temporary file in the same directory
+	tempPath := cleanPath + ".tmp"
 	file, err := os.Create(tempPath)
 	if err != nil {
 		return fmt.Errorf("failed to create temp database file: %w", err)
@@ -100,8 +115,8 @@ func (db *InstalledDatabase) Save(dbPath string) (err error) {
 		return fmt.Errorf("failed to close database file: %w", err)
 	}
 
-	// Atomically replace the database file
-	if err = os.Rename(tempPath, dbPath); err != nil {
+	// Rename the temporary file to the final location
+	if err := os.Rename(tempPath, cleanPath); err != nil {
 		return fmt.Errorf("failed to replace database file: %w", err)
 	}
 

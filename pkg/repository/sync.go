@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/util"
@@ -75,11 +77,32 @@ func (s *Syncer) SyncRepository(ctx context.Context, info Info) (*IndexImpl, err
 	return index, nil
 }
 
+// safePathJoin joins path elements and ensures the result is within the base directory
+func safePathJoin(baseDir string, elems ...string) (string, error) {
+	// Clean and join all path elements
+	path := filepath.Join(append([]string{baseDir}, elems...)...)
+
+	// Clean the path to remove any .. or .
+	cleanPath := filepath.Clean(path)
+
+	// Verify the final path is still within the base directory
+	relPath, err := filepath.Rel(baseDir, cleanPath)
+	if err != nil || strings.HasPrefix(relPath, "..") || strings.HasPrefix(relPath, ".") {
+		return "", errors.New("invalid path: path traversal detected")
+	}
+
+	return cleanPath, nil
+}
+
 // LoadCachedIndex loads a repository index from cache
 func (s *Syncer) LoadCachedIndex(repoName string) (*IndexImpl, error) {
-	indexPath := filepath.Join(s.cacheDir, "repositories", repoName, "index.json")
+	// Use safe path construction
+	indexPath, err := safePathJoin(s.cacheDir, "repositories", repoName, "index.json")
+	if err != nil {
+		return nil, fmt.Errorf("invalid repository path: %w", err)
+	}
 
-	file, err := os.Open(indexPath)
+	file, err := os.Open(filepath.Clean(indexPath))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("no cached index for repository '%s'", repoName)
@@ -171,9 +194,14 @@ func (s *Syncer) saveIndexToCache(index *IndexImpl, indexPath string) (err error
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
-	// Create temporary file first
-	tempPath := indexPath + ".tmp"
-	file, err := os.Create(tempPath)
+	// Create temporary file with safe path
+	tempPath, err := safePathJoin(filepath.Dir(indexPath), filepath.Base(indexPath)+".tmp")
+	if err != nil {
+		return fmt.Errorf("invalid temp file path: %w", err)
+	}
+
+	// Use filepath.Clean to ensure path is clean before opening
+	file, err := os.Create(filepath.Clean(tempPath))
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}

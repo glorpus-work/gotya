@@ -7,10 +7,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/cperrin88/gotya/pkg/logger"
 	"github.com/cperrin88/gotya/pkg/util"
@@ -37,11 +39,34 @@ type File struct {
 	Digest string `json:"digest"`
 }
 
+// safePathJoin joins path elements and ensures the result is within the base directory
+func safePathJoin(baseDir string, elems ...string) (string, error) {
+	// Clean and join all path elements
+	path := filepath.Join(append([]string{baseDir}, elems...)...)
+
+	// Clean the path to remove any .. or .
+	cleanPath := filepath.Clean(path)
+
+	// Verify the final path is still within the base directory
+	relPath, err := filepath.Rel(baseDir, cleanPath)
+	if err != nil || strings.HasPrefix(relPath, "..") || strings.HasPrefix(relPath, ".") {
+		return "", errors.New("invalid path: path traversal detected")
+	}
+
+	return cleanPath, nil
+}
+
 // calculateFileHash calculates the SHA256 hash of a file
 func calculateFileHash(path string) (string, error) {
-	file, err := os.Open(path)
+	// Clean the path to prevent directory traversal
+	cleanPath := filepath.Clean(path)
+	if !filepath.IsAbs(cleanPath) {
+		return "", fmt.Errorf("path must be absolute: %s", path)
+	}
+
+	file, err := os.Open(cleanPath)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
@@ -112,8 +137,14 @@ type tarballWriter struct {
 
 // newTarballWriter creates and initializes a new tarballWriter
 func newTarballWriter(outputPath string) (*tarballWriter, error) {
+	// Clean and validate the output path
+	cleanPath, err := safePathJoin(filepath.Dir(outputPath), filepath.Base(outputPath))
+	if err != nil {
+		return nil, fmt.Errorf("invalid output path: %w", err)
+	}
+
 	// Create output file with secure permissions (owner read/write only)
-	file, err := os.OpenFile(outputPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	file, err := os.OpenFile(cleanPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create output file: %w", err)
 	}
@@ -169,29 +200,38 @@ func (tw *tarballWriter) close() error {
 
 // addFileToTarball adds a single file to the tarball
 func (tw *tarballWriter) addFileToTarball(filePath, tarballPath string) error {
-	info, err := os.Stat(filePath)
+	// Clean and validate the file path
+	cleanPath := filepath.Clean(filePath)
+	if !filepath.IsAbs(cleanPath) {
+		return fmt.Errorf("file path must be absolute: %s", filePath)
+	}
+
+	// Get file info
+	info, err := os.Stat(cleanPath)
 	if err != nil {
-		return fmt.Errorf("failed to stat file %s: %w", filePath, err)
+		return fmt.Errorf("failed to stat file %s: %w", cleanPath, err)
 	}
 
 	header, err := tar.FileInfoHeader(info, "")
 	if err != nil {
-		return fmt.Errorf("failed to create tar header for %s: %w", filePath, err)
+		return fmt.Errorf("failed to create tar header for %s: %w", cleanPath, err)
 	}
 
-	header.Name = tarballPath
+	// Clean the tarball path to prevent path traversal
+	header.Name = filepath.ToSlash(filepath.Clean(tarballPath))
 
 	if err := tw.tar.WriteHeader(header); err != nil {
-		return fmt.Errorf("failed to write tar header for %s: %w", filePath, err)
+		return fmt.Errorf("failed to write tar header for %s: %w", cleanPath, err)
 	}
 
 	if info.IsDir() {
 		return nil
 	}
 
-	file, err := os.Open(filePath)
+	// Open the file with the cleaned path
+	file, err := os.Open(cleanPath)
 	if err != nil {
-		return fmt.Errorf("failed to open file %s: %w", filePath, err)
+		return fmt.Errorf("failed to open file %s: %w", cleanPath, err)
 	}
 	defer file.Close()
 
@@ -204,18 +244,24 @@ func (tw *tarballWriter) addFileToTarball(filePath, tarballPath string) error {
 
 // processDirectory walks through a directory and adds its contents to the tarball
 func (tw *tarballWriter) processDirectory(dirPath, tarballBase string) error {
-	return filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+	// Clean and validate the directory path
+	cleanDirPath := filepath.Clean(dirPath)
+	if !filepath.IsAbs(cleanDirPath) {
+		return fmt.Errorf("directory path must be absolute: %s", dirPath)
+	}
+
+	return filepath.Walk(cleanDirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return fmt.Errorf("error walking path %s: %w", path, err)
 		}
 
 		// Skip the base directory itself
-		if path == dirPath {
+		if path == cleanDirPath {
 			return nil
 		}
 
 		// Calculate relative path within the directory
-		relPath, err := filepath.Rel(dirPath, path)
+		relPath, err := filepath.Rel(cleanDirPath, path)
 		if err != nil {
 			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
 		}
