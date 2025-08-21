@@ -3,6 +3,7 @@ module github.com/cperrin88/gotya
 go 1.24
 
 require (
+	github.com/d5/tengo/v2 v2.16.1
 	github.com/dustin/go-humanize v1.0.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1

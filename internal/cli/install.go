@@ -2,9 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/hook"
 	"github.com/cperrin88/gotya/pkg/logger"
 	pkg "github.com/cperrin88/gotya/pkg/package"
 	"github.com/cperrin88/gotya/pkg/repository"
@@ -177,11 +180,12 @@ func findPackageInRepositories(manager repository.Manager, packageName string) (
 	return nil, "", fmt.Errorf("package not found: %s", packageName)
 }
 
+// installSinglePackage installs a single package with hook support
 func installSinglePackage(cfg *config.Config, manager repository.Manager, installedDB *pkg.InstalledDatabase, packageName string, force bool) error {
 	// Find package
 	packageInfo, repoName, err := findPackageInRepositories(manager, packageName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find package: %w", err)
 	}
 
 	// Check if already installed
@@ -189,15 +193,51 @@ func installSinglePackage(cfg *config.Config, manager repository.Manager, instal
 		return fmt.Errorf("package %s is already installed", packageName)
 	}
 
-	// For now, we'll create a simplified installation process
-	// In a real implementation, this would:
-	// 1. Download the package file from the repository
-	// 2. Extract and validate the package
-	// 3. Copy files to their destinations
-	// 4. Run pre/post install scripts
-	// 5. Update the installed packages database
+	// Create a temporary directory for package extraction
+	tempDir, err := os.MkdirTemp("", "gotya-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
 
-	logger.Debug("Simulating package installation", logrus.Fields{"package": packageName})
+	// In a real implementation, we would:
+	// 1. Download the package file from the repository
+	// 2. Extract it to tempDir
+	// For now, we'll simulate this step
+	logger.Debug("Simulating package download and extraction", logrus.Fields{
+		"package": packageName,
+		"tempDir": tempDir,
+	})
+
+	// Create hook manager
+	hookManager := hook.NewHookManager()
+
+	// Load hooks from the package
+	if err := hook.LoadHooksFromPackageDir(hookManager, tempDir); err != nil {
+		logger.Warn("Failed to load hooks from package", logrus.Fields{
+			"package": packageName,
+			"error":   err.Error(),
+		})
+	}
+
+	// Create hook context
+	hookCtx := hook.HookContext{
+		PackageName:    packageInfo.Name,
+		PackageVersion: packageInfo.Version,
+		PackagePath:    tempDir, // In a real implementation, this would be the path to the downloaded package
+		InstallPath:    filepath.Join(cfg.GetInstallDir(), packageInfo.Name),
+		Vars: map[string]interface{}{
+			"force": force,
+		},
+	}
+
+	// Execute pre-install hook
+	if hookManager.HasHook(hook.PreInstall) {
+		logger.Debug("Running pre-install hook", logrus.Fields{"package": packageName})
+		if err := hookManager.Execute(hook.PreInstall, hookCtx); err != nil {
+			return fmt.Errorf("pre-install hook failed: %w", err)
+		}
+	}
 
 	// Create installed package entry
 	installedPkg := pkg.InstalledPackage{
@@ -212,6 +252,21 @@ func installSinglePackage(cfg *config.Config, manager repository.Manager, instal
 
 	// Add to database
 	installedDB.AddPackage(installedPkg)
+
+	// Execute post-install hook
+	if hookManager.HasHook(hook.PostInstall) {
+		logger.Debug("Running post-install hook", logrus.Fields{"package": packageName})
+		if err := hookManager.Execute(hook.PostInstall, hookCtx); err != nil {
+			// If post-install fails, we should rollback the installation
+			_ = installedDB.RemovePackage(packageName)
+			return fmt.Errorf("post-install hook failed: %w", err)
+		}
+	}
+
+	logger.Info("Successfully installed package", logrus.Fields{
+		"package": packageName,
+		"version": packageInfo.Version,
+	})
 
 	return nil
 }
