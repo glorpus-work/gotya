@@ -1,11 +1,16 @@
 # gotya
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/cperrin88/gotya.svg)](https://pkg.go.dev/github.com/cperrin88/gotya)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 gotya is a lightweight personal package manager (like apt) with:
 - **CLI**: Install, update, and manage packages
 - **Library**: Programmatic package management
 - **Extensible**: Plugin system for custom repositories and hooks
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
 ## Installation
 
@@ -61,7 +66,3 @@ go build -o gotya ./cmd/gotya
 ```bash
 go test ./...
 ```
-
-## License
-
-MIT
