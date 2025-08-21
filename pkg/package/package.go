@@ -10,6 +10,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/cperrin88/gotya/pkg/logger"
+	log "github.com/sirupsen/logrus"
 )
 
 // Metadata represents the structure of package.json
@@ -275,10 +278,12 @@ func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string)
 	// Update metadata in the tarball (optional, if you want to include the updated metadata)
 	// This would require re-adding the updated package.json to the tarball
 
-	fmt.Printf("Created package: %s\n", outputFile)
-	fmt.Printf("Package name: %s\n", meta.Name)
-	fmt.Printf("Version: %s\n", meta.Version)
-	fmt.Printf("Files included: %d\n", len(meta.Files))
+	logger.Info("Package created successfully", log.Fields{
+		"file":    outputFile,
+		"name":    meta.Name,
+		"version": meta.Version,
+		"files":   len(meta.Files),
+	})
 
 	return nil
 }
