@@ -2,9 +2,7 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/cperrin88/gotya/pkg/logger"
 	"github.com/cperrin88/gotya/pkg/repository"
 	"github.com/spf13/cobra"
 )

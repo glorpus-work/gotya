@@ -19,6 +19,7 @@ type Manager interface {
 	IsCacheStale(name string, maxAge time.Duration) bool
 	GetCacheAge(name string) (time.Duration, error)
 	SyncIfStale(ctx context.Context, name string, maxAge time.Duration) error
+	FindPackage(name string) (*Package, error)
 }
 
 // Info represents repository information

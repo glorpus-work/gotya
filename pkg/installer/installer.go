@@ -17,11 +17,11 @@ import (
 type Installer struct {
 	config      *config.Config
 	repoManager repository.Manager
-	hookManager *hook.Manager
+	hookManager hook.HookManager
 }
 
 // New creates a new Installer instance
-func New(cfg *config.Config, repoManager repository.Manager, hookManager *hook.Manager) *Installer {
+func New(cfg *config.Config, repoManager repository.Manager, hookManager hook.HookManager) *Installer {
 	return &Installer{
 		config:      cfg,
 		repoManager: repoManager,
@@ -32,18 +32,18 @@ func New(cfg *config.Config, repoManager repository.Manager, hookManager *hook.M
 // InstallPackage installs a package with the given name
 func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) error {
 	// Find the package in repositories
-	pkg, _, err := i.repoManager.FindPackage(packageName)
+	pkg, err := i.repoManager.FindPackage(packageName)
 	if err != nil {
 		return fmt.Errorf("failed to find package %s: %w", packageName, err)
 	}
 
 	// Check if already installed
-	installedDB, err := pkgpkg.LoadInstalledDB(i.config.GetDatabasePath())
+	installedDB, err := pkgpkg.LoadInstalledDatabase(i.config.GetDatabasePath())
 	if err != nil {
 		return fmt.Errorf("failed to load installed packages database: %w", err)
 	}
 
-	if installedDB.IsInstalled(packageName) && !force {
+	if installedPkg := installedDB.FindPackage(packageName); installedPkg != nil && !force {
 		return fmt.Errorf("package %s is already installed (use --force to reinstall)", packageName)
 	}
 
@@ -52,19 +52,25 @@ func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) err
 		return fmt.Errorf("pre-install hook failed: %w", err)
 	}
 
-	// Install the package
+	// Install package files
 	if err := i.installPackageFiles(pkg); err != nil {
 		return fmt.Errorf("failed to install package files: %w", err)
 	}
 
 	// Update installed packages database
-	if err := installedDB.Add(packageName, pkg.Version); err != nil {
-		return fmt.Errorf("failed to update installed packages database: %w", err)
+	installedPkg := pkgpkg.InstalledPackage{
+		Name:          pkg.Name,
+		Version:       pkg.Version,
+		Description:   pkg.Description,
+		InstalledAt:   time.Now(),
+		InstalledFrom: pkg.URL,
 	}
+	installedDB.AddPackage(installedPkg)
 
 	// Run post-install hooks
 	if err := i.runHooks("post-install", packageName, pkg); err != nil {
-		return fmt.Errorf("post-install hook failed: %w", err)
+		// Don't fail the installation if post-install hooks fail, just log the error
+		logrus.WithError(err).Error("Post-install hook failed")
 	}
 
 	logrus.Infof("Successfully installed %s %s", packageName, pkg.Version)
@@ -74,49 +80,58 @@ func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) err
 // UpdatePackage updates a package to the latest version
 func (i *Installer) UpdatePackage(packageName string) (bool, error) {
 	// Find the latest version of the package
-	pkg, _, err := i.repoManager.FindPackage(packageName)
+	pkg, err := i.repoManager.FindPackage(packageName)
 	if err != nil {
 		return false, fmt.Errorf("failed to find package %s: %w", packageName, err)
 	}
 
-	// Check if installed
-	installedDB, err := pkgpkg.LoadInstalledDB(i.config.GetDatabasePath())
+	// Check if the package is installed
+	installedDB, err := pkgpkg.LoadInstalledDatabase(i.config.GetDatabasePath())
 	if err != nil {
 		return false, fmt.Errorf("failed to load installed packages database: %w", err)
 	}
 
-	if !installedDB.IsInstalled(packageName) {
+	// Check if package is installed and get its version
+	installedPkg := installedDB.FindPackage(packageName)
+	if installedPkg == nil {
 		return false, fmt.Errorf("package %s is not installed", packageName)
 	}
+	installedVersion := installedPkg.Version
 
-	// Check if update is needed
-	installedVersion := installedDB.GetVersion(packageName)
-	if installedVersion == pkg.Version {
-		logrus.Infof("Package %s is already up to date (%s)", packageName, installedVersion)
-		return false, nil
+	// Compare versions
+	if pkg.Version == installedVersion {
+		return false, nil // Already up to date
 	}
 
-	// Run pre-update hooks
-	if err := i.runHooks("pre-update", packageName, pkg); err != nil {
+	logrus.Infof("Updating %s from %s to %s", packageName, installedVersion, pkg.Version)
+
+	// Run pre-update hooks (using pre-install for now)
+	if err := i.runHooks("pre-install", packageName, pkg); err != nil {
 		return false, fmt.Errorf("pre-update hook failed: %w", err)
 	}
 
-	// Update the package
+	// Install the new version
 	if err := i.installPackageFiles(pkg); err != nil {
-		return false, fmt.Errorf("failed to update package files: %w", err)
+		return false, fmt.Errorf("failed to install package files: %w", err)
 	}
 
-	// Update installed packages database
-	if err := installedDB.Add(packageName, pkg.Version); err != nil {
-		return false, fmt.Errorf("failed to update installed packages database: %w", err)
+	// Update the installed packages database
+	updatedPkg := pkgpkg.InstalledPackage{
+		Name:          pkg.Name,
+		Version:       pkg.Version,
+		Description:   pkg.Description,
+		InstalledAt:   time.Now(),
+		InstalledFrom: pkg.URL,
+	}
+	installedDB.AddPackage(updatedPkg)
+
+	// Run post-update hooks (using post-install for now)
+	if err := i.runHooks("post-install", packageName, pkg); err != nil {
+		// Don't fail the update if post-update hooks fail, just log the error
+		logrus.WithError(err).Error("Post-update hook failed")
 	}
 
-	// Run post-update hooks
-	if err := i.runHooks("post-update", packageName, pkg); err != nil {
-		return false, fmt.Errorf("post-update hook failed: %w", err)
-	}
-
-	logrus.Infof("Successfully updated %s from %s to %s", packageName, installedVersion, pkg.Version)
+	logrus.Infof("Successfully updated %s to %s", packageName, pkg.Version)
 	return true, nil
 }
 
@@ -144,16 +159,30 @@ func (i *Installer) runHooks(event, packageName string, pkg *repository.Package)
 		return nil // No hook manager configured
 	}
 
-	ctx := map[string]interface{}{
-		"package": map[string]interface{}{
-			"name":    packageName,
-			"version": pkg.Version,
+	// Create hook context
+	hookCtx := hook.HookContext{
+		PackageName:    pkg.Name,
+		PackageVersion: pkg.Version,
+		PackagePath:    pkg.URL, // Using URL as the package path
+		InstallPath:    filepath.Join(i.config.Settings.InstallDir, pkg.Name),
+		Vars: map[string]interface{}{
+			"config": map[string]interface{}{
+				"install_dir": i.config.Settings.InstallDir,
+			},
 		},
-		"config": map[string]interface{}{
-			"install_dir": i.config.Settings.InstallDir,
-		},
-		"timestamp": time.Now().Format(time.RFC3339),
 	}
 
-	return i.hookManager.Execute(event, ctx)
+	// Convert event string to HookType
+	var hookType hook.HookType
+	switch event {
+	case "pre-install", "pre-update":
+		hookType = hook.PreInstall
+	case "post-install", "post-update":
+		hookType = hook.PostInstall
+	default:
+		return fmt.Errorf("unsupported hook event: %s", event)
+	}
+
+	// Execute the hook
+	return i.hookManager.Execute(hookType, hookCtx)
 }

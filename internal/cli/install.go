@@ -2,14 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/cperrin88/gotya/pkg/config"
-	"github.com/cperrin88/gotya/pkg/hook"
 	"github.com/cperrin88/gotya/pkg/installer"
 	"github.com/cperrin88/gotya/pkg/logger"
-	pkg "github.com/cperrin88/gotya/pkg/package"
-	"github.com/cperrin88/gotya/pkg/repository"
+	pkgpkg "github.com/cperrin88/gotya/pkg/package"
 	"github.com/spf13/cobra"
 )
 
@@ -62,14 +58,8 @@ func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) err
 		return err
 	}
 
-	// Create hook manager
-	hookManager, err := hook.NewManager(cfg, repoManager)
-	if err != nil {
-		return fmt.Errorf("failed to initialize hook manager: %w", err)
-	}
-
-	// Create installer
-	pkgInstaller := installer.New(cfg, repoManager, hookManager)
+	// Create installer with nil hook manager for now
+	pkgInstaller := installer.New(cfg, repoManager, nil)
 
 	// Process each package
 	for _, pkgName := range packages {
@@ -87,24 +77,21 @@ func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
 		return err
 	}
 
-	// Create hook manager
-	hookManager, err := hook.NewManager(cfg, repoManager)
-	if err != nil {
-		return fmt.Errorf("failed to initialize hook manager: %w", err)
-	}
-
-	// Create installer
-	pkgInstaller := installer.New(cfg, repoManager, hookManager)
+	// Create installer with nil hook manager for now
+	pkgInstaller := installer.New(cfg, repoManager, nil)
 
 	// Get packages to update
 	var packagesToUpdate []string
 	if all {
 		// Load installed packages database to get all installed packages
-		installedDB, err := pkg.LoadInstalledDB(cfg.GetDatabasePath())
+		installedDB, err := pkgpkg.LoadInstalledDatabase(cfg.GetDatabasePath())
 		if err != nil {
 			return fmt.Errorf("failed to load installed packages database: %w", err)
 		}
-		packagesToUpdate = installedDB.ListPackages()
+		// Get list of installed packages
+		for _, pkg := range installedDB.Packages {
+			packagesToUpdate = append(packagesToUpdate, pkg.Name)
+		}
 	} else if len(packages) > 0 {
 		packagesToUpdate = packages
 	} else {

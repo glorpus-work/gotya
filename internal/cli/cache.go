@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/cperrin88/gotya/pkg/cache"
 	"github.com/cperrin88/gotya/pkg/logger"
@@ -83,19 +84,14 @@ func runCacheClean(all, indexes, packages bool) error {
 	cacheOp := cache.NewCacheOperation(cacheManager)
 
 	// Clean the cache
-	result, err := cacheOp.Clean(all, indexes, packages)
+	// Use the correct method signature for Clean
+	result, err := cacheOp.Clean(all || (indexes && packages), indexes, packages)
 	if err != nil {
 		return err
 	}
 
-	if result.IndexFreed > 0 {
-		logger.Info("Cleaned repository indexes", logrus.Fields{"size": humanize.Bytes(uint64(result.IndexFreed))})
-	}
-	if result.PackageFreed > 0 {
-		logger.Info("Cleaned downloaded packages", logrus.Fields{"size": humanize.Bytes(uint64(result.PackageFreed))})
-	}
-
-	logger.Success("Cache cleaning completed", logrus.Fields{"total_freed": humanize.Bytes(uint64(result.TotalFreed))})
+	// Log the result message
+	logger.Info(result)
 	return nil
 }
 
@@ -116,11 +112,8 @@ func runCacheInfo(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Cache Directory: %s\n", info.Directory)
-	fmt.Printf("Total Size: %s\n", humanize.Bytes(uint64(info.TotalSize)))
-	fmt.Printf("Index Cache: %s (%d files)\n", humanize.Bytes(uint64(info.IndexSize)), info.IndexFiles)
-	fmt.Printf("Package Cache: %s (%d files)\n", humanize.Bytes(uint64(info.PackageSize)), info.PackageFiles)
-	fmt.Printf("Last Cleaned: %s\n", info.LastCleaned.Format("2006-01-02 15:04:05"))
+	// Print cache information (info is already a formatted string from GetInfo)
+	fmt.Println(info)
 
 	return nil
 }

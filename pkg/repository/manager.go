@@ -5,6 +5,7 @@ import (
 	"fmt"
 	goos "os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -263,20 +264,49 @@ func (rm *RepositoryManager) SyncRepository(ctx context.Context, name string) er
 
 // SyncRepositories syncs all enabled repositories
 func (rm *RepositoryManager) SyncRepositories(ctx context.Context) error {
-	rm.mu.RLock()
-	var enabledRepos []string
-	for name, repo := range rm.repositories {
-		if repo.info.Enabled {
-			enabledRepos = append(enabledRepos, name)
+	repos := rm.ListRepositories()
+	for _, repo := range repos {
+		if repo.Enabled {
+			if err := rm.SyncRepository(ctx, repo.Name); err != nil {
+				return fmt.Errorf("failed to sync repository '%s': %w", repo.Name, err)
+			}
 		}
 	}
-	rm.mu.RUnlock()
-
-	for _, name := range enabledRepos {
-		if err := rm.SyncRepository(ctx, name); err != nil {
-			return fmt.Errorf("failed to sync repository '%s': %w", name, err)
-		}
-	}
-
 	return nil
+}
+
+// FindPackage searches for a package by name across all repositories
+// Returns the first matching package found and any error encountered
+func (rm *RepositoryManager) FindPackage(name string) (*Package, error) {
+	if name == "" {
+		return nil, fmt.Errorf("package name cannot be empty")
+	}
+
+	repos := rm.ListRepositories()
+	if len(repos) == 0 {
+		return nil, fmt.Errorf("no repositories configured")
+	}
+
+	// Search through repositories in order of priority (highest first)
+	sort.Slice(repos, func(i, j int) bool {
+		return repos[i].Priority > repos[j].Priority
+	})
+
+	for _, repo := range repos {
+		if !repo.Enabled {
+			continue
+		}
+
+		index, err := rm.GetRepositoryIndex(repo.Name)
+		if err != nil {
+			// Log the error but continue with other repositories
+			continue
+		}
+
+		if pkg := index.FindPackage(name); pkg != nil {
+			return pkg, nil
+		}
+	}
+
+	return nil, fmt.Errorf("package '%s' not found in any repository", name)
 }

@@ -3,9 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 
