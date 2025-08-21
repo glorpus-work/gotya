@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/cperrin88/gotya/pkg/util"
 )
 
 // Syncer handles repository synchronization operations
@@ -31,7 +33,7 @@ func (s *Syncer) SyncRepository(ctx context.Context, info Info) (*IndexImpl, err
 
 	// Create cache directory for this repository
 	repoCacheDir := filepath.Join(s.cacheDir, "repositories", info.Name)
-	if err := os.MkdirAll(repoCacheDir, 0755); err != nil {
+	if err := util.EnsureDir(repoCacheDir); err != nil {
 		return nil, fmt.Errorf("failed to create repository cache directory: %w", err)
 	}
 
@@ -163,9 +165,9 @@ func (s *Syncer) validateIndex(index *IndexImpl) error {
 }
 
 // saveIndexToCache saves the index to the cache directory
-func (s *Syncer) saveIndexToCache(index *IndexImpl, indexPath string) error {
-	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(indexPath), 0755); err != nil {
+func (s *Syncer) saveIndexToCache(index *IndexImpl, indexPath string) (err error) {
+	// Ensure directory exists with secure permissions
+	if err := util.EnsureDir(filepath.Dir(indexPath)); err != nil {
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
@@ -176,25 +178,36 @@ func (s *Syncer) saveIndexToCache(index *IndexImpl, indexPath string) error {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 
+	// Ensure cleanup on error
+	defer func() {
+		if err != nil {
+			// Try to clean up the temp file on error
+			_ = os.Remove(tempPath)
+		}
+	}()
+
 	// Write index data
 	data, err := index.ToJSON()
 	if err != nil {
-		file.Close()
-		os.Remove(tempPath)
 		return fmt.Errorf("failed to serialize index: %w", err)
 	}
 
-	if _, err := file.Write(data); err != nil {
-		file.Close()
-		os.Remove(tempPath)
+	if _, err = file.Write(data); err != nil {
 		return fmt.Errorf("failed to write index: %w", err)
 	}
 
-	file.Close()
+	// Ensure the file is synced to disk
+	if err = file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync index to disk: %w", err)
+	}
+
+	// Close the file before renaming
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("failed to close index file: %w", err)
+	}
 
 	// Atomically replace the index file
-	if err := os.Rename(tempPath, indexPath); err != nil {
-		os.Remove(tempPath)
+	if err = os.Rename(tempPath, indexPath); err != nil {
 		return fmt.Errorf("failed to replace index file: %w", err)
 	}
 

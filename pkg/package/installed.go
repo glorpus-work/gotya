@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"time"
+
+	"github.com/cperrin88/gotya/pkg/util"
 )
 
 // InstalledDatabase represents the database of installed packages
@@ -57,9 +58,9 @@ func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, err
 }
 
 // Save saves the installed packages database to file
-func (db *InstalledDatabase) Save(dbPath string) error {
+func (db *InstalledDatabase) Save(dbPath string) (err error) {
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+	if err = util.EnsureFileDir(dbPath); err != nil {
 		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 
@@ -70,26 +71,37 @@ func (db *InstalledDatabase) Save(dbPath string) error {
 		return fmt.Errorf("failed to create temp database file: %w", err)
 	}
 
+	// Ensure cleanup on error
+	defer func() {
+		if err != nil {
+			// Try to clean up the temp file on error
+			_ = os.Remove(tempPath)
+		}
+	}()
+
 	// Update timestamp and write database
 	db.LastUpdate = time.Now()
 	data, err := json.MarshalIndent(db, "", "  ")
 	if err != nil {
-		file.Close()
-		os.Remove(tempPath)
 		return fmt.Errorf("failed to serialize database: %w", err)
 	}
 
-	if _, err := file.Write(data); err != nil {
-		file.Close()
-		os.Remove(tempPath)
+	if _, err = file.Write(data); err != nil {
 		return fmt.Errorf("failed to write database: %w", err)
 	}
 
-	file.Close()
+	// Ensure the file is synced to disk
+	if err = file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync database to disk: %w", err)
+	}
+
+	// Close the file before renaming
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("failed to close database file: %w", err)
+	}
 
 	// Atomically replace the database file
-	if err := os.Rename(tempPath, dbPath); err != nil {
-		os.Remove(tempPath)
+	if err = os.Rename(tempPath, dbPath); err != nil {
 		return fmt.Errorf("failed to replace database file: %w", err)
 	}
 

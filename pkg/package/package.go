@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"archive/tar"
+	"bufio"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/cperrin88/gotya/pkg/logger"
+	"github.com/cperrin88/gotya/pkg/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -101,27 +103,87 @@ func processFiles(sourceDir string, meta *Metadata) error {
 }
 
 // createTarball creates a tarball from the source directory
-func createTarball(sourceDir, outputPath string, meta *Metadata) error {
-	// Create output file
-	file, err := os.Create(outputPath)
+func createTarball(sourceDir, outputPath string, meta *Metadata) (err error) {
+	// Create output file with explicit permissions
+	file, err := os.OpenFile(outputPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
-	defer file.Close()
+
+	// Ensure the file is closed in case of error
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close output file: %w", closeErr)
+		}
+	}()
+
+	// Create buffered writer for better performance
+	bufWriter := bufio.NewWriterSize(file, 32*1024) // 32KB buffer
 
 	// Create gzip writer
-	gzipWriter := gzip.NewWriter(file)
-	defer gzipWriter.Close()
+	gzipWriter := gzip.NewWriter(bufWriter)
+
+	// Ensure gzip writer is closed
+	defer func() {
+		if closeErr := gzipWriter.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close gzip writer: %w", closeErr)
+		}
+	}()
 
 	// Create tar writer
 	tarWriter := tar.NewWriter(gzipWriter)
-	defer tarWriter.Close()
+
+	// Ensure tar writer is closed
+	defer func() {
+		if closeErr := tarWriter.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close tar writer: %w", closeErr)
+		}
+	}()
+
+	// Function to add a file to the tarball
+	addFileToTarball := func(filePath, tarballPath string) error {
+		info, err := os.Stat(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to stat file %s: %w", filePath, err)
+		}
+
+		// Create tar header
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return fmt.Errorf("failed to create tar header for %s: %w", filePath, err)
+		}
+
+		// Update the name to be relative to the package root
+		header.Name = tarballPath
+
+		// Write the header
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return fmt.Errorf("failed to write tar header for %s: %w", filePath, err)
+		}
+
+		// If it's a regular file, write its content
+		if !info.IsDir() {
+			file, err := os.Open(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to open file %s: %w", filePath, err)
+			}
+
+			// Use a closure to ensure the file is closed
+			defer file.Close()
+
+			if _, err := io.Copy(tarWriter, file); err != nil {
+				return fmt.Errorf("failed to write file content for %s: %w", filePath, err)
+			}
+		}
+
+		return nil
+	}
 
 	// Add metadata files
 	metaDir := filepath.Join(sourceDir, "meta")
 	err = filepath.Walk(metaDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("error walking path %s: %w", path, err)
 		}
 
 		// Skip the meta directory itself
@@ -132,37 +194,13 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 		// Calculate relative path within meta directory
 		relPath, err := filepath.Rel(metaDir, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
 		}
 
-		// Create tar header
-		header, err := tar.FileInfoHeader(info, "")
-		if err != nil {
-			return err
-		}
+		// Convert to forward slashes for tarball compatibility
+		tarballPath := filepath.ToSlash(filepath.Join("meta", relPath))
 
-		// Update the name to be relative to the package root
-		header.Name = filepath.ToSlash(filepath.Join("meta", relPath))
-
-		// Write the header
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return fmt.Errorf("failed to write tar header for %s: %w", path, err)
-		}
-
-		// If it's a regular file, write its content
-		if !info.IsDir() {
-			file, err := os.Open(path)
-			if err != nil {
-				return fmt.Errorf("failed to open file %s: %w", path, err)
-			}
-			defer file.Close()
-
-			if _, err := io.Copy(tarWriter, file); err != nil {
-				return fmt.Errorf("failed to write file content for %s: %w", path, err)
-			}
-		}
-
-		return nil
+		return addFileToTarball(path, tarballPath)
 	})
 
 	if err != nil {
@@ -173,7 +211,7 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 	filesDir := filepath.Join(sourceDir, "files")
 	err = filepath.Walk(filesDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("error walking path %s: %w", path, err)
 		}
 
 		// Skip the files directory itself
@@ -184,13 +222,13 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 		// Calculate relative path within files directory
 		relPath, err := filepath.Rel(filesDir, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
 		}
 
 		// Create tar header
 		header, err := tar.FileInfoHeader(info, "")
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create tar header for %s: %w", path, err)
 		}
 
 		// Update the name to be relative to the package root
@@ -207,11 +245,20 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 			if err != nil {
 				return fmt.Errorf("failed to open file %s: %w", path, err)
 			}
-			defer file.Close()
+
+			// Use a closure to ensure the file is closed
+			defer func() {
+				if closeErr := file.Close(); closeErr != nil && err == nil {
+					err = fmt.Errorf("failed to close file %s: %w", path, closeErr)
+				}
+			}()
 
 			if _, err := io.Copy(tarWriter, file); err != nil {
 				return fmt.Errorf("failed to write file content for %s: %w", path, err)
 			}
+
+			// On Windows, we don't need to explicitly sync the file as it's being read
+			// and we're not modifying it, just reading its contents
 		}
 
 		return nil
@@ -236,7 +283,7 @@ func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string)
 	}
 
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := util.EnsureDir(outputDir); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 

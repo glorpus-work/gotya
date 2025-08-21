@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/cperrin88/gotya/pkg/util"
 )
 
 // CacheManager implements the Manager interface
@@ -143,7 +145,7 @@ func cleanDirectory(dir string) (int64, error) {
 	}
 
 	// Recreate empty directory
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := util.EnsureDir(dir); err != nil {
 		return totalSize, fmt.Errorf("failed to recreate directory %s: %w", dir, err)
 	}
 

@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/cperrin88/gotya/pkg/util"
 	"gopkg.in/yaml.v3"
 )
 
@@ -137,8 +138,7 @@ func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 // SaveConfig saves configuration to a file
 func (c *Config) SaveConfig(path string) error {
 	// Ensure directory exists
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := util.EnsureFileDir(path); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 

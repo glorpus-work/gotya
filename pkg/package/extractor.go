@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/cperrin88/gotya/pkg/util"
 )
 
 // PackageStructure represents the expected structure of a package
@@ -56,7 +58,7 @@ func extractTarGz(packagePath, extractDir string) error {
 // ExtractArchive extracts tar.gz archive files
 func ExtractArchive(packagePath, extractDir string) error {
 	// Create extraction directory
-	if err := os.MkdirAll(extractDir, 0755); err != nil {
+	if err := util.EnsureDir(extractDir); err != nil {
 		return fmt.Errorf("failed to create extraction directory: %w", err)
 	}
 
@@ -90,13 +92,20 @@ func extractTar(reader io.Reader, extractDir string) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
+			// Ensure the directory exists with secure permissions
+			if err := util.EnsureDir(targetPath); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+			}
+			// Set the original mode if it's more restrictive than our default
+			if header.Mode&0777 < 0750 {
+				if err := os.Chmod(targetPath, os.FileMode(header.Mode)); err != nil {
+					return fmt.Errorf("failed to set permissions for %s: %w", targetPath, err)
+				}
 			}
 
 		case tar.TypeReg:
 			// Create directory if it doesn't exist
-			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			if err := util.EnsureFileDir(targetPath); err != nil {
 				return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
 			}
 
@@ -202,9 +211,15 @@ func CopyFiles(src, dst string) ([]string, error) {
 		targetPath := filepath.Join(dst, relPath)
 
 		if info.IsDir() {
-			// Create directory
-			if err := os.MkdirAll(targetPath, info.Mode()); err != nil {
+			// Create directory with secure permissions
+			if err := util.EnsureDir(targetPath); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+			}
+			// Set the original mode if it's more restrictive than our default
+			if info.Mode()&0777 < 0750 {
+				if err := os.Chmod(targetPath, info.Mode()); err != nil {
+					return fmt.Errorf("failed to set permissions for %s: %w", targetPath, err)
+				}
 			}
 		} else if info.Mode()&os.ModeSymlink != 0 {
 			// Handle symlink
@@ -233,8 +248,8 @@ func CopyFiles(src, dst string) ([]string, error) {
 // copyFile copies a single file from src to dst with the given mode
 func copyFile(src, dst string, mode os.FileMode) error {
 	// Ensure destination directory exists
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
+	if err := util.EnsureFileDir(dst); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
 	srcFile, err := os.Open(src)

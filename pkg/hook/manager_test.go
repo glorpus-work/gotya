@@ -76,7 +76,7 @@ func TestLoadHooksFromPackageDir(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 	hooksDir := filepath.Join(tempDir, ".gotya", "hooks")
-	err := os.MkdirAll(hooksDir, 0755)
+	err := os.MkdirAll(hooksDir, 0750)
 	require.NoError(t, err, "Failed to create hooks directory")
 
 	// Create a test hook file

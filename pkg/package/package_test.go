@@ -23,7 +23,7 @@ func setupTestEnvironment(t *testing.T) (string, func()) {
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			t.Fatalf("Failed to create test directory %s: %v", dir, err)
 		}
 	}
@@ -41,13 +41,39 @@ func setupTestEnvironment(t *testing.T) (string, func()) {
 	}
 
 	for path, content := range testFiles {
+		// Ensure parent directory exists with correct permissions
+		if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
+			t.Fatalf("Failed to create parent directory for %s: %v", path, err)
+		}
+		// On Windows, we need to ensure the file is closed and handles are released
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			t.Fatalf("Failed to create test file %s: %v", path, err)
 		}
 	}
 
+	// Return the temp directory and cleanup function
 	return tempDir, func() {
-		os.RemoveAll(tempDir)
+		// On Windows, we need to make sure all file handles are closed before removing
+		err := filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return nil // ignore errors
+			}
+			if !info.IsDir() {
+				// Try to remove read-only attributes if they exist
+				if info.Mode()&0200 == 0 {
+					os.Chmod(path, 0666)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Logf("Warning: failed to prepare files for removal: %v", err)
+		}
+
+		// Now try to remove the directory
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Warning: failed to remove temp directory: %v", err)
+		}
 	}
 }
 

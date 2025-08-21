@@ -239,11 +239,11 @@ func TestGetInfoErrorCases(t *testing.T) {
 }
 
 func setupTestCache(t *testing.T, baseDir string) {
-	// Create test directories
+	// Create test directories with secure permissions
 	dirs := []string{"indexes", "packages"}
 	for _, dir := range dirs {
-		err := os.MkdirAll(filepath.Join(baseDir, dir), 0755)
-		require.NoError(t, err)
+		err := os.MkdirAll(filepath.Join(baseDir, dir), 0750)
+		require.NoError(t, err, "Failed to create test directory %s", dir)
 	}
 
 	// Create test files
