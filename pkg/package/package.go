@@ -264,7 +264,7 @@ func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string)
 	if pkgArch == "" {
 		pkgArch = "any"
 	}
-	outputFile := filepath.Join(outputDir, fmt.Sprintf("%s_%s_%s_%s.gotya",
+	outputFile := filepath.Join(outputDir, fmt.Sprintf("%s_%s_%s_%s.tar.gz",
 		meta.Name, meta.Version, pkgOS, pkgArch))
 
 	// Create tarball
