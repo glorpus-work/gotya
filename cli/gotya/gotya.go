@@ -55,12 +55,12 @@ func newRootCmd() *cobra.Command {
 	// Add subcommands
 	cmd.AddCommand(
 		cli.NewSyncCmd(),
-		cli.NewUpdateCmd(),
 		cli.NewInstallCmd(),
 		cli.NewSearchCmd(),
 		cli.NewListCmd(),
 		cli.NewConfigCmd(),
 		cli.NewCacheCmd(),
+		cli.NewPackageCmd(),
 		cli.NewVersionCmd(),
 	)
 
