@@ -1,0 +1,28 @@
+version: 2
+updates:
+  # Enable version updates for Go modules
+  - package-ecosystem: "gomod"
+    # Look for `go.mod` in the `root` directory
+    directory: "/"
+    # Check for updates once a week
+    schedule:
+      interval: "weekly"
+    # Create a pull request for Go module updates
+    open-pull-requests-limit: 10
+    assignees:
+      - "cperry24"  # Replace with your GitHub username
+    labels:
+      - "dependencies"
+      - "go"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    # Workflow files stored in the .github/workflows directory
+    directory: "/.github/workflows"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "github-actions"
+      - "dependencies"
+    assignees:
+      - "cperry24"  # Replace with your GitHub username
