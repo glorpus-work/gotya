@@ -54,10 +54,10 @@ func (op *RepositoryOperation) Add(name, url string, priority int) error {
 	ctx := context.Background()
 	if err := op.manager.SyncRepository(ctx, name); err != nil {
 		// Don't fail the operation if sync fails, just log a warning
-		logger.Warn(fmt.Sprintf("Failed to sync repository '%s': %v", name, err))
+		logger.Warnf("Failed to sync repository '%s': %v", name, err)
 	}
 
-	logger.Info(fmt.Sprintf("Added repository '%s' (%s)", name, url))
+	logger.Infof("Added repository '%s' (%s)", name, url)
 	return nil
 }
 
@@ -75,7 +75,7 @@ func (op *RepositoryOperation) Remove(name string) error {
 		return fmt.Errorf("failed to remove repository: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("Removed repository '%s'", name))
+	logger.Infof("Removed repository '%s'", name)
 	return nil
 }
 
@@ -96,23 +96,31 @@ func (op *RepositoryOperation) List() (string, error) {
 
 	var buf strings.Builder
 	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tURL\tENABLED\tPRIORITY")
 
+	// Write header
+	if _, err := fmt.Fprintln(w, "NAME\tURL\tENABLED\tPRIORITY"); err != nil {
+		return "", fmt.Errorf("failed to write table header: %w", err)
+	}
+
+	// Write repository rows
 	for _, repo := range repos {
 		enabled := "no"
 		if repo.Enabled {
 			enabled = "yes"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%d\n",
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%d\n",
 			repo.Name,
 			repo.URL,
 			enabled,
 			repo.Priority,
-		)
+		); err != nil {
+			return "", fmt.Errorf("failed to write repository %s: %w", repo.Name, err)
+		}
 	}
 
+	// Flush the tabwriter buffer
 	if err := w.Flush(); err != nil {
-		return "", fmt.Errorf("failed to format repository list: %w", err)
+		return "", fmt.Errorf("failed to flush tabwriter: %w", err)
 	}
 
 	return buf.String(), nil

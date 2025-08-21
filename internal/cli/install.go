@@ -23,7 +23,7 @@ func NewInstallCmd() *cobra.Command {
 Dependencies will be automatically resolved and installed unless --skip-deps is used.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInstall(cmd, args, force, skipDeps)
+			return runInstall(args, force, skipDeps)
 		},
 	}
 
@@ -43,7 +43,7 @@ func NewUpdateCmd() *cobra.Command {
 		Long: `Update one or more installed packages to their latest versions.
 Use --all to update all installed packages.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUpdate(cmd, args, all)
+			return runUpdate(args, all)
 		},
 	}
 
@@ -52,7 +52,7 @@ Use --all to update all installed packages.`,
 	return cmd
 }
 
-func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) error {
+func runInstall(packages []string, force, skipDeps bool) error {
 	cfg, repoManager, err := loadConfigAndManager()
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func runInstall(cmd *cobra.Command, packages []string, force, skipDeps bool) err
 	return nil
 }
 
-func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
+func runUpdate(packages []string, all bool) error {
 	cfg, repoManager, err := loadConfigAndManager()
 	if err != nil {
 		return err
@@ -103,7 +103,7 @@ func runUpdate(cmd *cobra.Command, packages []string, all bool) error {
 	for _, pkgName := range packagesToUpdate {
 		wasUpdated, err := pkgInstaller.UpdatePackage(pkgName)
 		if err != nil {
-			logger.Warn(fmt.Sprintf("Failed to update %s: %v", pkgName, err))
+			logger.Warnf("Failed to update %s: %v", pkgName, err)
 			continue
 		}
 		updated = updated || wasUpdated
