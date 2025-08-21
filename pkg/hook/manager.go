@@ -7,7 +7,7 @@ import (
 
 // DefaultHookManager is the default implementation of HookManager
 type DefaultHookManager struct {
-	executor *tengoExecutor
+	executor *TengoExecutor
 	mutex    sync.RWMutex
 }
 

@@ -8,9 +8,9 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/hook"
+	"github.com/cperrin88/gotya/pkg/logger"
 	pkgpkg "github.com/cperrin88/gotya/pkg/package"
 	"github.com/cperrin88/gotya/pkg/repository"
-	"github.com/sirupsen/logrus"
 )
 
 // Installer handles package installation and updates
@@ -47,6 +47,20 @@ func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) err
 		return fmt.Errorf("package %s is already installed (use --force to reinstall)", packageName)
 	}
 
+	// Handle dependencies if not skipped
+	if !skipDeps && len(pkg.Dependencies) > 0 {
+		logger.Infof("Resolving dependencies for %s...", packageName)
+		for _, dep := range pkg.Dependencies {
+			// Check if dependency is already installed
+			if installedDB.FindPackage(dep) == nil {
+				logger.Debugf("Installing dependency: %s", dep)
+				if err := i.InstallPackage(dep, false, false); err != nil {
+					return fmt.Errorf("failed to install dependency %s: %w", dep, err)
+				}
+			}
+		}
+	}
+
 	// Run pre-install hooks
 	if err := i.runHooks("pre-install", packageName, pkg); err != nil {
 		return fmt.Errorf("pre-install hook failed: %w", err)
@@ -70,10 +84,10 @@ func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) err
 	// Run post-install hooks
 	if err := i.runHooks("post-install", packageName, pkg); err != nil {
 		// Don't fail the installation if post-install hooks fail, just log the error
-		logrus.WithError(err).Error("Post-install hook failed")
+		logger.Errorf("Post-install hook failed: %v", err)
 	}
 
-	logrus.Infof("Successfully installed %s %s", packageName, pkg.Version)
+	logger.Infof("Successfully installed %s %s", packageName, pkg.Version)
 	return nil
 }
 
@@ -103,7 +117,7 @@ func (i *Installer) UpdatePackage(packageName string) (bool, error) {
 		return false, nil // Already up to date
 	}
 
-	logrus.Infof("Updating %s from %s to %s", packageName, installedVersion, pkg.Version)
+	logger.Debugf("Updating package %s from version %s to %s", packageName, installedVersion, pkg.Version)
 
 	// Run pre-update hooks (using pre-install for now)
 	if err := i.runHooks("pre-install", packageName, pkg); err != nil {
@@ -128,10 +142,10 @@ func (i *Installer) UpdatePackage(packageName string) (bool, error) {
 	// Run post-update hooks (using post-install for now)
 	if err := i.runHooks("post-install", packageName, pkg); err != nil {
 		// Don't fail the update if post-update hooks fail, just log the error
-		logrus.WithError(err).Error("Post-update hook failed")
+		logger.Errorf("Post-update hook failed: %v", err)
 	}
 
-	logrus.Infof("Successfully updated %s to %s", packageName, pkg.Version)
+	logger.Infof("Successfully updated %s to %s", packageName, pkg.Version)
 	return true, nil
 }
 
@@ -139,6 +153,7 @@ func (i *Installer) UpdatePackage(packageName string) (bool, error) {
 func (i *Installer) installPackageFiles(pkg *repository.Package) error {
 	// Create target directories
 	targetDir := filepath.Join(i.config.Settings.InstallDir, pkg.Name)
+	logger.Debugf("Creating target directory: %s", targetDir)
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return fmt.Errorf("failed to create target directory: %w", err)
 	}

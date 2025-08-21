@@ -50,10 +50,30 @@ func Info(msg string, fields ...logrus.Fields) {
 	entry.Info(msg)
 }
 
+// Infof logs a formatted info message
+func Infof(format string, args ...interface{}) {
+	GetLogger().Infof(format, args...)
+}
+
+// InfofWithFields logs a formatted info message with fields
+func InfofWithFields(fields logrus.Fields, format string, args ...interface{}) {
+	GetLogger().WithFields(fields).Infof(format, args...)
+}
+
 // Debug logs a debug message (only shown when debug level is enabled)
 func Debug(msg string, fields ...logrus.Fields) {
 	entry := GetLogger().WithFields(mergeFields(fields...))
 	entry.Debug(msg)
+}
+
+// Debugf logs a formatted debug message
+func Debugf(format string, args ...interface{}) {
+	GetLogger().Debugf(format, args...)
+}
+
+// DebugfWithFields logs a formatted debug message with fields
+func DebugfWithFields(fields logrus.Fields, format string, args ...interface{}) {
+	GetLogger().WithFields(fields).Debugf(format, args...)
 }
 
 // Error logs an error message
@@ -62,17 +82,48 @@ func Error(msg string, fields ...logrus.Fields) {
 	entry.Error(msg)
 }
 
+// Errorf logs a formatted error message
+func Errorf(format string, args ...interface{}) {
+	GetLogger().Errorf(format, args...)
+}
+
+// ErrorfWithFields logs a formatted error message with fields
+func ErrorfWithFields(fields logrus.Fields, format string, args ...interface{}) {
+	GetLogger().WithFields(fields).Errorf(format, args...)
+}
+
 // Warn logs a warning message
 func Warn(msg string, fields ...logrus.Fields) {
 	entry := GetLogger().WithFields(mergeFields(fields...))
 	entry.Warn(msg)
 }
 
+// Warnf logs a formatted warning message
+func Warnf(format string, args ...interface{}) {
+	GetLogger().Warnf(format, args...)
+}
+
+// WarnfWithFields logs a formatted warning message with fields
+func WarnfWithFields(fields logrus.Fields, format string, args ...interface{}) {
+	GetLogger().WithFields(fields).Warnf(format, args...)
+}
+
 // Success logs a success message as info with success indicator
 func Success(msg string, fields ...logrus.Fields) {
-	mergedFields := mergeFields(fields...)
-	mergedFields["status"] = "success"
-	GetLogger().WithFields(mergedFields).Info(msg)
+	fields = append(fields, logrus.Fields{"status": "success"})
+	entry := GetLogger().WithFields(mergeFields(fields...))
+	entry.Info(msg)
+}
+
+// Successf logs a formatted success message
+func Successf(format string, args ...interface{}) {
+	GetLogger().WithField("status", "success").Infof(format, args...)
+}
+
+// SuccessfWithFields logs a formatted success message with additional fields
+func SuccessfWithFields(fields logrus.Fields, format string, args ...interface{}) {
+	fields["status"] = "success"
+	GetLogger().WithFields(fields).Infof(format, args...)
 }
 
 // mergeFields merges multiple logrus.Fields into one

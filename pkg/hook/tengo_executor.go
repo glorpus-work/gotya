@@ -8,21 +8,21 @@ import (
 	"github.com/d5/tengo/v2/stdlib"
 )
 
-// tengoExecutor handles the execution of Tengo scripts
-type tengoExecutor struct {
+// TengoExecutor handles the execution of Tengo scripts
+type TengoExecutor struct {
 	scripts map[HookType]string
 	mutex   sync.RWMutex
 }
 
 // NewTengoExecutor creates a new Tengo script executor
-func NewTengoExecutor() *tengoExecutor {
-	return &tengoExecutor{
+func NewTengoExecutor() *TengoExecutor {
+	return &TengoExecutor{
 		scripts: make(map[HookType]string),
 	}
 }
 
 // Execute runs the specified hook type with the given context
-func (e *tengoExecutor) Execute(hookType HookType, ctx HookContext) error {
+func (e *TengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	e.mutex.RLock()
 	defer e.mutex.RUnlock()
 
@@ -72,21 +72,21 @@ func (e *tengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 }
 
 // AddScript adds or updates a script for the specified hook type
-func (e *tengoExecutor) AddScript(hookType HookType, script string) {
+func (e *TengoExecutor) AddScript(hookType HookType, script string) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	e.scripts[hookType] = script
 }
 
 // RemoveScript removes the script for the specified hook type
-func (e *tengoExecutor) RemoveScript(hookType HookType) {
+func (e *TengoExecutor) RemoveScript(hookType HookType) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	delete(e.scripts, hookType)
 }
 
 // HasScript checks if a script exists for the specified hook type
-func (e *tengoExecutor) HasScript(hookType HookType) bool {
+func (e *TengoExecutor) HasScript(hookType HookType) bool {
 	e.mutex.RLock()
 	defer e.mutex.RUnlock()
 	_, exists := e.scripts[hookType]
