@@ -44,11 +44,7 @@ func (op *RepositoryOperation) Add(name, url string, priority int) error {
 		return fmt.Errorf("failed to add repository: %w", err)
 	}
 
-	// Set priority if specified
-	if priority != 0 {
-		// Note: This assumes the manager supports priority setting
-		// If not, you'll need to implement this functionality
-	}
+	// Priority is currently not implemented in the repository manager
 
 	// Sync the repository to get the latest index
 	ctx := context.Background()

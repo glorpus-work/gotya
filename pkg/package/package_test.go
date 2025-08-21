@@ -4,14 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
 func setupTestEnvironment(t *testing.T) (string, func()) {
-	tempDir, err := ioutil.TempDir("", "gotya-test-*")
+	tempDir, err := os.MkdirTemp("", "gotya-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -42,7 +41,7 @@ func setupTestEnvironment(t *testing.T) (string, func()) {
 	}
 
 	for path, content := range testFiles {
-		if err := ioutil.WriteFile(path, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			t.Fatalf("Failed to create test file %s: %v", path, err)
 		}
 	}
@@ -53,7 +52,7 @@ func setupTestEnvironment(t *testing.T) (string, func()) {
 }
 
 func TestCalculateFileHash(t *testing.T) {
-	tempFile, err := ioutil.TempFile("", "test-hash-*")
+	tempFile, err := os.CreateTemp("", "test-hash-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
@@ -109,7 +108,9 @@ func TestReadPackageMetadata(t *testing.T) {
 			path:    filepath.Join(tempDir, "invalid.json"),
 			wantErr: true,
 			setup: func() {
-				ioutil.WriteFile(filepath.Join(tempDir, "invalid.json"), []byte("{invalid}"), 0644)
+				if err := os.WriteFile(filepath.Join(tempDir, "invalid.json"), []byte("{invalid}"), 0644); err != nil {
+					t.Fatalf("Failed to create invalid.json: %v", err)
+				}
 			},
 		},
 	}
@@ -199,7 +200,7 @@ func TestCreatePackage(t *testing.T) {
 	tempDir, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	outputDir, err := ioutil.TempDir("", "gotya-output-*")
+	outputDir, err := os.MkdirTemp("", "gotya-output-*")
 	if err != nil {
 		t.Fatalf("Failed to create output dir: %v", err)
 	}
