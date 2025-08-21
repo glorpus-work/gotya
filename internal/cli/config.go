@@ -198,19 +198,12 @@ func runConfigInit(force bool) error {
 	configPath := getConfigPath()
 
 	// Check if config file already exists
-	if !force {
-		if _, err := os.Stat(configPath); err == nil {
-			return fmt.Errorf("configuration file already exists at %s (use --force to overwrite)", configPath)
-		}
-	}
-
-	// Create config directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+	if _, err := os.Stat(configPath); err == nil && !force {
+		return fmt.Errorf("configuration file already exists at %s (use --force to overwrite)", configPath)
 	}
 
 	// Create default config
-	defaultConfig := createDefaultConfig()
+	defaultConfig := config.NewDefaultConfig()
 	if err := defaultConfig.SaveConfig(configPath); err != nil {
 		return fmt.Errorf("failed to save default configuration: %w", err)
 	}
@@ -228,53 +221,14 @@ func getConfigPath() string {
 	return defaultPath
 }
 
-func createDefaultConfig() *config.Config {
-	// This creates a default configuration
-	cfg := &config.Config{}
-	cfg.Settings.CacheDir = "" // Will use default
-	cfg.Settings.OutputFormat = "table"
-	cfg.Settings.ColorOutput = true
-	cfg.Settings.LogLevel = "info"
-	cfg.Repositories = make([]config.RepositoryConfig, 0)
-
-	return cfg
-}
-
-// Helper function to set a configuration value by key
+// setConfigValue sets a configuration value by key
 func setConfigValue(cfg *config.Config, key, value string) error {
-	switch key {
-	case "cache_dir":
-		cfg.Settings.CacheDir = value
-	case "output_format":
-		cfg.Settings.OutputFormat = value
-	case "color_output":
-		boolVal, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("invalid boolean value for %s: %s", key, value)
-		}
-		cfg.Settings.ColorOutput = boolVal
-	case "log_level":
-		cfg.Settings.LogLevel = value
-	default:
-		return fmt.Errorf("unknown configuration key: %s", key)
-	}
-	return nil
+	return cfg.SetValue(key, value)
 }
 
-// Helper function to get a configuration value by key
+// getConfigValue gets a configuration value by key
 func getConfigValue(cfg *config.Config, key string) (string, error) {
-	switch key {
-	case "cache_dir":
-		return cfg.Settings.CacheDir, nil
-	case "output_format":
-		return cfg.Settings.OutputFormat, nil
-	case "color_output":
-		return strconv.FormatBool(cfg.Settings.ColorOutput), nil
-	case "log_level":
-		return cfg.Settings.LogLevel, nil
-	default:
-		return "", fmt.Errorf("unknown configuration key: %s", key)
-	}
+	return cfg.GetValue(key)
 }
 
 // Helper function to convert CamelCase to snake_case

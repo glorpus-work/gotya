@@ -3,10 +3,9 @@ package cli
 import (
 	"fmt"
 	"os"
-	"text/tabwriter"
 
 	"github.com/cperrin88/gotya/pkg/logger"
-	"github.com/sirupsen/logrus"
+	"github.com/cperrin88/gotya/pkg/repository"
 	"github.com/spf13/cobra"
 )
 
@@ -92,16 +91,8 @@ func runRepoAdd(url, name string) error {
 		return err
 	}
 
-	logger.Debug("Adding repository", logrus.Fields{"url": url, "name": name})
-
-	manager.AddRepository(name, url)
-
-	repoName := name
-	if repoName == "" {
-		repoName = url
-	}
-	logger.Success("Successfully added repository", logrus.Fields{"repository": repoName})
-	return nil
+	repoOp := repository.NewRepositoryOperation(manager)
+	return repoOp.Add(name, url, 0) // Default priority is 0
 }
 
 func runRepoRemove(name string) error {
@@ -110,40 +101,23 @@ func runRepoRemove(name string) error {
 		return err
 	}
 
-	logger.Debug("Removing repository", logrus.Fields{"name": name})
-
-	manager.RemoveRepository(name)
-
-	logger.Success("Successfully removed repository", logrus.Fields{"repository": name})
-	return nil
+	repoOp := repository.NewRepositoryOperation(manager)
+	return repoOp.Remove(name)
 }
 
-func runRepoList(*cobra.Command, []string) error {
+func runRepoList(cmd *cobra.Command, args []string) error {
 	_, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
 
-	repos := manager.ListRepositories()
-
-	if len(repos) == 0 {
-		logger.Info("No repositories configured")
-		return nil
+	repoOp := repository.NewRepositoryOperation(manager)
+	output, err := repoOp.List()
+	if err != nil {
+		return err
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tURL\tPRIORITY\tSTATUS")
-	fmt.Fprintln(w, "----\t---\t--------\t------")
-
-	for _, repo := range repos {
-		status := "active"
-		if !repo.Enabled {
-			status = "disabled"
-		}
-		fmt.Fprintf(w, "%s\t%s\t%d\t%s\n", repo.Name, repo.URL, repo.Priority, status)
-	}
-
-	w.Flush()
+	fmt.Print(output)
 	return nil
 }
 
@@ -153,23 +127,12 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if len(args) == 0 {
-		// Update all repositories
-		logger.Debug("Updating all repositories...")
-		if err := manager.SyncRepositories(cmd.Context()); err != nil {
-			return fmt.Errorf("failed to update repositories: %w", err)
-		}
-		logger.Success("All repositories updated successfully")
-	} else {
-		// Update specific repositories
-		for _, repoName := range args {
-			logger.Debug("Updating repository", logrus.Fields{"repository": repoName})
-			if err := manager.SyncRepository(cmd.Context(), repoName); err != nil {
-				return fmt.Errorf("failed to update repository %s: %w", repoName, err)
-			}
-			logger.Success("Repository updated successfully", logrus.Fields{"repository": repoName})
-		}
+	repoOp := repository.NewRepositoryOperation(manager)
+	output, err := repoOp.Update(args)
+	if err != nil {
+		return err
 	}
 
+	fmt.Print(output)
 	return nil
 }

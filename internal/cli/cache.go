@@ -3,14 +3,10 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-
-	"github.com/cperrin88/gotya/pkg/logger"
-	"github.com/dustin/go-humanize"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 
 	"github.com/cperrin88/gotya/pkg/cache"
+	"github.com/cperrin88/gotya/pkg/logger"
+	"github.com/spf13/cobra"
 )
 
 // NewCacheCmd creates the cache command with subcommands
@@ -81,22 +77,15 @@ func runCacheClean(all, indexes, packages bool) error {
 		return err
 	}
 
-	// Create cache manager
+	// Create cache manager and operation
 	cacheDir := getCacheDir(config)
 	cacheManager := cache.NewManager(cacheDir)
+	cacheOp := cache.NewCacheOperation(cacheManager)
 
-	logger.Debug("Cleaning cache...")
-
-	// Clean using the cache manager
-	options := cache.CleanOptions{
-		All:      all,
-		Indexes:  indexes,
-		Packages: packages,
-	}
-
-	result, err := cacheManager.Clean(options)
+	// Clean the cache
+	result, err := cacheOp.Clean(all, indexes, packages)
 	if err != nil {
-		return fmt.Errorf("failed to clean cache: %w", err)
+		return err
 	}
 
 	if result.IndexFreed > 0 {
@@ -110,19 +99,21 @@ func runCacheClean(all, indexes, packages bool) error {
 	return nil
 }
 
-func runCacheInfo(*cobra.Command, []string) error {
+func runCacheInfo(cmd *cobra.Command, args []string) error {
 	config, _, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
 
-	// Create cache manager
+	// Create cache manager and operation
 	cacheDir := getCacheDir(config)
 	cacheManager := cache.NewManager(cacheDir)
+	cacheOp := cache.NewCacheOperation(cacheManager)
 
-	info, err := cacheManager.GetInfo()
+	// Get cache info
+	info, err := cacheOp.GetInfo()
 	if err != nil {
-		return fmt.Errorf("failed to get cache information: %w", err)
+		return err
 	}
 
 	fmt.Printf("Cache Directory: %s\n", info.Directory)
@@ -134,17 +125,19 @@ func runCacheInfo(*cobra.Command, []string) error {
 	return nil
 }
 
-func runCacheDir(*cobra.Command, []string) error {
+func runCacheDir(cmd *cobra.Command, args []string) error {
 	config, _, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
 
-	// Create cache manager
+	// Create cache manager and operation
 	cacheDir := getCacheDir(config)
 	cacheManager := cache.NewManager(cacheDir)
+	cacheOp := cache.NewCacheOperation(cacheManager)
 
-	fmt.Println(cacheManager.GetDirectory())
+	// Get and print cache directory
+	fmt.Println(cacheOp.GetDirectory())
 	return nil
 }
 

@@ -14,8 +14,8 @@ type tengoExecutor struct {
 	mutex   sync.RWMutex
 }
 
-// newTengoExecutor creates a new Tengo script executor
-func newTengoExecutor() *tengoExecutor {
+// NewTengoExecutor creates a new Tengo script executor
+func NewTengoExecutor() *tengoExecutor {
 	return &tengoExecutor{
 		scripts: make(map[HookType]string),
 	}
@@ -56,9 +56,15 @@ func (e *tengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	}
 
 	// Check for any returned error
-	if compiled.Get("err") != tengo.UndefinedValue {
-		if errVal, ok := compiled.Get("err").(*tengo.Error); ok {
-			return fmt.Errorf("hook script error: %s", errVal.String())
+	errVar := compiled.Get("err")
+	if errVar != nil {
+		switch v := errVar.Value().(type) {
+		case error:
+			return fmt.Errorf("hook script error: %v", v)
+		case string:
+			if v != "" {
+				return fmt.Errorf("hook script error: %s", v)
+			}
 		}
 	}
 

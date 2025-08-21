@@ -14,7 +14,7 @@ type DefaultHookManager struct {
 // NewHookManager creates a new hook manager
 func NewHookManager() HookManager {
 	return &DefaultHookManager{
-		executor: newTengoExecutor(),
+		executor: NewTengoExecutor(),
 	}
 }
 

@@ -50,6 +50,9 @@ type Settings struct {
 	CacheTTL time.Duration `yaml:"cache_ttl"`
 	AutoSync bool          `yaml:"auto_sync"`
 
+	// Installation settings
+	InstallDir string `yaml:"install_dir,omitempty"` // Base directory for package installations
+
 	// Network settings
 	HTTPTimeout   time.Duration `yaml:"http_timeout"`
 	MaxConcurrent int           `yaml:"max_concurrent_syncs"`
@@ -65,6 +68,12 @@ type Settings struct {
 
 // DefaultConfig returns a configuration with sensible defaults
 func DefaultConfig() *Config {
+	// Get the default install directory (usually ~/.local/share/gotya/install on Linux)
+	installDir, _ := getUserDataDir()
+	if installDir != "" {
+		installDir = filepath.Join(installDir, "install")
+	}
+
 	return &Config{
 		Repositories: []RepositoryConfig{},
 		Settings: Settings{
@@ -72,6 +81,7 @@ func DefaultConfig() *Config {
 			AutoSync:      false,
 			HTTPTimeout:   30 * time.Second,
 			MaxConcurrent: 3,
+			InstallDir:    installDir,
 			Platform: PlatformConfig{
 				OS:   runtime.GOOS,
 				Arch: runtime.GOARCH,

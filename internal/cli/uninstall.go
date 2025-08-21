@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/cperrin88/gotya/pkg/config"
@@ -27,7 +26,14 @@ func NewUninstallCmd() *cobra.Command {
 By default, pre-remove and post-remove hooks will be executed.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.Load()
+			// Get default config path
+			configPath, err := config.GetDefaultConfigPath()
+			if err != nil {
+				return fmt.Errorf("failed to get default config path: %w", err)
+			}
+
+			// Load the configuration
+			cfg, err := config.LoadConfig(configPath)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
@@ -77,9 +83,9 @@ func uninstallPackage(cfg *config.Config, db *pkg.InstalledDatabase, packageName
 	hookManager := hook.NewHookManager()
 
 	// Try to load hooks from the package if it's still available
-	installPath := filepath.Join(cfg.GetInstallDir(), pkgInfo.Name)
+	packagePath := filepath.Join(cfg.Settings.InstallDir, pkgInfo.Name)
 	if !skipHooks {
-		if err := hook.LoadHooksFromPackageDir(hookManager, installPath); err != nil {
+		if err := hook.LoadHooksFromPackageDir(hookManager, packagePath); err != nil {
 			logger.Warn("Failed to load hooks from package", logrus.Fields{
 				"package": packageName,
 				"error":   err.Error(),
@@ -91,7 +97,7 @@ func uninstallPackage(cfg *config.Config, db *pkg.InstalledDatabase, packageName
 	hookCtx := hook.HookContext{
 		PackageName:    pkgInfo.Name,
 		PackageVersion: pkgInfo.Version,
-		InstallPath:    installPath,
+		InstallPath:    packagePath, // Use packagePath instead of installPath
 		Vars: map[string]interface{}{
 			"force": force,
 		},
@@ -108,7 +114,7 @@ func uninstallPackage(cfg *config.Config, db *pkg.InstalledDatabase, packageName
 	// Remove package files (simplified - in a real implementation, we would remove actual files)
 	logger.Debug("Removing package files", logrus.Fields{
 		"package": packageName,
-		"path":    installPath,
+		"path":    packagePath, // Use packagePath instead of installPath
 	})
 
 	// In a real implementation, we would:
