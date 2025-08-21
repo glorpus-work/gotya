@@ -70,12 +70,128 @@ func ExtractArchive(packagePath, extractDir string) error {
 	return extractTarGz(packagePath, extractDir)
 }
 
+// tarExtractor handles the extraction of tar archives
+type tarExtractor struct {
+	tarReader  *tar.Reader
+	extractDir string
+}
+
+// newTarExtractor creates a new tarExtractor instance
+func newTarExtractor(reader io.Reader, extractDir string) *tarExtractor {
+	return &tarExtractor{
+		tarReader:  tar.NewReader(reader),
+		extractDir: extractDir,
+	}
+}
+
+// validatePath ensures the target path is safe and within the extraction directory
+func (e *tarExtractor) validatePath(header *tar.Header) (string, error) {
+	// Sanitize the path to prevent directory traversal
+	targetPath := filepath.Join(e.extractDir, filepath.Clean("/"+header.Name))
+
+	// Security check: ensure target path is within extraction directory
+	relPath, err := filepath.Rel(e.extractDir, targetPath)
+	if err != nil || strings.HasPrefix(relPath, "..") || strings.HasPrefix(relPath, ".") {
+		return "", fmt.Errorf("invalid file path in archive: %s", header.Name)
+	}
+
+	// Additional check for absolute paths or path traversal
+	if !filepath.IsAbs(e.extractDir) || filepath.IsAbs(header.Name) || strings.Contains(header.Name, "..") {
+		return "", fmt.Errorf("invalid file path in archive: %s", header.Name)
+	}
+
+	return targetPath, nil
+}
+
+// extractDirectory handles the extraction of a directory entry
+func (e *tarExtractor) extractDirectory(header *tar.Header, targetPath string) error {
+	// Ensure the directory exists with secure permissions
+	if err := util.EnsureDir(targetPath); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+	}
+
+	// Set the original mode if it's more restrictive than our default
+	if header.Mode&0777 < 0750 {
+		if err := os.Chmod(targetPath, os.FileMode(header.Mode)); err != nil {
+			return fmt.Errorf("failed to set permissions for %s: %w", targetPath, err)
+		}
+	}
+	return nil
+}
+
+// extractRegularFile handles the extraction of a regular file
+func (e *tarExtractor) extractRegularFile(header *tar.Header, targetPath string) error {
+	// Create directory if it doesn't exist
+	if err := util.EnsureFileDir(targetPath); err != nil {
+		return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
+	}
+
+	// Create the file with the specified mode
+	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
+	if err != nil {
+		return fmt.Errorf("failed to create file %s: %w", targetPath, err)
+	}
+
+	// Copy file content
+	if _, err := io.Copy(file, e.tarReader); err != nil {
+		file.Close()
+		return fmt.Errorf("failed to extract file %s: %w", targetPath, err)
+	}
+
+	return file.Close()
+}
+
+// extractSymlink handles the extraction of a symlink
+func (e *tarExtractor) extractSymlink(header *tar.Header, targetPath string) error {
+	// On Windows, we need to be careful with symlinks
+	// First remove the target if it exists
+	if _, err := os.Lstat(targetPath); err == nil {
+		if err := os.Remove(targetPath); err != nil {
+			return fmt.Errorf("failed to remove existing symlink %s: %w", targetPath, err)
+		}
+	}
+
+	// Create the symlink
+	if err := os.Symlink(header.Linkname, targetPath); err != nil {
+		return fmt.Errorf("failed to create symlink %s: %w", targetPath, err)
+	}
+
+	return nil
+}
+
+// extractHardlink handles the extraction of a hard link
+func (e *tarExtractor) extractHardlink(header *tar.Header, targetPath string) error {
+	// Sanitize link target path
+	linkTarget := filepath.Join(e.extractDir, filepath.Clean("/"+header.Linkname))
+
+	// Verify link target is within extraction directory
+	relLinkPath, err := filepath.Rel(e.extractDir, linkTarget)
+	if err != nil || strings.HasPrefix(relLinkPath, "..") || strings.HasPrefix(relLinkPath, ".") {
+		return fmt.Errorf("invalid link target in archive: %s", header.Linkname)
+	}
+
+	// On Windows, we need to be careful with hard links
+	// First remove the target if it exists
+	if _, err := os.Lstat(targetPath); err == nil {
+		if err := os.Remove(targetPath); err != nil {
+			return fmt.Errorf("failed to remove existing file %s: %w", targetPath, err)
+		}
+	}
+
+	// Create the hard link
+	if err := os.Link(linkTarget, targetPath); err != nil {
+		return fmt.Errorf("failed to create hard link %s: %w", targetPath, err)
+	}
+
+	return nil
+}
+
 // extractTar extracts a tar stream to the specified directory
 func extractTar(reader io.Reader, extractDir string) error {
-	tarReader := tar.NewReader(reader)
+	extractor := newTarExtractor(reader, extractDir)
 
 	for {
-		header, err := tarReader.Next()
+		header, err := extractor.tarReader.Next()
 		if err == io.EOF {
 			break
 		}
@@ -83,53 +199,35 @@ func extractTar(reader io.Reader, extractDir string) error {
 			return fmt.Errorf("failed to read tar header: %w", err)
 		}
 
-		targetPath := filepath.Join(extractDir, header.Name)
-
-		// Security check: ensure target path is within extraction directory
-		if !strings.HasPrefix(targetPath, extractDir) {
-			return fmt.Errorf("invalid file path in archive: %s", header.Name)
+		targetPath, err := extractor.validatePath(header)
+		if err != nil {
+			return err
 		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			// Ensure the directory exists with secure permissions
-			if err := util.EnsureDir(targetPath); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
-			}
-			// Set the original mode if it's more restrictive than our default
-			if header.Mode&0777 < 0750 {
-				if err := os.Chmod(targetPath, os.FileMode(header.Mode)); err != nil {
-					return fmt.Errorf("failed to set permissions for %s: %w", targetPath, err)
-				}
+			if err := extractor.extractDirectory(header, targetPath); err != nil {
+				return err
 			}
 
 		case tar.TypeReg:
-			// Create directory if it doesn't exist
-			if err := util.EnsureFileDir(targetPath); err != nil {
-				return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
+			if err := extractor.extractRegularFile(header, targetPath); err != nil {
+				return err
 			}
-
-			file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY, os.FileMode(header.Mode))
-			if err != nil {
-				return fmt.Errorf("failed to create file %s: %w", targetPath, err)
-			}
-
-			if _, err := io.Copy(file, tarReader); err != nil {
-				file.Close()
-				return fmt.Errorf("failed to extract file %s: %w", targetPath, err)
-			}
-			file.Close()
 
 		case tar.TypeSymlink:
-			if err := os.Symlink(header.Linkname, targetPath); err != nil {
-				return fmt.Errorf("failed to create symlink %s: %w", targetPath, err)
+			if err := extractor.extractSymlink(header, targetPath); err != nil {
+				return err
 			}
 
 		case tar.TypeLink:
-			linkTarget := filepath.Join(extractDir, header.Linkname)
-			if err := os.Link(linkTarget, targetPath); err != nil {
-				return fmt.Errorf("failed to create hard link %s: %w", targetPath, err)
+			if err := extractor.extractHardlink(header, targetPath); err != nil {
+				return err
 			}
+
+		// Add support for other file types if needed
+		default:
+			return fmt.Errorf("unsupported file type %v in archive", header.Typeflag)
 		}
 	}
 

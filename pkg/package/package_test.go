@@ -61,7 +61,9 @@ func setupTestEnvironment(t *testing.T) (string, func()) {
 			if !info.IsDir() {
 				// Try to remove read-only attributes if they exist
 				if info.Mode()&0200 == 0 {
-					os.Chmod(path, 0666)
+					if err := os.Chmod(path, 0666); err != nil {
+						t.Logf("Warning: failed to change permissions for %s: %v", path, err)
+					}
 				}
 			}
 			return nil

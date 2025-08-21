@@ -102,20 +102,21 @@ func processFiles(sourceDir string, meta *Metadata) error {
 	return err
 }
 
-// createTarball creates a tarball from the source directory
-func createTarball(sourceDir, outputPath string, meta *Metadata) (err error) {
-	// Create output file with explicit permissions
-	file, err := os.OpenFile(outputPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
+// tarballWriter wraps the writers needed for creating a tarball
+type tarballWriter struct {
+	file      *os.File
+	bufWriter *bufio.Writer
+	gzip      *gzip.Writer
+	tar       *tar.Writer
+}
 
-	// Ensure the file is closed in case of error
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close output file: %w", closeErr)
-		}
-	}()
+// newTarballWriter creates and initializes a new tarballWriter
+func newTarballWriter(outputPath string) (*tarballWriter, error) {
+	// Create output file with secure permissions (owner read/write only)
+	file, err := os.OpenFile(outputPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create output file: %w", err)
+	}
 
 	// Create buffered writer for better performance
 	bufWriter := bufio.NewWriterSize(file, 32*1024) // 32KB buffer
@@ -123,148 +124,133 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) (err error) {
 	// Create gzip writer
 	gzipWriter := gzip.NewWriter(bufWriter)
 
-	// Ensure gzip writer is closed
-	defer func() {
-		if closeErr := gzipWriter.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close gzip writer: %w", closeErr)
-		}
-	}()
-
 	// Create tar writer
 	tarWriter := tar.NewWriter(gzipWriter)
 
-	// Ensure tar writer is closed
+	return &tarballWriter{
+		file:      file,
+		bufWriter: bufWriter,
+		gzip:      gzipWriter,
+		tar:       tarWriter,
+	}, nil
+}
+
+// close closes all writers in the correct order and returns any errors
+func (tw *tarballWriter) close() error {
+	var errs []error
+
+	// Close tar writer
+	if err := tw.tar.Close(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to close tar writer: %w", err))
+	}
+
+	// Close gzip writer
+	if err := tw.gzip.Close(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to close gzip writer: %w", err))
+	}
+
+	// Flush buffer
+	if err := tw.bufWriter.Flush(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to flush buffer: %w", err))
+	}
+
+	// Close file
+	if err := tw.file.Close(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to close file: %w", err))
+	}
+
+	// Return first error if any
+	if len(errs) > 0 {
+		return errs[0]
+	}
+
+	return nil
+}
+
+// addFileToTarball adds a single file to the tarball
+func (tw *tarballWriter) addFileToTarball(filePath, tarballPath string) error {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat file %s: %w", filePath, err)
+	}
+
+	header, err := tar.FileInfoHeader(info, "")
+	if err != nil {
+		return fmt.Errorf("failed to create tar header for %s: %w", filePath, err)
+	}
+
+	header.Name = tarballPath
+
+	if err := tw.tar.WriteHeader(header); err != nil {
+		return fmt.Errorf("failed to write tar header for %s: %w", filePath, err)
+	}
+
+	if info.IsDir() {
+		return nil
+	}
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open file %s: %w", filePath, err)
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(tw.tar, file); err != nil {
+		return fmt.Errorf("failed to write file content for %s: %w", filePath, err)
+	}
+
+	return nil
+}
+
+// processDirectory walks through a directory and adds its contents to the tarball
+func (tw *tarballWriter) processDirectory(dirPath, tarballBase string) error {
+	return filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("error walking path %s: %w", path, err)
+		}
+
+		// Skip the base directory itself
+		if path == dirPath {
+			return nil
+		}
+
+		// Calculate relative path within the directory
+		relPath, err := filepath.Rel(dirPath, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
+		}
+
+		// Create tarball path with forward slashes for compatibility
+		tarballPath := filepath.ToSlash(filepath.Join(tarballBase, relPath))
+
+		return tw.addFileToTarball(path, tarballPath)
+	})
+}
+
+// createTarball creates a tarball from the source directory
+func createTarball(sourceDir, outputPath string, meta *Metadata) error {
+	// Initialize tarball writer
+	tw, err := newTarballWriter(outputPath)
+	if err != nil {
+		return err
+	}
+
+	// Ensure all writers are properly closed
 	defer func() {
-		if closeErr := tarWriter.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close tar writer: %w", closeErr)
+		if closeErr := tw.close(); closeErr != nil && err == nil {
+			err = closeErr
 		}
 	}()
 
-	// Function to add a file to the tarball
-	addFileToTarball := func(filePath, tarballPath string) error {
-		info, err := os.Stat(filePath)
-		if err != nil {
-			return fmt.Errorf("failed to stat file %s: %w", filePath, err)
-		}
-
-		// Create tar header
-		header, err := tar.FileInfoHeader(info, "")
-		if err != nil {
-			return fmt.Errorf("failed to create tar header for %s: %w", filePath, err)
-		}
-
-		// Update the name to be relative to the package root
-		header.Name = tarballPath
-
-		// Write the header
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return fmt.Errorf("failed to write tar header for %s: %w", filePath, err)
-		}
-
-		// If it's a regular file, write its content
-		if !info.IsDir() {
-			file, err := os.Open(filePath)
-			if err != nil {
-				return fmt.Errorf("failed to open file %s: %w", filePath, err)
-			}
-
-			// Use a closure to ensure the file is closed
-			defer file.Close()
-
-			if _, err := io.Copy(tarWriter, file); err != nil {
-				return fmt.Errorf("failed to write file content for %s: %w", filePath, err)
-			}
-		}
-
-		return nil
-	}
-
-	// Add metadata files
+	// Process meta directory
 	metaDir := filepath.Join(sourceDir, "meta")
-	err = filepath.Walk(metaDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf("error walking path %s: %w", path, err)
-		}
-
-		// Skip the meta directory itself
-		if path == metaDir {
-			return nil
-		}
-
-		// Calculate relative path within meta directory
-		relPath, err := filepath.Rel(metaDir, path)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
-		}
-
-		// Convert to forward slashes for tarball compatibility
-		tarballPath := filepath.ToSlash(filepath.Join("meta", relPath))
-
-		return addFileToTarball(path, tarballPath)
-	})
-
-	if err != nil {
+	if err := tw.processDirectory(metaDir, "meta"); err != nil {
 		return fmt.Errorf("error processing meta directory: %w", err)
 	}
 
-	// Add files directory
+	// Process files directory
 	filesDir := filepath.Join(sourceDir, "files")
-	err = filepath.Walk(filesDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf("error walking path %s: %w", path, err)
-		}
-
-		// Skip the files directory itself
-		if path == filesDir {
-			return nil
-		}
-
-		// Calculate relative path within files directory
-		relPath, err := filepath.Rel(filesDir, path)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
-		}
-
-		// Create tar header
-		header, err := tar.FileInfoHeader(info, "")
-		if err != nil {
-			return fmt.Errorf("failed to create tar header for %s: %w", path, err)
-		}
-
-		// Update the name to be relative to the package root
-		header.Name = filepath.ToSlash(filepath.Join("files", relPath))
-
-		// Write the header
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return fmt.Errorf("failed to write tar header for %s: %w", path, err)
-		}
-
-		// If it's a regular file, write its content
-		if !info.IsDir() {
-			file, err := os.Open(path)
-			if err != nil {
-				return fmt.Errorf("failed to open file %s: %w", path, err)
-			}
-
-			// Use a closure to ensure the file is closed
-			defer func() {
-				if closeErr := file.Close(); closeErr != nil && err == nil {
-					err = fmt.Errorf("failed to close file %s: %w", path, closeErr)
-				}
-			}()
-
-			if _, err := io.Copy(tarWriter, file); err != nil {
-				return fmt.Errorf("failed to write file content for %s: %w", path, err)
-			}
-
-			// On Windows, we don't need to explicitly sync the file as it's being read
-			// and we're not modifying it, just reading its contents
-		}
-
-		return nil
-	})
-
-	if err != nil {
+	if err := tw.processDirectory(filesDir, "files"); err != nil {
 		return fmt.Errorf("error processing files directory: %w", err)
 	}
 

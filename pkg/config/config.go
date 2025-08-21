@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/util"
 	"gopkg.in/yaml.v3"
 )
 
@@ -98,7 +97,19 @@ func DefaultConfig() *Config {
 
 // LoadConfig loads configuration from a file
 func LoadConfig(path string) (*Config, error) {
-	file, err := os.Open(path)
+	// Validate the config file path
+	if path == "" {
+		return nil, fmt.Errorf("config file path cannot be empty")
+	}
+
+	// Ensure the path is clean and absolute
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid config file path: %w", err)
+	}
+
+	// Check if file exists and is accessible
+	file, err := os.Open(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return DefaultConfig(), nil
@@ -137,14 +148,25 @@ func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 
 // SaveConfig saves configuration to a file
 func (c *Config) SaveConfig(path string) error {
-	// Ensure directory exists
-	if err := util.EnsureFileDir(path); err != nil {
+	// Validate the config file path
+	if path == "" {
+		return fmt.Errorf("config file path cannot be empty")
+	}
+
+	// Ensure the path is clean and absolute
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("invalid config file path: %w", err)
+	}
+
+	// Ensure the directory exists with secure permissions (0700)
+	if err := os.MkdirAll(filepath.Dir(absPath), 0700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Create temporary file
-	tempPath := path + ".tmp"
-	file, err := os.Create(tempPath)
+	// Create temporary file with secure permissions (0600)
+	tempPath := absPath + ".tmp"
+	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to create temp config file: %w", err)
 	}
@@ -163,9 +185,16 @@ func (c *Config) SaveConfig(path string) error {
 	file.Close()
 
 	// Atomically replace the config file
-	if err := os.Rename(tempPath, path); err != nil {
+	if err := os.Rename(tempPath, absPath); err != nil {
+		// Clean up temp file if rename fails
 		os.Remove(tempPath)
 		return fmt.Errorf("failed to replace config file: %w", err)
+	}
+
+	// Ensure the final file has the correct permissions (0600)
+	if err := os.Chmod(absPath, 0600); err != nil {
+		// This is not fatal, but we should log it
+		return fmt.Errorf("warning: failed to set permissions on config file: %w", err)
 	}
 
 	return nil
