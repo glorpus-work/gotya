@@ -3,7 +3,7 @@ module github.com/cperrin88/gotya
 go 1.24
 
 require (
-	github.com/d5/tengo/v2 v2.16.1
+	github.com/d5/tengo/v2 v2.17.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.7.0
