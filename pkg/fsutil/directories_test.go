@@ -46,16 +46,16 @@ func TestEnsureDir(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			path := tt.setup(t)
-			if tt.cleanup != nil {
-				defer tt.cleanup(t, path)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			path := testCase.setup(t)
+			if testCase.cleanup != nil {
+				defer testCase.cleanup(t, path)
 			}
 
 			err := EnsureDir(path)
 
-			if tt.expectError {
+			if testCase.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
@@ -102,14 +102,14 @@ func TestEnsureFileDir(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			filePath := tt.setup(t)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			filePath := testCase.setup(t)
 			dir := filepath.Dir(filePath)
 
 			err := EnsureFileDir(filePath)
 
-			if tt.expectError {
+			if testCase.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)

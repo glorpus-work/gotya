@@ -2,13 +2,12 @@ package pkg
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/fsutil"
+	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 // InstalledDatabase represents the database of installed packages.
@@ -37,7 +36,7 @@ func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
-		return nil, fmt.Errorf("database path must be absolute: %s", dbPath)
+		return nil, errors.Wrapf(errors.ErrInvalidPath, "database path must be absolute: %s", dbPath)
 	}
 
 	// Check if file exists with cleaned path
@@ -49,7 +48,7 @@ func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
 	// Open the file with the cleaned path
 	file, err := os.Open(cleanPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, errors.Wrapf(err, "failed to open database")
 	}
 	defer file.Close()
 
@@ -67,17 +66,17 @@ type tempInstalledDatabase struct {
 func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read database: %w", err)
+		return nil, errors.Wrapf(err, "failed to read database")
 	}
 
 	// First unmarshal into a temporary struct
 	var tempDB tempInstalledDatabase
 	if err := json.Unmarshal(data, &tempDB); err != nil {
-		return nil, fmt.Errorf("failed to parse database: %w", err)
+		return nil, errors.Wrapf(err, "failed to parse database")
 	}
 
 	// Convert to our actual database structure with pointers
-	db := &InstalledDatabase{
+	installedDB := &InstalledDatabase{
 		FormatVersion: tempDB.FormatVersion,
 		LastUpdate:    tempDB.LastUpdate,
 		Packages:      make([]*InstalledPackage, 0, len(tempDB.Packages)),
@@ -86,80 +85,71 @@ func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, err
 	// Convert each package to a pointer
 	for i := range tempDB.Packages {
 		pkg := tempDB.Packages[i] // Create a copy in the loop
-		db.Packages = append(db.Packages, &pkg)
+		installedDB.Packages = append(installedDB.Packages, &pkg)
 	}
 
-	return db, nil
+	return installedDB, nil
 }
 
 // Save saves the installed packages database to file.
-func (db *InstalledDatabase) Save(dbPath string) (err error) {
+func (installedDB *InstalledDatabase) Save(dbPath string) (err error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
-		return fmt.Errorf("database path must be absolute: %s", dbPath)
+		return errors.Wrapf(errors.ErrInvalidPath, "database path must be absolute: %s", dbPath)
 	}
 
-	// Create a temporary struct for JSON marshaling
-	tempDB := struct {
-		FormatVersion string             `json:"format_version"`
-		LastUpdate    time.Time          `json:"last_update"`
-		Packages      []InstalledPackage `json:"packages"`
-	}{
-		FormatVersion: db.FormatVersion,
-		LastUpdate:    db.LastUpdate,
-		Packages:      make([]InstalledPackage, 0, len(db.Packages)),
-	}
+	// Get the directory of the database file
+	dbDir := filepath.Dir(cleanPath)
 
-	// Convert pointer slice to value slice
-	for _, pkg := range db.Packages {
-		tempDB.Packages = append(tempDB.Packages, *pkg)
-	}
-
-	// Ensure directory exists with secure permissions
-	if err := fsutil.EnsureDir(filepath.Dir(cleanPath)); err != nil {
-		return fmt.Errorf("failed to create database directory: %w", err)
-	}
-
-	// Create a temporary file in the same directory
-	tempPath := cleanPath + ".tmp"
-	file, err := os.Create(tempPath)
+	// Create a temporary file for atomic write
+	tmpFile, err := os.CreateTemp(dbDir, "gotya-db-*.tmp")
 	if err != nil {
-		return fmt.Errorf("failed to create temp database file: %w", err)
+		return errors.Wrapf(err, "failed to create temporary file in %s", dbDir)
 	}
+	tmpPath := tmpFile.Name()
 	defer func() {
 		if err != nil {
-			_ = os.Remove(tempPath)
+			// Clean up the temporary file if there was an error
+			_ = os.Remove(tmpPath)
 		}
 	}()
 
-	// Write JSON with indentation for better readability
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(tempDB); err != nil {
-		return fmt.Errorf("failed to encode database: %w", err)
+	// Convert to JSON
+	data, err := json.MarshalIndent(installedDB, "", "  ")
+	if err != nil {
+		_ = tmpFile.Close()
+		return errors.Wrap(err, "failed to marshal database to JSON")
 	}
 
-	// Ensure all data is written to disk
-	if err := file.Sync(); err != nil {
-		return fmt.Errorf("failed to sync database file: %w", err)
+	// Write to temporary file
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return errors.Wrap(err, "failed to write to temporary file")
 	}
 
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("failed to close database file: %w", err)
+	// Ensure the data is written to disk
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		return errors.Wrap(err, "failed to sync temporary file to disk")
 	}
 
-	// Rename the temporary file to the final location
-	if err := os.Rename(tempPath, cleanPath); err != nil {
-		return fmt.Errorf("failed to replace database file: %w", err)
+	// Close the temporary file
+	if err := tmpFile.Close(); err != nil {
+		return errors.Wrap(err, "failed to close temporary file")
+	}
+
+	// Atomically rename the temporary file to the target file
+	if err := os.Rename(tmpPath, cleanPath); err != nil {
+		return errors.Wrapf(err, "failed to rename temporary file to %s", cleanPath)
 	}
 
 	return nil
 }
 
 // FindPackage finds an installed package by name.
-func (db *InstalledDatabase) FindPackage(name string) *InstalledPackage {
-	for _, pkg := range db.Packages {
+func (installedDB *InstalledDatabase) FindPackage(name string) *InstalledPackage {
+	for _, pkg := range installedDB.Packages {
 		if pkg.Name == name {
 			return pkg
 		}
@@ -168,32 +158,32 @@ func (db *InstalledDatabase) FindPackage(name string) *InstalledPackage {
 }
 
 // IsPackageInstalled checks if a package is installed.
-func (db *InstalledDatabase) IsPackageInstalled(name string) bool {
-	return db.FindPackage(name) != nil
+func (installedDB *InstalledDatabase) IsPackageInstalled(name string) bool {
+	return installedDB.FindPackage(name) != nil
 }
 
 // AddPackage adds an installed package to the database.
-func (db *InstalledDatabase) AddPackage(pkg *InstalledPackage) {
+func (installedDB *InstalledDatabase) AddPackage(pkg *InstalledPackage) {
 	// Remove existing package with same name if it exists
-	for i, existingPkg := range db.Packages {
+	for i, existingPkg := range installedDB.Packages {
 		if existingPkg.Name == pkg.Name {
-			db.Packages[i] = pkg
-			db.LastUpdate = time.Now()
+			installedDB.Packages[i] = pkg
+			installedDB.LastUpdate = time.Now()
 			return
 		}
 	}
 
 	// Add new package
-	db.Packages = append(db.Packages, pkg)
-	db.LastUpdate = time.Now()
+	installedDB.Packages = append(installedDB.Packages, pkg)
+	installedDB.LastUpdate = time.Now()
 }
 
 // RemovePackage removes an installed package from the database.
-func (db *InstalledDatabase) RemovePackage(name string) bool {
-	for i, pkg := range db.Packages {
+func (installedDB *InstalledDatabase) RemovePackage(name string) bool {
+	for i, pkg := range installedDB.Packages {
 		if pkg.Name == name {
-			db.Packages = append(db.Packages[:i], db.Packages[i+1:]...)
-			db.LastUpdate = time.Now()
+			installedDB.Packages = append(installedDB.Packages[:i], installedDB.Packages[i+1:]...)
+			installedDB.LastUpdate = time.Now()
 			return true
 		}
 	}
@@ -201,6 +191,6 @@ func (db *InstalledDatabase) RemovePackage(name string) bool {
 }
 
 // GetInstalledPackages returns all installed packages.
-func (db *InstalledDatabase) GetInstalledPackages() []*InstalledPackage {
-	return db.Packages
+func (installedDB *InstalledDatabase) GetInstalledPackages() []*InstalledPackage {
+	return installedDB.Packages
 }

@@ -82,7 +82,8 @@ func runUpdate(packages []string, all bool) error {
 
 	// Get packages to update
 	var packagesToUpdate []string
-	if all {
+	switch {
+	case all:
 		// Load installed packages database to get all installed packages
 		installedDB, err := pkgpkg.LoadInstalledDatabase(cfg.GetDatabasePath())
 		if err != nil {
@@ -92,9 +93,9 @@ func runUpdate(packages []string, all bool) error {
 		for _, pkg := range installedDB.Packages {
 			packagesToUpdate = append(packagesToUpdate, pkg.Name)
 		}
-	} else if len(packages) > 0 {
+	case len(packages) > 0:
 		packagesToUpdate = packages
-	} else {
+	default:
 		return fmt.Errorf("no packages specified and --all flag not used")
 	}
 

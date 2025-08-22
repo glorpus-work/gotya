@@ -94,10 +94,10 @@ func (op *RepositoryOperation) List() (string, error) {
 	})
 
 	var buf strings.Builder
-	w := tabwriter.NewWriter(&buf, 0, 0, TabWidth, ' ', 0)
+	tabWriter := tabwriter.NewWriter(&buf, 0, 0, TabWidth, ' ', 0)
 
 	// Write header
-	if _, err := fmt.Fprintln(w, "NAME\tURL\tENABLED\tPRIORITY"); err != nil {
+	if _, err := fmt.Fprintln(tabWriter, "NAME\tURL\tENABLED\tPRIORITY"); err != nil {
 		return "", fmt.Errorf("failed to write table header: %w", err)
 	}
 
@@ -107,7 +107,7 @@ func (op *RepositoryOperation) List() (string, error) {
 		if repo.Enabled {
 			enabled = "yes"
 		}
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%d\n",
+		if _, err := fmt.Fprintf(tabWriter, "%s\t%s\t%s\t%d\n",
 			repo.Name,
 			repo.URL,
 			enabled,
@@ -118,7 +118,7 @@ func (op *RepositoryOperation) List() (string, error) {
 	}
 
 	// Flush the tabwriter buffer
-	if err := w.Flush(); err != nil {
+	if err := tabWriter.Flush(); err != nil {
 		return "", fmt.Errorf("failed to flush tabwriter: %w", err)
 	}
 

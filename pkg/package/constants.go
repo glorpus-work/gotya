@@ -2,45 +2,45 @@ package pkg
 
 import "github.com/cperrin88/gotya/pkg/fsutil"
 
-// Re-export file permission constants from fsutil package for backward compatibility
+// Re-export file permission constants from fsutil package for backward compatibility.
 const (
-	// File mode masks
+	// File mode masks.
 	FileModeMask = fsutil.FileModeMask
 	DirModeMask  = fsutil.DirModeMask
 
-	// Default file modes
+	// Default file modes.
 	FileModeDefault = fsutil.FileModeDefault
 	FileModeSecure  = fsutil.FileModeSecure
 	FileModeExec    = fsutil.FileModeExec
 
-	// Default directory modes
+	// Default directory modes.
 	DirModeDefault = fsutil.DirModeDefault
 	DirModeSecure  = fsutil.DirModeSecure
 	DirModePrivate = fsutil.DirModePrivate
 
-	// Special file modes
+	// Special file modes.
 	Umask = fsutil.Umask
 )
 
-// File type constants
+// File type constants.
 const (
-	// Package file names
+	// Package file names.
 	MetadataFileName = "metadata.json"
 	PackageFileName  = "pkg.json"
 
-	// Directory names
+	// Directory names.
 	FilesDirName   = "files"
 	ScriptsDirName = "scripts"
 	TempDirPrefix  = "gotya-*"
 )
 
-// Archive related constants
+// Archive related constants.
 const (
-	// Archive file extensions
+	// Archive file extensions.
 	TarGzExt = ".tar.gz"
 	TgzExt   = ".tgz"
 
-	// Archive type indicators
+	// Archive type indicators.
 	TypeReg     = '0'    // Regular file
 	TypeRegA    = '\x00' // Regular file (alternate)
 	TypeLink    = '1'    // Hard link
@@ -52,17 +52,22 @@ const (
 	TypeCont    = '7'    // Reserved
 )
 
-// Validation constants
+// Validation constants.
 const (
-	// Minimum package size in bytes (smallest possible gzip file is ~20 bytes)
+	// Minimum package size in bytes (smallest possible gzip file is ~20 bytes).
 	MinPackageSize = 50
 
-	// Maximum file size for in-memory operations (10MB)
+	// Maximum file size for in-memory operations (10MB).
 	MaxInMemoryFileSize = 10 << 20
 )
 
-// Default buffer sizes
+// Default buffer sizes.
 const (
 	DefaultBufferSize = 32 * 1024 // 32KB buffer for file operations
 	TarBlockSize      = 512       // Standard tar block size
+)
+
+// Common byte units for size calculations.
+const (
+	ByteUnit = 1024 // Base unit for byte size calculations (1KB)
 )

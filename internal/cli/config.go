@@ -44,12 +44,18 @@ func newConfigShowCmd() *cobra.Command {
 	return cmd
 }
 
+// Number of arguments expected by the set command.
+const setCommandArgs = 2
+
+// stringLengthMultiplier is used to pre-allocate slices with sufficient capacity.
+const stringLengthMultiplier = 2
+
 func newConfigSetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set KEY VALUE",
 		Short: "Set a configuration value",
 		Long:  "Set a configuration key to a specific value",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.ExactArgs(setCommandArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runConfigSet(args[0], args[1])
 		},
@@ -95,9 +101,9 @@ func runConfigShow(*cobra.Command, []string) error {
 		return err
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, TabWidth, ' ', 0)
-	fmt.Fprintln(w, "SETTING\tVALUE")
-	fmt.Fprintln(w, "-------\t-----")
+	tabWriter := tabwriter.NewWriter(os.Stdout, 0, 0, TabWidth, ' ', 0)
+	fmt.Fprintln(tabWriter, "SETTING\tVALUE")
+	fmt.Fprintln(tabWriter, "-------\t-----")
 
 	// Display settings using reflection to access fields
 	settingsValue := reflect.ValueOf(cfg.Settings)
@@ -109,10 +115,10 @@ func runConfigShow(*cobra.Command, []string) error {
 
 		// Convert field name to snake_case
 		fieldName := toSnakeCase(field.Name)
-		fmt.Fprintf(w, "%s\t%v\n", fieldName, value.Interface())
+		fmt.Fprintf(tabWriter, "%s\t%v\n", fieldName, value.Interface())
 	}
 
-	w.Flush()
+	tabWriter.Flush()
 
 	fmt.Printf("\nRepositories (%d):\n", len(cfg.Repositories))
 	for _, repo := range cfg.Repositories {
@@ -238,7 +244,7 @@ func getConfigValue(cfg *config.Config, key string) (string, error) {
 
 // Helper function to convert CamelCase to snake_case.
 func toSnakeCase(str string) string {
-	var result []rune
+	result := make([]rune, 0, len(str)*stringLengthMultiplier) // Pre-allocate with enough capacity for worst case
 	for i, r := range str {
 		if i > 0 && r >= 'A' && r <= 'Z' {
 			result = append(result, '_')

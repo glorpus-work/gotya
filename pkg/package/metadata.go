@@ -2,23 +2,21 @@ package pkg
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
+
+	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 // ParseMetadata parses package metadata from JSON data.
 func ParseMetadata(data []byte) (*PackageMetadata, error) {
 	var metadata PackageMetadata
 	if err := json.Unmarshal(data, &metadata); err != nil {
-		return nil, fmt.Errorf("failed to parse metadata: %w", err)
+		return nil, errors.Wrapf(err, "failed to parse metadata")
 	}
 
 	// Validate required fields
-	if metadata.Name == "" {
-		return nil, fmt.Errorf("package name is required")
-	}
-	if metadata.Version == "" {
-		return nil, fmt.Errorf("package version is required")
+	if err := metadata.Validate(); err != nil {
+		return nil, errors.Wrap(err, "invalid metadata")
 	}
 
 	return &metadata, nil
@@ -28,7 +26,7 @@ func ParseMetadata(data []byte) (*PackageMetadata, error) {
 func ParseMetadataFromReader(reader io.Reader) (*PackageMetadata, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read metadata: %w", err)
+		return nil, errors.Wrapf(err, "failed to read metadata")
 	}
 	return ParseMetadata(data)
 }
@@ -37,7 +35,7 @@ func ParseMetadataFromReader(reader io.Reader) (*PackageMetadata, error) {
 func (m *PackageMetadata) ToJSON() ([]byte, error) {
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal package metadata to JSON: %w", err)
+		return nil, errors.Wrapf(err, "failed to marshal package metadata to JSON")
 	}
 	return data, nil
 }
@@ -45,10 +43,10 @@ func (m *PackageMetadata) ToJSON() ([]byte, error) {
 // Validate validates the package metadata.
 func (m *PackageMetadata) Validate() error {
 	if m.Name == "" {
-		return fmt.Errorf("package name is required")
+		return errors.Wrap(errors.ErrValidation, "package name is required")
 	}
 	if m.Version == "" {
-		return fmt.Errorf("package version is required")
+		return errors.Wrap(errors.ErrValidation, "package version is required")
 	}
 	return nil
 }

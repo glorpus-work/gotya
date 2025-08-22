@@ -171,28 +171,28 @@ func TestGetUserDataDir(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			// Setup test environment
-			if tt.setup != nil {
+			if testCase.setup != nil {
 				oldHome := os.Getenv("HOME")
 				oldXDGDataHome := os.Getenv("XDG_DATA_HOME")
 				defer func() {
 					os.Setenv("HOME", oldHome)
 					os.Setenv("XDG_DATA_HOME", oldXDGDataHome)
 				}()
-				tt.setup()
+				testCase.setup()
 			}
 
 			path, err := getUserDataDir()
 
-			if tt.wantErr {
+			if testCase.wantErr {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.True(t, strings.HasSuffix(path, tt.wantPath) ||
-					filepath.Base(path) == filepath.Base(tt.wantPath),
-					"path %s should end with %s", path, tt.wantPath)
+				assert.True(t, strings.HasSuffix(path, testCase.wantPath) ||
+					filepath.Base(path) == filepath.Base(testCase.wantPath),
+					"path %s should end with %s", path, testCase.wantPath)
 			}
 		})
 	}

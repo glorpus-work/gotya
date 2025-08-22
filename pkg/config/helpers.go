@@ -57,8 +57,8 @@ func (c *Config) ToMap() map[string]string {
 	settingsValue := reflect.ValueOf(c.Settings)
 	settingsType := settingsValue.Type()
 
-	for i := 0; i < settingsValue.NumField(); i++ {
-		field := settingsType.Field(i)
+	for fieldIndex := 0; fieldIndex < settingsValue.NumField(); fieldIndex++ {
+		field := settingsType.Field(fieldIndex)
 		yamlTag := field.Tag.Get("yaml")
 		if yamlTag == "" || yamlTag == "-" {
 			continue
@@ -68,7 +68,7 @@ func (c *Config) ToMap() map[string]string {
 		yamlKey := strings.Split(yamlTag, ",")[0]
 
 		// Get the field value and convert to string
-		fieldValue := settingsValue.Field(i)
+		fieldValue := settingsValue.Field(fieldIndex)
 		var strValue string
 
 		switch fieldValue.Kind() {

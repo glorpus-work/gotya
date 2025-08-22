@@ -20,9 +20,9 @@ import (
 
 // PackageStructure represents the expected structure of a package.
 type PackageStructure struct {
-	FilesDir   string           // Directory containing files to install
-	ScriptsDir string           // Directory containing pre/post install scripts
-	Metadata   *PackageMetadata `json:"metadata"`
+	FilesDir   string           `json:"files_dir"`   // Directory containing files to install.
+	ScriptsDir string           `json:"scripts_dir"` // Directory containing pre/post install scripts.
+	Metadata   *PackageMetadata `json:"metadata"`    // Package metadata.
 }
 
 // ExtractPackage extracts an archive package and returns its structure.
@@ -151,13 +151,15 @@ func safeFileMode(mode int64) os.FileMode {
 }
 
 // ensureDir creates a directory and all necessary parent directories with default permissions if they don't exist.
-// Deprecated: Use fsutil.EnsureDir instead
+//
+// Deprecated: Use fsutil.EnsureDir instead.
 func ensureDir(dirPath string) error {
 	return fsutil.EnsureDir(dirPath)
 }
 
 // ensureFileDir creates the parent directory of a file path if it doesn't exist.
-// Deprecated: Use fsutil.EnsureFileDir instead
+//
+// Deprecated: Use fsutil.EnsureFileDir instead.
 func ensureFileDir(filePath string) error {
 	return fsutil.EnsureFileDir(filePath)
 }
@@ -284,7 +286,7 @@ func extractTar(reader io.Reader, extractDir string) error {
 
 	for {
 		header, err := extractor.tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

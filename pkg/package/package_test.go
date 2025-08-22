@@ -143,21 +143,20 @@ func TestReadPackageMetadata(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.setup != nil {
-				tt.setup()
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			if testCase.setup != nil {
 			}
-			if tt.teardown != nil {
-				defer tt.teardown()
+			if testCase.teardown != nil {
+				defer testCase.teardown()
 			}
 
-			got, err := readPackageMetadata(tt.path)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("readPackageMetadata() error = %v, wantErr %v", err, tt.wantErr)
+			got, err := readPackageMetadata(testCase.path)
+			if (err != nil) != testCase.wantErr {
+				t.Errorf("readPackageMetadata() error = %v, wantErr %v", err, testCase.wantErr)
 				return
 			}
-			if !tt.wantErr && tt.checkFn != nil && !tt.checkFn(got) {
+			if !testCase.wantErr && testCase.checkFn != nil && !testCase.checkFn(got) {
 				t.Error("checkFn returned false")
 			}
 		})
@@ -262,29 +261,29 @@ func TestCreatePackage(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			err := CreatePackage(
-				tt.sourceDir,
-				tt.outputDir,
-				tt.pkgName,
-				tt.pkgVer,
-				tt.pkgOS,
-				tt.pkgArch,
+				testCase.sourceDir,
+				testCase.outputDir,
+				testCase.pkgName,
+				testCase.pkgVer,
+				testCase.pkgOS,
+				testCase.pkgArch,
 			)
 
-			if (err != nil) != tt.wantErr {
-				t.Errorf("CreatePackage() error = %v, wantErr %v", err, tt.wantErr)
+			if (err != nil) != testCase.wantErr {
+				t.Errorf("CreatePackage() error = %v, wantErr %v", err, testCase.wantErr)
 			}
 
-			if !tt.wantErr {
+			if !testCase.wantErr {
 				// Verify package file was created
-				pkgFile := filepath.Join(tt.outputDir,
+				pkgFile := filepath.Join(testCase.outputDir,
 					fmt.Sprintf("%s_%s_%s_%s.tar.gz",
-						tt.pkgName,
-						tt.pkgVer,
-						tt.pkgOS,
-						tt.pkgArch))
+						testCase.pkgName,
+						testCase.pkgVer,
+						testCase.pkgOS,
+						testCase.pkgArch))
 
 				if _, err := os.Stat(pkgFile); os.IsNotExist(err) {
 					t.Errorf("Package file was not created: %s", pkgFile)

@@ -145,16 +145,16 @@ func (hc *HTTPClient) CheckRepositoryHealth(ctx context.Context, repoURL string)
 
 // buildIndexURL constructs the index URL from a repository base URL.
 func (hc *HTTPClient) buildIndexURL(repoURL string) (string, error) {
-	u, err := url.Parse(repoURL)
+	parsedURL, err := url.Parse(repoURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid repository URL: %w", err)
 	}
 
 	// Use path.Join for URL paths (always uses forward slashes)
-	u.Path, err = url.JoinPath(u.Path, "index.json")
+	parsedURL.Path, err = url.JoinPath(parsedURL.Path, "index.json")
 	if err != nil {
 		return "", fmt.Errorf("failed to build index URL: %w", err)
 	}
 
-	return u.String(), nil
+	return parsedURL.String(), nil
 }

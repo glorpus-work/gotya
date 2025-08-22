@@ -221,15 +221,15 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 			}
 
 			repoPackages := index.GetPackages()
-			for i := range repoPackages {
-				repoPkg := &repoPackages[i]
+			for pkgIdx := range repoPackages {
+				repoPkg := &repoPackages[pkgIdx]
 				// Check if package is already installed
 				var status string
 				if showInstalled {
 					// Check if we already have this package in our list (installed)
 					found := false
-					for j := range packages {
-						if packages[j].Name == repoPkg.Name {
+					for installedPkgIdx := range packages {
+						if packages[installedPkgIdx].Name == repoPkg.Name {
 							found = true
 							break
 						}

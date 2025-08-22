@@ -39,20 +39,20 @@ By default, pre-remove and post-remove hooks will be executed.`,
 			}
 
 			// Load installed packages database
-			db, err := pkg.LoadInstalledDatabase(cfg.GetDatabasePath())
+			installedDB, err := pkg.LoadInstalledDatabase(cfg.GetDatabasePath())
 			if err != nil {
 				return fmt.Errorf("failed to load installed packages database: %w", err)
 			}
 
 			// Process each package
 			for _, pkgName := range args {
-				if err := uninstallPackage(cfg, db, pkgName, skipHooks, force); err != nil {
+				if err := uninstallPackage(cfg, installedDB, pkgName, skipHooks, force); err != nil {
 					return fmt.Errorf("failed to uninstall %s: %w", pkgName, err)
 				}
 			}
 
 			// Save the updated database
-			if err := db.Save(cfg.GetDatabasePath()); err != nil {
+			if err := installedDB.Save(cfg.GetDatabasePath()); err != nil {
 				return fmt.Errorf("failed to save database: %w", err)
 			}
 
@@ -68,9 +68,9 @@ By default, pre-remove and post-remove hooks will be executed.`,
 }
 
 // uninstallPackage uninstalls a single package with hook support.
-func uninstallPackage(cfg *config.Config, db *pkg.InstalledDatabase, packageName string, skipHooks, force bool) error {
+func uninstallPackage(cfg *config.Config, installedDB *pkg.InstalledDatabase, packageName string, skipHooks, force bool) error {
 	// Find the installed package
-	pkgInfo := db.FindPackage(packageName)
+	pkgInfo := installedDB.FindPackage(packageName)
 	if pkgInfo == nil {
 		if force {
 			logger.Warn("Package not installed, skipping", logrus.Fields{"package": packageName})
@@ -131,9 +131,9 @@ func uninstallPackage(cfg *config.Config, db *pkg.InstalledDatabase, packageName
 		}
 	}
 
-	// Remove from database
-	if !db.RemovePackage(packageName) {
-		return fmt.Errorf("failed to remove package from database")
+	// Remove the package from the database
+	if !installedDB.RemovePackage(packageName) {
+		return fmt.Errorf("failed to remove package from database: package not found")
 	}
 
 	logger.Info("Successfully uninstalled package", logrus.Fields{

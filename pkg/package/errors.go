@@ -7,7 +7,7 @@ import (
 
 // Common package errors.
 var (
-	// Package creation and validation errors
+	// Package creation and validation errors.
 	ErrSourceDirEmpty       = errors.New("source directory path cannot be empty")
 	ErrOutputDirEmpty       = errors.New("output directory path cannot be empty")
 	ErrPackageNameEmpty     = errors.New("package name cannot be empty")
@@ -22,19 +22,19 @@ var (
 	ErrPackageTooSmall      = errors.New("package file is too small to be valid")
 	ErrDescriptionRequired  = errors.New("package description is required")
 
-	// File operation errors
+	// File operation errors.
 	ErrInvalidSourceDirectory = errors.New("invalid source directory")
 	ErrDirectoryStatFailed    = errors.New("failed to get directory info")
 	ErrDirectoryNotWritable   = errors.New("directory is not writable")
 
-	// Metadata related errors
+	// Metadata related errors.
 	ErrMetadataMissing      = errors.New("package is missing required metadata (pkg.json)")
 	ErrMetadataFileNotFound = errors.New("package metadata file not found")
 	ErrMetadataNotFound     = errors.New("metadata not found in package")
 	ErrNameRequired         = errors.New("package name is required")
 	ErrVersionRequired      = errors.New("package version is required")
 
-	// Archive and extraction errors
+	// Archive and extraction errors.
 	ErrUnsupportedArchiveFormat = errors.New("unsupported archive format (only .tar.gz and .tgz files are supported)")
 	ErrInvalidFilePath          = errors.New("invalid file path in archive")
 	ErrInvalidSymlinkTarget     = errors.New("invalid symlink target: points outside the target directory")

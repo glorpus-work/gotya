@@ -49,15 +49,15 @@ func TestAddAndExecuteHook(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := manager.AddHook(tc.hook)
-			if tc.expectedError != "" {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := manager.AddHook(testCase.hook)
+			if testCase.expectedError != "" {
 				if err == nil {
-					t.Fatalf("expected error %q, got nil", tc.expectedError)
+					t.Fatalf("expected error %q, got nil", testCase.expectedError)
 				}
-				if !strings.Contains(err.Error(), tc.expectedError) {
-					t.Fatalf("expected error to contain %q, got %v", tc.expectedError, err)
+				if !strings.Contains(err.Error(), testCase.expectedError) {
+					t.Fatalf("expected error to contain %q, got %v", testCase.expectedError, err)
 				}
 			} else if err != nil {
 				t.Fatalf("unexpected error: %v", err)
