@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 // InstalledDatabase represents the database of installed packages.
@@ -35,7 +37,7 @@ func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
-		return nil, fmt.Errorf("database path must be absolute: %s: %w", dbPath, ErrInvalidPath)
+		return nil, fmt.Errorf("database path must be absolute: %s: %w", dbPath, errors.ErrInvalidPath)
 	}
 
 	// Check if file exists with cleaned path
@@ -95,7 +97,7 @@ func (installedDB *InstalledDatabase) Save(dbPath string) (err error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
-		return fmt.Errorf("database path must be absolute: %s: %w", dbPath, ErrInvalidPath)
+		return fmt.Errorf("database path must be absolute: %s: %w", dbPath, errors.ErrInvalidPath)
 	}
 
 	// Get the directory of the database file

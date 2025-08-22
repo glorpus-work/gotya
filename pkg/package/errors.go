@@ -1,59 +1,48 @@
 package pkg
 
 import (
-	"errors"
 	"fmt"
 )
 
 // Common package errors.
 var (
 	// Path and file related errors
-	ErrInvalidPath            = errors.New("invalid path")
-	ErrFileNotFound           = errors.New("file not found")
-	ErrInvalidFile            = errors.New("invalid file")
-	ErrInvalidSourceDirectory = errors.New("invalid source directory")
-	ErrDirectoryStatFailed    = errors.New("failed to get directory info")
-	ErrDirectoryNotWritable   = errors.New("directory is not writable")
+	ErrInvalidSourceDirectory = fmt.Errorf("invalid source directory")
+	ErrDirectoryStatFailed    = fmt.Errorf("failed to get directory info")
+	ErrDirectoryNotWritable   = fmt.Errorf("directory is not writable")
 
 	// Package validation errors
-	ErrInvalidVersion       = errors.New("invalid version")
-	ErrPackageAlreadyExists = errors.New("package already exists")
-	ErrNameRequired         = errors.New("package name is required")
-	ErrVersionRequired      = errors.New("package version is required")
-	ErrValidationFailed     = errors.New("validation failed")
+	ErrInvalidVersion       = fmt.Errorf("invalid version")
+	ErrPackageAlreadyExists = fmt.Errorf("package already exists")
 
 	// I/O and processing errors
-	ErrReadFailed      = errors.New("read failed")
-	ErrWriteFailed     = errors.New("write failed")
-	ErrInvalidMetadata = errors.New("invalid package metadata")
+	ErrReadFailed      = fmt.Errorf("read failed")
+	ErrWriteFailed     = fmt.Errorf("write failed")
+	ErrInvalidMetadata = fmt.Errorf("invalid package metadata")
 
 	// Package installation errors
-	ErrPackageInvalid       = errors.New("package is invalid")
-	ErrSourceDirEmpty       = errors.New("source directory path cannot be empty")
-	ErrOutputDirEmpty       = errors.New("output directory path cannot be empty")
-	ErrPackageNameEmpty     = errors.New("package name cannot be empty")
-	ErrPackageVersionEmpty  = errors.New("package version cannot be empty")
-	ErrTargetOSEmpty        = errors.New("target OS cannot be empty")
-	ErrTargetArchEmpty      = errors.New("target architecture cannot be empty")
-	ErrNotADirectory        = errors.New("path is not a directory")
-	ErrNoFilesFound         = errors.New("no files found to package")
-	ErrInvalidPackageName   = errors.New("invalid package name: cannot contain path separators")
-	ErrInvalidVersionString = errors.New("invalid version string: must contain only alphanumeric characters, dots, underscores, plus, and hyphens")
-	ErrOutputFileExists     = errors.New("output file already exists")
-	ErrPackageTooSmall      = errors.New("package file is too small to be valid")
-	ErrDescriptionRequired  = errors.New("package description is required")
+	// ErrPackageInvalid is imported from pkg/errors/errors.go
+	ErrSourceDirEmpty      = fmt.Errorf("source directory path cannot be empty")
+	ErrOutputDirEmpty      = fmt.Errorf("output directory path cannot be empty")
+	ErrPackageNameEmpty    = fmt.Errorf("package name cannot be empty")
+	ErrPackageVersionEmpty = fmt.Errorf("package version cannot be empty")
+	ErrNotADirectory       = fmt.Errorf("path is not a directory")
+	ErrNoFilesFound        = fmt.Errorf("no files found to package")
+	ErrOutputFileExists    = fmt.Errorf("output file already exists")
+	ErrPackageTooSmall     = fmt.Errorf("package file is too small to be valid")
+	ErrDescriptionRequired = fmt.Errorf("package description is required")
 
 	// Metadata related errors
-	ErrMetadataMissing      = errors.New("package is missing required metadata (pkg.json)")
-	ErrMetadataFileNotFound = errors.New("package metadata file not found")
-	ErrMetadataNotFound     = errors.New("metadata not found in package")
+	ErrMetadataMissing      = fmt.Errorf("package is missing required metadata (pkg.json)")
+	ErrMetadataFileNotFound = fmt.Errorf("package metadata file not found")
+	ErrMetadataNotFound     = fmt.Errorf("metadata not found in package")
 
 	// Archive and extraction errors
-	ErrUnsupportedArchiveFormat = errors.New("unsupported archive format (only .tar.gz and .tgz files are supported)")
-	ErrInvalidFilePath          = errors.New("invalid file path in archive")
-	ErrInvalidSymlinkTarget     = errors.New("invalid symlink target: points outside the target directory")
-	ErrInvalidLinkTarget        = errors.New("invalid link target in archive")
-	ErrUnsupportedFileType      = errors.New("unsupported file type in archive")
+	ErrUnsupportedArchiveFormat = fmt.Errorf("unsupported archive format (only .tar.gz and .tgz files are supported)")
+	ErrInvalidFilePath          = fmt.Errorf("invalid file path in archive")
+	ErrInvalidSymlinkTarget     = fmt.Errorf("invalid symlink target: points outside the target directory")
+	ErrInvalidLinkTarget        = fmt.Errorf("invalid link target in archive")
+	ErrUnsupportedFileType      = fmt.Errorf("unsupported file type in archive")
 )
 
 // Package installation error functions

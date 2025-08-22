@@ -577,7 +577,7 @@ func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
 	// Verify package name and version match
 	if expectedMeta != nil {
 		if metaData.Name != expectedMeta.Name || metaData.Version != expectedMeta.Version {
-			return errors.Wrapf(ErrValidationFailed, "package name/version mismatch: expected %s-%s, got %s-%s",
+			return errors.Wrapf(errors.ErrValidationFailed, "package name/version mismatch: expected %s-%s, got %s-%s",
 				expectedMeta.Name, expectedMeta.Version, metaData.Name, metaData.Version)
 		}
 
@@ -595,13 +595,13 @@ func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
 			}
 
 			if !found1 && !found2 {
-				return errors.Wrapf(errors.ErrValidation, "file %s is missing from package", file.Path)
+				return errors.Wrapf(errors.ErrValidationFailed, "file %s is missing from package", file.Path)
 			}
 
 			// Verify file hash if specified in metadata
 			if file.Digest != "" {
 				if (found1 && hash != file.Digest) && (found2 && hash2 != file.Digest) {
-					return errors.Wrapf(errors.ErrValidation, "hash mismatch for file %s: expected %s",
+					return errors.Wrapf(errors.ErrValidationFailed, "hash mismatch for file %s: expected %s",
 						file.Path, file.Digest)
 				}
 			}

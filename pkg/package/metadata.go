@@ -43,10 +43,10 @@ func (m *PackageMetadata) ToJSON() ([]byte, error) {
 // Validate validates the package metadata.
 func (m *PackageMetadata) Validate() error {
 	if m.Name == "" {
-		return errors.Wrap(errors.ErrValidation, "package name is required")
+		return errors.Wrap(errors.ErrValidationFailed, "package name is required")
 	}
 	if m.Version == "" {
-		return errors.Wrap(errors.ErrValidation, "package version is required")
+		return errors.Wrap(errors.ErrValidationFailed, "package version is required")
 	}
 	return nil
 }
