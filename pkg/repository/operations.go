@@ -12,19 +12,19 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// RepositoryOperation represents an operation that can be performed on a repository
+// RepositoryOperation represents an operation that can be performed on a repository.
 type RepositoryOperation struct {
-	manager Manager
+	manager RepositoryManager
 }
 
-// NewRepositoryOperation creates a new repository operation instance
-func NewRepositoryOperation(manager Manager) *RepositoryOperation {
+// NewRepositoryOperation creates a new repository operation instance.
+func NewRepositoryOperation(manager RepositoryManager) *RepositoryOperation {
 	return &RepositoryOperation{
 		manager: manager,
 	}
 }
 
-// Add adds a new repository
+// Add adds a new repository.
 func (op *RepositoryOperation) Add(name, url string, priority int) error {
 	if name == "" {
 		// Auto-generate a name if not provided
@@ -57,7 +57,7 @@ func (op *RepositoryOperation) Add(name, url string, priority int) error {
 	return nil
 }
 
-// Remove removes a repository
+// Remove removes a repository.
 func (op *RepositoryOperation) Remove(name string) error {
 	logger.Debug("Removing repository", logrus.Fields{"name": name})
 
@@ -75,7 +75,7 @@ func (op *RepositoryOperation) Remove(name string) error {
 	return nil
 }
 
-// List lists all repositories
+// List lists all repositories.
 func (op *RepositoryOperation) List() (string, error) {
 	repos := op.manager.ListRepositories()
 	if len(repos) == 0 {
@@ -122,7 +122,7 @@ func (op *RepositoryOperation) List() (string, error) {
 	return buf.String(), nil
 }
 
-// Update updates one or more repositories
+// Update updates one or more repositories.
 func (op *RepositoryOperation) Update(names []string) (string, error) {
 	var reposToUpdate []string
 
@@ -180,7 +180,7 @@ func (op *RepositoryOperation) Update(names []string) (string, error) {
 	return result.String(), nil
 }
 
-// generateRepoName generates a repository name from a URL
+// generateRepoName generates a repository name from a URL.
 func generateRepoName(url string) string {
 	// Remove protocol
 	name := strings.TrimPrefix(url, "http://")

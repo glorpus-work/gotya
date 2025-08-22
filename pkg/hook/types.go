@@ -1,9 +1,9 @@
 package hook
 
-// HookType represents the type of hook
+// HookType represents the type of hook.
 type HookType string
 
-// Supported hook types
+// Supported hook types.
 const (
 	PreInstall  HookType = "pre-install"
 	PostInstall HookType = "post-install"
@@ -11,13 +11,13 @@ const (
 	PostRemove  HookType = "post-remove"
 )
 
-// Hook represents a hook script with its type and content
+// Hook represents a hook script with its type and content.
 type Hook struct {
 	Type    HookType
 	Content string
 }
 
-// HookContext contains information passed to hooks
+// HookContext contains information passed to hooks.
 type HookContext struct {
 	PackageName    string
 	PackageVersion string
@@ -26,7 +26,7 @@ type HookContext struct {
 	Vars           map[string]interface{}
 }
 
-// HookManager defines the interface for managing hooks
+// HookManager defines the interface for managing hooks.
 type HookManager interface {
 	// Execute runs the specified hook type with the given context
 	Execute(hookType HookType, ctx HookContext) error

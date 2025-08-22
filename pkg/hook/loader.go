@@ -7,16 +7,13 @@ import (
 	"strings"
 )
 
-// HookFileExtensions lists the supported hook file extensions
+// HookFileExtensions lists the supported hook file extensions.
 var HookFileExtensions = map[string]bool{
 	".tengo": true,
 	".go":    true, // For Go plugins in the future
 }
 
-// LoadHooksFromPackageDir loads hooks from a package directory.
-// It looks for hook files in the following locations:
-// - <packageDir>/.gotya/hooks/<hook-type>.<ext>
-// - <packageDir>/hooks/<hook-type>.<ext>
+// - <packageDir>/hooks/<hook-type>.<ext>.
 func LoadHooksFromPackageDir(manager HookManager, packageDir string) error {
 	// Try .gotya/hooks directory first
 	hooksDir := filepath.Join(packageDir, ".gotya", "hooks")
@@ -37,7 +34,7 @@ func LoadHooksFromPackageDir(manager HookManager, packageDir string) error {
 	return nil
 }
 
-// loadHooksFromDir loads all hook files from a directory
+// loadHooksFromDir loads all hook files from a directory.
 func loadHooksFromDir(manager HookManager, dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -83,7 +80,7 @@ func loadHooksFromDir(manager HookManager, dir string) error {
 	return nil
 }
 
-// HookTemplate generates a template for a hook script
+// HookTemplate generates a template for a hook script.
 func HookTemplate(hookType HookType) string {
 	switch hookType {
 	case PreInstall:

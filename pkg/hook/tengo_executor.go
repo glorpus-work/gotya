@@ -8,20 +8,20 @@ import (
 	"github.com/d5/tengo/v2/stdlib"
 )
 
-// TengoExecutor handles the execution of Tengo scripts
+// TengoExecutor handles the execution of Tengo scripts.
 type TengoExecutor struct {
 	scripts map[HookType]string
 	mutex   sync.RWMutex
 }
 
-// NewTengoExecutor creates a new Tengo script executor
+// NewTengoExecutor creates a new Tengo script executor.
 func NewTengoExecutor() *TengoExecutor {
 	return &TengoExecutor{
 		scripts: make(map[HookType]string),
 	}
 }
 
-// Execute runs the specified hook type with the given context
+// Execute runs the specified hook type with the given context.
 func (e *TengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	e.mutex.RLock()
 	defer e.mutex.RUnlock()
@@ -32,25 +32,25 @@ func (e *TengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	}
 
 	// Create a new Tengo script
-	s := tengo.NewScript([]byte(script))
+	scriptInstance := tengo.NewScript([]byte(script))
 
 	// Add standard library modules
 	modules := stdlib.GetModuleMap("fmt", "os", "strings", "time")
-	s.SetImports(modules)
+	scriptInstance.SetImports(modules)
 
 	// Add context variables
-	_ = s.Add("packageName", ctx.PackageName)
-	_ = s.Add("packageVersion", ctx.PackageVersion)
-	_ = s.Add("packagePath", ctx.PackagePath)
-	_ = s.Add("installPath", ctx.InstallPath)
+	_ = scriptInstance.Add("packageName", ctx.PackageName)
+	_ = scriptInstance.Add("packageVersion", ctx.PackageVersion)
+	_ = scriptInstance.Add("packagePath", ctx.PackagePath)
+	_ = scriptInstance.Add("installPath", ctx.InstallPath)
 
 	// Add custom variables
 	for k, v := range ctx.Vars {
-		_ = s.Add(k, v)
+		_ = scriptInstance.Add(k, v)
 	}
 
 	// Run the script
-	compiled, err := s.Run()
+	compiled, err := scriptInstance.Run()
 	if err != nil {
 		return fmt.Errorf("failed to execute %s hook: %w", hookType, err)
 	}
@@ -60,7 +60,7 @@ func (e *TengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	if errVar != nil {
 		switch v := errVar.Value().(type) {
 		case error:
-			return fmt.Errorf("hook script error: %v", v)
+			return fmt.Errorf("hook script error: %w", v)
 		case string:
 			if v != "" {
 				return fmt.Errorf("hook script error: %s", v)
@@ -71,21 +71,21 @@ func (e *TengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	return nil
 }
 
-// AddScript adds or updates a script for the specified hook type
+// AddScript adds or updates a script for the specified hook type.
 func (e *TengoExecutor) AddScript(hookType HookType, script string) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	e.scripts[hookType] = script
 }
 
-// RemoveScript removes the script for the specified hook type
+// RemoveScript removes the script for the specified hook type.
 func (e *TengoExecutor) RemoveScript(hookType HookType) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 	delete(e.scripts, hookType)
 }
 
-// HasScript checks if a script exists for the specified hook type
+// HasScript checks if a script exists for the specified hook type.
 func (e *TengoExecutor) HasScript(hookType HookType) bool {
 	e.mutex.RLock()
 	defer e.mutex.RUnlock()

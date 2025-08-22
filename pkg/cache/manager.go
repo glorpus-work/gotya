@@ -9,19 +9,19 @@ import (
 	"github.com/cperrin88/gotya/pkg/util"
 )
 
-// CacheManager implements the Manager interface
+// CacheManager implements the Manager interface.
 type CacheManager struct {
 	directory string
 }
 
-// NewManager creates a new cache manager
+// NewManager creates a new cache manager.
 func NewManager(directory string) *CacheManager {
 	return &CacheManager{
 		directory: directory,
 	}
 }
 
-// NewDefaultManager creates a new cache manager with default directory
+// NewDefaultManager creates a new cache manager with default directory.
 func NewDefaultManager() (*CacheManager, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -32,7 +32,7 @@ func NewDefaultManager() (*CacheManager, error) {
 	return NewManager(cacheDir), nil
 }
 
-// Clean removes cached files according to the specified options
+// Clean removes cached files according to the specified options.
 func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
 	result := &CleanResult{}
 
@@ -61,7 +61,7 @@ func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
 	return result, nil
 }
 
-// GetInfo returns information about the cache
+// GetInfo returns information about the cache.
 func (cm *CacheManager) GetInfo() (*Info, error) {
 	info := &Info{
 		Directory:   cm.directory,
@@ -91,12 +91,12 @@ func (cm *CacheManager) GetInfo() (*Info, error) {
 	return info, nil
 }
 
-// GetDirectory returns the cache directory path
+// GetDirectory returns the cache directory path.
 func (cm *CacheManager) GetDirectory() string {
 	return cm.directory
 }
 
-// SetDirectory sets the cache directory path
+// SetDirectory sets the cache directory path.
 func (cm *CacheManager) SetDirectory(dir string) error {
 	if dir == "" {
 		return fmt.Errorf("cache directory cannot be empty")
@@ -105,19 +105,19 @@ func (cm *CacheManager) SetDirectory(dir string) error {
 	return nil
 }
 
-// cleanIndexCache removes all index cache files
+// cleanIndexCache removes all index cache files.
 func (cm *CacheManager) cleanIndexCache() (int64, error) {
 	indexDir := filepath.Join(cm.directory, "indexes")
 	return cleanDirectory(indexDir)
 }
 
-// cleanPackageCache removes all package cache files
+// cleanPackageCache removes all package cache files.
 func (cm *CacheManager) cleanPackageCache() (int64, error) {
 	packageDir := filepath.Join(cm.directory, "packages")
 	return cleanDirectory(packageDir)
 }
 
-// cleanDirectory removes a directory and returns bytes freed
+// cleanDirectory removes a directory and returns bytes freed.
 func cleanDirectory(dir string) (int64, error) {
 	var totalSize int64
 
@@ -134,7 +134,6 @@ func cleanDirectory(dir string) (int64, error) {
 		}
 		return nil
 	})
-
 	if err != nil {
 		return 0, fmt.Errorf("failed to calculate directory size: %w", err)
 	}
@@ -152,28 +151,28 @@ func cleanDirectory(dir string) (int64, error) {
 	return totalSize, nil
 }
 
-// getDirSizeAndFiles calculates directory size and file count
-func getDirSizeAndFiles(dir string) (int64, int, error) {
-	var totalSize int64
-	var fileCount int
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
+// getDirSizeAndFiles calculates directory size and file count.
+// Returns:
+//   - size: total size of all files in bytes
+//   - count: total number of files
+//   - err: any error that occurred during the operation
+func getDirSizeAndFiles(dir string) (size int64, count int, err error) {
+	if _, err = os.Stat(dir); os.IsNotExist(err) {
 		return 0, 0, nil
 	}
 
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	err = filepath.Walk(dir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
 		if !info.IsDir() {
-			totalSize += info.Size()
-			fileCount++
+			size += info.Size()
+			count++
 		}
 		return nil
 	})
-
 	if err != nil {
-		return 0, 0, fmt.Errorf("error walking directory %s: %w", dir, err)
+		err = fmt.Errorf("error walking directory %s: %w", dir, err)
 	}
-	return totalSize, fileCount, nil
+	return
 }

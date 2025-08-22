@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// These variables will be set by the main package
+// These variables will be set by the main package.
 var (
 	ConfigPath   *string
 	Verbose      *bool
@@ -17,9 +17,8 @@ var (
 	OutputFormat *string
 )
 
-// loadConfigAndManager loads the configuration and creates a manager
-// This is a bridge function that the CLI commands can use
-func loadConfigAndManager() (*config.Config, repository.Manager, error) {
+// This is a bridge function that the CLI commands can use.
+func loadConfigAndManager() (*config.Config, repository.RepositoryManager, error) {
 	var cfg *config.Config
 	var err error
 

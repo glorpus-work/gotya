@@ -8,10 +8,10 @@ import (
 )
 
 const (
-	// SecureDirPerm represents secure directory permissions (read/write/execute for owner, read/execute for group)
-	SecureDirPerm = 0750
-	// SecureFilePerm represents secure file permissions (read/write for owner, read for group)
-	SecureFilePerm = 0640
+	// SecureDirPerm represents secure directory permissions (read/write/execute for owner, read/execute for group).
+	SecureDirPerm = 0o750
+	// SecureFilePerm represents secure file permissions (read/write for owner, read for group).
+	SecureFilePerm = 0o640
 )
 
 // EnsureDir creates a directory with secure permissions if it doesn't already exist.

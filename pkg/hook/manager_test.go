@@ -76,12 +76,12 @@ func TestLoadHooksFromPackageDir(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 	hooksDir := filepath.Join(tempDir, ".gotya", "hooks")
-	err := os.MkdirAll(hooksDir, 0750)
+	err := os.MkdirAll(hooksDir, 0o750)
 	require.NoError(t, err, "Failed to create hooks directory")
 
 	// Create a test hook file
 	hookFile := filepath.Join(hooksDir, "pre-install.tengo")
-	err = os.WriteFile(hookFile, []byte(`result = "Test hook executed"`), 0644)
+	err = os.WriteFile(hookFile, []byte(`result = "Test hook executed"`), 0o644)
 	require.NoError(t, err, "Failed to create test hook file")
 
 	// Test loading hooks

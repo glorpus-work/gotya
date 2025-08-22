@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewPackageCmd creates a new package command
+// NewPackageCmd creates a new package command.
 func NewPackageCmd() *cobra.Command {
 	pkgCmd := &cobra.Command{
 		Use:   "package",
@@ -21,7 +21,7 @@ func NewPackageCmd() *cobra.Command {
 	return pkgCmd
 }
 
-// newPackageCreateCommand creates the 'package create' command
+// newPackageCreateCommand creates the 'package create' command.
 func newPackageCreateCommand() *cobra.Command {
 	var (
 		sourceDir string

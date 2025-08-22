@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-// ParseMetadata parses package metadata from JSON data
+// ParseMetadata parses package metadata from JSON data.
 func ParseMetadata(data []byte) (*PackageMetadata, error) {
 	var metadata PackageMetadata
 	if err := json.Unmarshal(data, &metadata); err != nil {
@@ -24,7 +24,7 @@ func ParseMetadata(data []byte) (*PackageMetadata, error) {
 	return &metadata, nil
 }
 
-// ParseMetadataFromReader parses metadata from an io.Reader
+// ParseMetadataFromReader parses metadata from an io.Reader.
 func ParseMetadataFromReader(reader io.Reader) (*PackageMetadata, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -33,7 +33,7 @@ func ParseMetadataFromReader(reader io.Reader) (*PackageMetadata, error) {
 	return ParseMetadata(data)
 }
 
-// ToJSON converts the metadata to JSON bytes
+// ToJSON converts the metadata to JSON bytes.
 func (m *PackageMetadata) ToJSON() ([]byte, error) {
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
@@ -42,7 +42,7 @@ func (m *PackageMetadata) ToJSON() ([]byte, error) {
 	return data, nil
 }
 
-// Validate validates the package metadata
+// Validate validates the package metadata.
 func (m *PackageMetadata) Validate() error {
 	if m.Name == "" {
 		return fmt.Errorf("package name is required")

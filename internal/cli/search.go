@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewSearchCmd creates the search command
+// NewSearchCmd creates the search command.
 func NewSearchCmd() *cobra.Command {
 	var (
 		exactMatch bool
@@ -37,7 +37,7 @@ Use --exact for exact name matching.`,
 	return cmd
 }
 
-// NewListCmd creates the list command
+// NewListCmd creates the list command.
 func NewListCmd() *cobra.Command {
 	var (
 		installed bool
@@ -273,7 +273,7 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 	return nil
 }
 
-// PackageListItem represents a package in the list output
+// PackageListItem represents a package in the list output.
 type PackageListItem struct {
 	Name        string
 	Version     string

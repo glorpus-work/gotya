@@ -11,23 +11,23 @@ import (
 	"github.com/cperrin88/gotya/pkg/util"
 )
 
-// InstalledDatabase represents the database of installed packages
+// InstalledDatabase represents the database of installed packages.
 type InstalledDatabase struct {
-	FormatVersion string             `json:"format_version"`
-	LastUpdate    time.Time          `json:"last_update"`
-	Packages      []InstalledPackage `json:"packages"`
+	FormatVersion string              `json:"format_version"`
+	LastUpdate    time.Time           `json:"last_update"`
+	Packages      []*InstalledPackage `json:"packages"`
 }
 
-// NewInstalledDatabase creates a new installed packages database
+// NewInstalledDatabase creates a new installed packages database.
 func NewInstalledDatabase() *InstalledDatabase {
 	return &InstalledDatabase{
 		FormatVersion: "1.0",
 		LastUpdate:    time.Now(),
-		Packages:      make([]InstalledPackage, 0),
+		Packages:      make([]*InstalledPackage, 0),
 	}
 }
 
-// LoadInstalledDatabase loads the installed packages database from file
+// LoadInstalledDatabase loads the installed packages database from file.
 func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
@@ -51,27 +51,64 @@ func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
 	return ParseInstalledDatabaseFromReader(file)
 }
 
-// ParseInstalledDatabaseFromReader parses the database from an io.Reader
+// tempInstalledDatabase is used for JSON unmarshaling.
+type tempInstalledDatabase struct {
+	FormatVersion string             `json:"format_version"`
+	LastUpdate    time.Time          `json:"last_update"`
+	Packages      []InstalledPackage `json:"packages"`
+}
+
+// ParseInstalledDatabaseFromReader parses the database from an io.Reader.
 func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read database: %w", err)
 	}
 
-	var db InstalledDatabase
-	if err := json.Unmarshal(data, &db); err != nil {
+	// First unmarshal into a temporary struct
+	var tempDB tempInstalledDatabase
+	if err := json.Unmarshal(data, &tempDB); err != nil {
 		return nil, fmt.Errorf("failed to parse database: %w", err)
 	}
 
-	return &db, nil
+	// Convert to our actual database structure with pointers
+	db := &InstalledDatabase{
+		FormatVersion: tempDB.FormatVersion,
+		LastUpdate:    tempDB.LastUpdate,
+		Packages:      make([]*InstalledPackage, 0, len(tempDB.Packages)),
+	}
+
+	// Convert each package to a pointer
+	for i := range tempDB.Packages {
+		pkg := tempDB.Packages[i] // Create a copy in the loop
+		db.Packages = append(db.Packages, &pkg)
+	}
+
+	return db, nil
 }
 
-// Save saves the installed packages database to file
+// Save saves the installed packages database to file.
 func (db *InstalledDatabase) Save(dbPath string) (err error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
 		return fmt.Errorf("database path must be absolute: %s", dbPath)
+	}
+
+	// Create a temporary struct for JSON marshaling
+	tempDB := struct {
+		FormatVersion string             `json:"format_version"`
+		LastUpdate    time.Time          `json:"last_update"`
+		Packages      []InstalledPackage `json:"packages"`
+	}{
+		FormatVersion: db.FormatVersion,
+		LastUpdate:    db.LastUpdate,
+		Packages:      make([]InstalledPackage, 0, len(db.Packages)),
+	}
+
+	// Convert pointer slice to value slice
+	for _, pkg := range db.Packages {
+		tempDB.Packages = append(tempDB.Packages, *pkg)
 	}
 
 	// Ensure directory exists with secure permissions
@@ -85,33 +122,25 @@ func (db *InstalledDatabase) Save(dbPath string) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to create temp database file: %w", err)
 	}
-
-	// Ensure cleanup on error
 	defer func() {
 		if err != nil {
-			// Try to clean up the temp file on error
 			_ = os.Remove(tempPath)
 		}
 	}()
 
-	// Update timestamp and write database
-	db.LastUpdate = time.Now()
-	data, err := json.MarshalIndent(db, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to serialize database: %w", err)
+	// Write JSON with indentation for better readability
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(tempDB); err != nil {
+		return fmt.Errorf("failed to encode database: %w", err)
 	}
 
-	if _, err = file.Write(data); err != nil {
-		return fmt.Errorf("failed to write database: %w", err)
+	// Ensure all data is written to disk
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync database file: %w", err)
 	}
 
-	// Ensure the file is synced to disk
-	if err = file.Sync(); err != nil {
-		return fmt.Errorf("failed to sync database to disk: %w", err)
-	}
-
-	// Close the file before renaming
-	if err = file.Close(); err != nil {
+	if err := file.Close(); err != nil {
 		return fmt.Errorf("failed to close database file: %w", err)
 	}
 
@@ -123,23 +152,23 @@ func (db *InstalledDatabase) Save(dbPath string) (err error) {
 	return nil
 }
 
-// FindPackage finds an installed package by name
+// FindPackage finds an installed package by name.
 func (db *InstalledDatabase) FindPackage(name string) *InstalledPackage {
-	for i := range db.Packages {
-		if db.Packages[i].Name == name {
-			return &db.Packages[i]
+	for _, pkg := range db.Packages {
+		if pkg.Name == name {
+			return pkg
 		}
 	}
 	return nil
 }
 
-// IsPackageInstalled checks if a package is installed
+// IsPackageInstalled checks if a package is installed.
 func (db *InstalledDatabase) IsPackageInstalled(name string) bool {
 	return db.FindPackage(name) != nil
 }
 
-// AddPackage adds an installed package to the database
-func (db *InstalledDatabase) AddPackage(pkg InstalledPackage) {
+// AddPackage adds an installed package to the database.
+func (db *InstalledDatabase) AddPackage(pkg *InstalledPackage) {
 	// Remove existing package with same name if it exists
 	for i, existingPkg := range db.Packages {
 		if existingPkg.Name == pkg.Name {
@@ -154,7 +183,7 @@ func (db *InstalledDatabase) AddPackage(pkg InstalledPackage) {
 	db.LastUpdate = time.Now()
 }
 
-// RemovePackage removes an installed package from the database
+// RemovePackage removes an installed package from the database.
 func (db *InstalledDatabase) RemovePackage(name string) bool {
 	for i, pkg := range db.Packages {
 		if pkg.Name == name {
@@ -166,7 +195,7 @@ func (db *InstalledDatabase) RemovePackage(name string) bool {
 	return false
 }
 
-// GetInstalledPackages returns all installed packages
-func (db *InstalledDatabase) GetInstalledPackages() []InstalledPackage {
+// GetInstalledPackages returns all installed packages.
+func (db *InstalledDatabase) GetInstalledPackages() []*InstalledPackage {
 	return db.Packages
 }

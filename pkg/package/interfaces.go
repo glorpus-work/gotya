@@ -2,7 +2,7 @@ package pkg
 
 import "time"
 
-// InstalledManager defines the interface for managing installed packages
+// InstalledManager defines the interface for managing installed packages.
 type InstalledManager interface {
 	LoadDatabase(dbPath string) error
 	SaveDatabase(dbPath string) error
@@ -13,13 +13,13 @@ type InstalledManager interface {
 	GetInstalledPackages() []InstalledPackage
 }
 
-// MetadataExtractor defines the interface for extracting package metadata
+// MetadataExtractor defines the interface for extracting package metadata.
 type MetadataExtractor interface {
 	ExtractMetadata(packagePath string) (*PackageMetadata, error)
 	ValidatePackage(packagePath string) error
 }
 
-// InstalledPackage represents an installed package with its files
+// InstalledPackage represents an installed package with its files.
 type InstalledPackage struct {
 	Name          string    `json:"name"`
 	Version       string    `json:"version"`
@@ -30,7 +30,7 @@ type InstalledPackage struct {
 	Checksum      string    `json:"checksum"`       // Checksum of the original package
 }
 
-// PackageMetadata represents metadata about a package
+// PackageMetadata represents metadata about a package.
 type PackageMetadata struct {
 	Name         string            `json:"name"`
 	Version      string            `json:"version"`

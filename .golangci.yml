@@ -1,0 +1,137 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+    check-errors: true
+  govet:
+    settings:
+      printf:
+        funcs: ["(*log.Logger).Fatal", "(*log.Logger).Fatalf", "(*log.Logger).Panic", "(*log.Logger).Panicf", "(*testing.T).Fatal", "(*testing.T).Fatalf"]
+  gocritic:
+    enabled: true
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - style
+      - performance
+  gocyclo:
+    min-complexity: 10
+  goimports:
+    local-prefixes: github.com/cperrin88/gotya
+  gosec:
+    excludes:
+      - G204 # Subprocess launched with variable
+      - G304 # Potential file inclusion via variable
+  lll:
+    line-length: 120
+  maligned:
+    suggest-new: true
+  misspell:
+    locale: US
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: true
+  unused:
+    check-exported: true
+
+linters:
+  enable:
+    - asasalint
+    - asciicheck
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - decorder
+    - depguard
+    - dogsled
+    - dupl
+    - durationcheck
+    - errcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - copyloopvar
+    - gci
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - err113
+    - gofmt
+    - gofumpt
+    - goheader
+    - goimports
+    - gomoddirectives
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - importas
+    - ineffassign
+    - interfacebloat
+    - ireturn
+    - lll
+    - loggercheck
+    - makezero
+    - misspell
+    - mnd
+    - musttag
+    - nakedret
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nosprintfhostport
+    - prealloc
+    - predeclared
+    - promlinter
+    - reassign
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - stylecheck
+    - tparallel
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - varnamelen
+    - wastedassign
+    - whitespace
+  disable-all: true
+  fast: false
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gomnd
+        - gosec
+        - gocognit
+        - gocyclo
+    - linters:
+        - gosec
+      text: "G204: Subprocess launching should be audited"
+    - linters:
+        - gosec
+      text: "G304: Potential file inclusion via variable"
+    - linters:
+        - gosec
+      text: "G307: Deferring unsafe method"
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-dirs:
+    - .git
+    - vendor
+severity:
+  default-severity: error

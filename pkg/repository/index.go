@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-// IndexImpl implements the Index interface
+// IndexImpl implements the Index interface.
 type IndexImpl struct {
 	FormatVersion string    `json:"format_version"`
 	LastUpdate    time.Time `json:"last_update"`
 	Packages      []Package `json:"packages"`
 }
 
-// NewIndex creates a new index with the current timestamp
+// NewIndex creates a new index with the current timestamp.
 func NewIndex(formatVersion string) *IndexImpl {
 	return &IndexImpl{
 		FormatVersion: formatVersion,
@@ -23,22 +23,22 @@ func NewIndex(formatVersion string) *IndexImpl {
 	}
 }
 
-// GetFormatVersion returns the format version
+// GetFormatVersion returns the format version.
 func (idx *IndexImpl) GetFormatVersion() string {
 	return idx.FormatVersion
 }
 
-// GetLastUpdate returns the last update timestamp as string
+// GetLastUpdate returns the last update timestamp as string.
 func (idx *IndexImpl) GetLastUpdate() string {
 	return idx.LastUpdate.Format(time.RFC3339)
 }
 
-// GetPackages returns all packages
+// GetPackages returns all packages.
 func (idx *IndexImpl) GetPackages() []Package {
 	return idx.Packages
 }
 
-// ParseIndex parses an index from JSON data
+// ParseIndex parses an index from JSON data.
 func ParseIndex(data []byte) (*IndexImpl, error) {
 	var index IndexImpl
 	if err := json.Unmarshal(data, &index); err != nil {
@@ -53,7 +53,7 @@ func ParseIndex(data []byte) (*IndexImpl, error) {
 	return &index, nil
 }
 
-// ParseIndexFromReader parses an index from an io.Reader
+// ParseIndexFromReader parses an index from an io.Reader.
 func ParseIndexFromReader(reader io.Reader) (*IndexImpl, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -63,7 +63,7 @@ func ParseIndexFromReader(reader io.Reader) (*IndexImpl, error) {
 	return ParseIndex(data)
 }
 
-// ToJSON converts the index to JSON bytes
+// ToJSON converts the index to JSON bytes.
 func (idx *IndexImpl) ToJSON() ([]byte, error) {
 	data, err := json.MarshalIndent(idx, "", "  ")
 	if err != nil {
@@ -72,7 +72,7 @@ func (idx *IndexImpl) ToJSON() ([]byte, error) {
 	return data, nil
 }
 
-// FindPackage finds a package by name
+// FindPackage finds a package by name.
 func (idx *IndexImpl) FindPackage(name string) *Package {
 	for i := range idx.Packages {
 		if idx.Packages[i].Name == name {
@@ -82,7 +82,7 @@ func (idx *IndexImpl) FindPackage(name string) *Package {
 	return nil
 }
 
-// AddPackage adds a package to the index
+// AddPackage adds a package to the index.
 func (idx *IndexImpl) AddPackage(pkg Package) {
 	// Remove existing package with same name if it exists
 	for i, existingPkg := range idx.Packages {
@@ -98,7 +98,7 @@ func (idx *IndexImpl) AddPackage(pkg Package) {
 	idx.LastUpdate = time.Now()
 }
 
-// RemovePackage removes a package from the index
+// RemovePackage removes a package from the index.
 func (idx *IndexImpl) RemovePackage(name string) bool {
 	for i, pkg := range idx.Packages {
 		if pkg.Name == name {

@@ -13,13 +13,13 @@ import (
 	"github.com/cperrin88/gotya/pkg/util"
 )
 
-// Syncer handles repository synchronization operations
+// Syncer handles repository synchronization operations.
 type Syncer struct {
 	httpClient *HTTPClient
 	cacheDir   string
 }
 
-// NewSyncer creates a new repository syncer
+// NewSyncer creates a new repository syncer.
 func NewSyncer(cacheDir string, httpTimeout time.Duration) *Syncer {
 	return &Syncer{
 		httpClient: NewHTTPClient(httpTimeout),
@@ -27,7 +27,7 @@ func NewSyncer(cacheDir string, httpTimeout time.Duration) *Syncer {
 	}
 }
 
-// SyncRepository synchronizes a single repository
+// SyncRepository synchronizes a single repository.
 func (s *Syncer) SyncRepository(ctx context.Context, info Info) (*IndexImpl, error) {
 	if !info.Enabled {
 		return nil, fmt.Errorf("repository '%s' is disabled", info.Name)
@@ -49,7 +49,7 @@ func (s *Syncer) SyncRepository(ctx context.Context, info Info) (*IndexImpl, err
 	// Download the repository index
 	index, modifiedTime, err := s.httpClient.DownloadIndex(ctx, info.URL, lastModified)
 	if err != nil {
-		if err == ErrNotModified {
+		if errors.Is(err, ErrNotModified) {
 			// Index not modified, load from cache
 			return s.LoadCachedIndex(info.Name)
 		}
@@ -77,7 +77,7 @@ func (s *Syncer) SyncRepository(ctx context.Context, info Info) (*IndexImpl, err
 	return index, nil
 }
 
-// safePathJoin joins path elements and ensures the result is within the base directory
+// safePathJoin joins path elements and ensures the result is within the base directory.
 func safePathJoin(baseDir string, elems ...string) (string, error) {
 	// Clean and join all path elements
 	path := filepath.Join(append([]string{baseDir}, elems...)...)
@@ -94,7 +94,7 @@ func safePathJoin(baseDir string, elems ...string) (string, error) {
 	return cleanPath, nil
 }
 
-// LoadCachedIndex loads a repository index from cache
+// LoadCachedIndex loads a repository index from cache.
 func (s *Syncer) LoadCachedIndex(repoName string) (*IndexImpl, error) {
 	// Use safe path construction
 	indexPath, err := safePathJoin(s.cacheDir, "repositories", repoName, "index.json")
@@ -131,7 +131,7 @@ func (s *Syncer) LoadCachedIndex(repoName string) (*IndexImpl, error) {
 	return index, nil
 }
 
-// GetCacheAge returns the age of the cached index
+// GetCacheAge returns the age of the cached index.
 func (s *Syncer) GetCacheAge(repoName string) (time.Duration, error) {
 	indexPath := filepath.Join(s.cacheDir, "repositories", repoName, "index.json")
 
@@ -143,7 +143,7 @@ func (s *Syncer) GetCacheAge(repoName string) (time.Duration, error) {
 	return time.Since(info.ModTime()), nil
 }
 
-// IsCacheStale checks if the cache is older than the given duration
+// IsCacheStale checks if the cache is older than the given duration.
 func (s *Syncer) IsCacheStale(repoName string, maxAge time.Duration) bool {
 	age, err := s.GetCacheAge(repoName)
 	if err != nil {
@@ -152,7 +152,7 @@ func (s *Syncer) IsCacheStale(repoName string, maxAge time.Duration) bool {
 	return age > maxAge
 }
 
-// validateIndex performs basic validation on the downloaded index
+// validateIndex performs basic validation on the downloaded index.
 func (s *Syncer) validateIndex(index *IndexImpl) error {
 	if index == nil {
 		return fmt.Errorf("index is nil")
@@ -187,7 +187,7 @@ func (s *Syncer) validateIndex(index *IndexImpl) error {
 	return nil
 }
 
-// saveIndexToCache saves the index to the cache directory
+// saveIndexToCache saves the index to the cache directory.
 func (s *Syncer) saveIndexToCache(index *IndexImpl, indexPath string) (err error) {
 	// Ensure directory exists with secure permissions
 	if err := util.EnsureDir(filepath.Dir(indexPath)); err != nil {

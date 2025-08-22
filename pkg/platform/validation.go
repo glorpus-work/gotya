@@ -1,6 +1,6 @@
 package platform
 
-// GetValidOS returns a list of valid OS values
+// GetValidOS returns a list of valid OS values.
 func GetValidOS() []string {
 	return []string{
 		"windows",
@@ -14,7 +14,7 @@ func GetValidOS() []string {
 	}
 }
 
-// GetValidArch returns a list of valid architecture values
+// GetValidArch returns a list of valid architecture values.
 func GetValidArch() []string {
 	return []string{
 		"386",

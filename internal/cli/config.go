@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewConfigCmd creates the config command with subcommands
+// NewConfigCmd creates the config command with subcommands.
 func NewConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
@@ -219,7 +219,7 @@ func getConfigPath() string {
 	return defaultPath
 }
 
-// setConfigValue sets a configuration value by key
+// setConfigValue sets a configuration value by key.
 func setConfigValue(cfg *config.Config, key, value string) error {
 	if err := cfg.SetValue(key, value); err != nil {
 		return fmt.Errorf("failed to set config value for key '%s': %w", key, err)
@@ -227,7 +227,7 @@ func setConfigValue(cfg *config.Config, key, value string) error {
 	return nil
 }
 
-// getConfigValue gets a configuration value by key
+// getConfigValue gets a configuration value by key.
 func getConfigValue(cfg *config.Config, key string) (string, error) {
 	value, err := cfg.GetValue(key)
 	if err != nil {
@@ -236,7 +236,7 @@ func getConfigValue(cfg *config.Config, key string) (string, error) {
 	return value, nil
 }
 
-// Helper function to convert CamelCase to snake_case
+// Helper function to convert CamelCase to snake_case.
 func toSnakeCase(str string) string {
 	var result []rune
 	for i, r := range str {

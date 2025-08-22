@@ -7,25 +7,25 @@ import (
 	"github.com/cperrin88/gotya/pkg/platform"
 )
 
-// PlatformMatch represents how well a package matches the target platform
+// PlatformMatch represents how well a package matches the target platform.
 type PlatformMatch int
 
 const (
-	// NoMatch means the package doesn't match the platform at all
+	// NoMatch means the package doesn't match the platform at all.
 	NoMatch PlatformMatch = iota
-	// AnyMatch means the package matches but has "any" for either OS or Arch
+	// AnyMatch means the package matches but has "any" for either OS or Arch.
 	AnyMatch
-	// ExactMatch means the package exactly matches both OS and Arch
+	// ExactMatch means the package exactly matches both OS and Arch.
 	ExactMatch
 )
 
-// packageMatch represents a package with its platform match score
+// packageMatch represents a package with its platform match score.
 type packageMatch struct {
 	pkg   Package
 	score PlatformMatch
 }
 
-// ResolvePackage finds the best matching package for the target platform
+// ResolvePackage finds the best matching package for the target platform.
 func ResolvePackage(pkgs []Package, targetOS, targetArch string) (*Package, error) {
 	if len(pkgs) == 0 {
 		return nil, fmt.Errorf("no packages available")
@@ -58,7 +58,7 @@ func ResolvePackage(pkgs []Package, targetOS, targetArch string) (*Package, erro
 	return &matches[0].pkg, nil
 }
 
-// getPlatformMatch determines how well a package matches the target platform
+// getPlatformMatch determines how well a package matches the target platform.
 func getPlatformMatch(pkg Package, targetOS, targetArch string) PlatformMatch {
 	// If package has no platform specified, it matches any platform
 	if pkg.OS == "" && pkg.Arch == "" {
@@ -87,7 +87,7 @@ func getPlatformMatch(pkg Package, targetOS, targetArch string) PlatformMatch {
 	return ExactMatch
 }
 
-// FilterPackages returns only packages that match the target platform
+// FilterPackages returns only packages that match the target platform.
 func FilterPackages(pkgs []Package, targetOS, targetArch string) []Package {
 	var result []Package
 	for _, pkg := range pkgs {

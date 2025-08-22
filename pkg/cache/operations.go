@@ -8,19 +8,19 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// CacheOperation represents an operation that can be performed on the cache
+// CacheOperation represents an operation that can be performed on the cache.
 type CacheOperation struct {
 	manager Manager
 }
 
-// NewCacheOperation creates a new cache operation instance
+// NewCacheOperation creates a new cache operation instance.
 func NewCacheOperation(manager Manager) *CacheOperation {
 	return &CacheOperation{
 		manager: manager,
 	}
 }
 
-// Clean cleans the cache based on the provided options
+// Clean cleans the cache based on the provided options.
 func (op *CacheOperation) Clean(all, indexes, packages bool) (string, error) {
 	options := CleanOptions{
 		All:      all,
@@ -62,7 +62,7 @@ func (op *CacheOperation) Clean(all, indexes, packages bool) (string, error) {
 	return msg, nil
 }
 
-// GetInfo returns information about the cache
+// GetInfo returns information about the cache.
 func (op *CacheOperation) GetInfo() (string, error) {
 	info, err := op.manager.GetInfo()
 	if err != nil {
@@ -90,12 +90,12 @@ func (op *CacheOperation) GetInfo() (string, error) {
 	), nil
 }
 
-// GetDirectory returns the cache directory path
+// GetDirectory returns the cache directory path.
 func (op *CacheOperation) GetDirectory() string {
 	return op.manager.GetDirectory()
 }
 
-// SetDirectory sets a new cache directory
+// SetDirectory sets a new cache directory.
 func (op *CacheOperation) SetDirectory(dir string) error {
 	if dir == "" {
 		return fmt.Errorf("cache directory cannot be empty")
@@ -105,7 +105,7 @@ func (op *CacheOperation) SetDirectory(dir string) error {
 	return op.manager.SetDirectory(dir)
 }
 
-// formatBytes converts bytes to a human-readable string
+// formatBytes converts bytes to a human-readable string.
 func formatBytes(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {

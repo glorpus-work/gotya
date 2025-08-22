@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewInstallCmd creates the install command
+// NewInstallCmd creates the install command.
 func NewInstallCmd() *cobra.Command {
 	var (
 		force    bool
@@ -33,7 +33,7 @@ Dependencies will be automatically resolved and installed unless --skip-deps is 
 	return cmd
 }
 
-// NewUpdateCmd creates the update command
+// NewUpdateCmd creates the update command.
 func NewUpdateCmd() *cobra.Command {
 	var all bool
 

@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewUninstallCmd creates the uninstall command
+// NewUninstallCmd creates the uninstall command.
 func NewUninstallCmd() *cobra.Command {
 	var (
 		skipHooks bool
@@ -67,7 +67,7 @@ By default, pre-remove and post-remove hooks will be executed.`,
 	return cmd
 }
 
-// uninstallPackage uninstalls a single package with hook support
+// uninstallPackage uninstalls a single package with hook support.
 func uninstallPackage(cfg *config.Config, db *pkg.InstalledDatabase, packageName string, skipHooks, force bool) error {
 	// Find the installed package
 	pkgInfo := db.FindPackage(packageName)

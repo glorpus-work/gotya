@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewCacheCmd creates the cache command with subcommands
+// NewCacheCmd creates the cache command with subcommands.
 func NewCacheCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cache",
@@ -134,7 +134,7 @@ func runCacheDir(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// Helper function to get cache directory
+// Helper function to get cache directory.
 func getCacheDir(config interface{}) string {
 	// Try to get from config first
 	if cfg, ok := config.(interface{ GetCacheDir() string }); ok {

@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewRepoCmd creates the repo command with subcommands
+// NewRepoCmd creates the repo command with subcommands.
 func NewRepoCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "repo",

@@ -13,15 +13,15 @@ import (
 	"github.com/cperrin88/gotya/pkg/util"
 )
 
-// Installer handles package installation and updates
+// Installer handles package installation and updates.
 type Installer struct {
 	config      *config.Config
-	repoManager repository.Manager
+	repoManager repository.RepositoryManager
 	hookManager hook.HookManager
 }
 
-// New creates a new Installer instance
-func New(cfg *config.Config, repoManager repository.Manager, hookManager hook.HookManager) *Installer {
+// New creates a new Installer instance.
+func New(cfg *config.Config, repoManager repository.RepositoryManager, hookManager hook.HookManager) *Installer {
 	return &Installer{
 		config:      cfg,
 		repoManager: repoManager,
@@ -29,7 +29,7 @@ func New(cfg *config.Config, repoManager repository.Manager, hookManager hook.Ho
 	}
 }
 
-// InstallPackage installs a package with the given name
+// InstallPackage installs a package with the given name.
 func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) error {
 	// Find the package in repositories
 	pkg, err := i.repoManager.FindPackage(packageName)
@@ -72,7 +72,7 @@ func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) err
 	}
 
 	// Update installed packages database
-	installedPkg := pkgpkg.InstalledPackage{
+	installedPkg := &pkgpkg.InstalledPackage{
 		Name:          pkg.Name,
 		Version:       pkg.Version,
 		Description:   pkg.Description,
@@ -91,7 +91,7 @@ func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) err
 	return nil
 }
 
-// UpdatePackage updates a package to the latest version
+// UpdatePackage updates a package to the latest version.
 func (i *Installer) UpdatePackage(packageName string) (bool, error) {
 	// Find the latest version of the package
 	pkg, err := i.repoManager.FindPackage(packageName)
@@ -130,7 +130,7 @@ func (i *Installer) UpdatePackage(packageName string) (bool, error) {
 	}
 
 	// Update the installed packages database
-	updatedPkg := pkgpkg.InstalledPackage{
+	updatedPkg := &pkgpkg.InstalledPackage{
 		Name:          pkg.Name,
 		Version:       pkg.Version,
 		Description:   pkg.Description,
@@ -149,7 +149,7 @@ func (i *Installer) UpdatePackage(packageName string) (bool, error) {
 	return true, nil
 }
 
-// installPackageFiles installs the actual package files
+// installPackageFiles installs the actual package files.
 func (i *Installer) installPackageFiles(pkg *repository.Package) error {
 	// Create target directories
 	targetDir := filepath.Join(i.config.Settings.InstallDir, pkg.Name)
@@ -168,7 +168,7 @@ func (i *Installer) installPackageFiles(pkg *repository.Package) error {
 	return nil
 }
 
-// runHooks executes hooks for a specific event
+// runHooks executes hooks for a specific event.
 func (i *Installer) runHooks(event, packageName string, pkg *repository.Package) error {
 	if i.hookManager == nil {
 		return nil // No hook manager configured

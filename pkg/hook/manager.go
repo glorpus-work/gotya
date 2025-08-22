@@ -5,20 +5,20 @@ import (
 	"sync"
 )
 
-// DefaultHookManager is the default implementation of HookManager
+// DefaultHookManager is the default implementation of HookManager.
 type DefaultHookManager struct {
 	executor *TengoExecutor
 	mutex    sync.RWMutex
 }
 
-// NewHookManager creates a new hook manager
-func NewHookManager() HookManager {
+// NewHookManager creates a new hook manager.
+func NewHookManager() *DefaultHookManager {
 	return &DefaultHookManager{
 		executor: NewTengoExecutor(),
 	}
 }
 
-// Execute runs the specified hook type with the given context
+// Execute runs the specified hook type with the given context.
 func (m *DefaultHookManager) Execute(hookType HookType, ctx HookContext) error {
 	if !m.HasHook(hookType) {
 		return nil // No hook registered for this type
@@ -33,7 +33,7 @@ func (m *DefaultHookManager) Execute(hookType HookType, ctx HookContext) error {
 	return m.executor.Execute(hookType, ctxCopy)
 }
 
-// AddHook adds a new hook
+// AddHook adds a new hook.
 func (m *DefaultHookManager) AddHook(hook Hook) error {
 	if hook.Type == "" {
 		return fmt.Errorf("hook type cannot be empty")
@@ -46,7 +46,7 @@ func (m *DefaultHookManager) AddHook(hook Hook) error {
 	return nil
 }
 
-// RemoveHook removes a hook of the specified type
+// RemoveHook removes a hook of the specified type.
 func (m *DefaultHookManager) RemoveHook(hookType HookType) error {
 	if hookType == "" {
 		return fmt.Errorf("hook type cannot be empty")
@@ -59,7 +59,7 @@ func (m *DefaultHookManager) RemoveHook(hookType HookType) error {
 	return nil
 }
 
-// HasHook checks if a hook of the specified type exists
+// HasHook checks if a hook of the specified type exists.
 func (m *DefaultHookManager) HasHook(hookType HookType) bool {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -67,7 +67,7 @@ func (m *DefaultHookManager) HasHook(hookType HookType) bool {
 	return m.executor.HasScript(hookType)
 }
 
-// LoadHooksFromPackage loads hooks from a package directory
+// LoadHooksFromPackage loads hooks from a package directory.
 func (m *DefaultHookManager) LoadHooksFromPackage(packagePath string) error {
 	// Implementation for loading hooks from package directory
 	// This would typically look for hook scripts in a specific directory structure
@@ -75,7 +75,7 @@ func (m *DefaultHookManager) LoadHooksFromPackage(packagePath string) error {
 	return nil
 }
 
-// ExecuteAll executes all registered hooks in the order they were added
+// ExecuteAll executes all registered hooks in the order they were added.
 func (m *DefaultHookManager) ExecuteAll(ctx HookContext) error {
 	hooks := []HookType{PreInstall, PostInstall, PreRemove, PostRemove}
 

@@ -34,8 +34,7 @@ func (c *Config) SetValue(key, value string) error {
 	return nil
 }
 
-// GetValue gets a configuration value by key
-// Returns the value as a string and any error encountered
+// Returns the value as a string and any error encountered.
 func (c *Config) GetValue(key string) (string, error) {
 	switch key {
 	case "cache_dir":
@@ -51,8 +50,7 @@ func (c *Config) GetValue(key string) (string, error) {
 	}
 }
 
-// ToMap converts the config to a map of key-value pairs
-// This is useful for displaying the configuration
+// This is useful for displaying the configuration.
 func (c *Config) ToMap() map[string]string {
 	result := make(map[string]string)
 
@@ -75,18 +73,35 @@ func (c *Config) ToMap() map[string]string {
 		var strValue string
 
 		switch fieldValue.Kind() {
-		case reflect.String:
-			strValue = fieldValue.String()
+		case reflect.Invalid:
+			strValue = ""
 		case reflect.Bool:
 			strValue = strconv.FormatBool(fieldValue.Bool())
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 			strValue = strconv.FormatInt(fieldValue.Int(), 10)
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
 			strValue = strconv.FormatUint(fieldValue.Uint(), 10)
 		case reflect.Float32, reflect.Float64:
 			strValue = strconv.FormatFloat(fieldValue.Float(), 'f', -1, 64)
+		case reflect.Complex64, reflect.Complex128:
+			strValue = fmt.Sprint(fieldValue.Complex())
+		case reflect.Array, reflect.Slice:
+			strValue = fmt.Sprintf("%v", fieldValue.Interface())
+		case reflect.Chan, reflect.Func, reflect.UnsafePointer:
+			strValue = fieldValue.Type().String() + " value"
+		case reflect.Interface, reflect.Pointer:
+			if fieldValue.IsNil() {
+				strValue = "<nil>"
+			} else {
+				strValue = fmt.Sprintf("%v", fieldValue.Elem().Interface())
+			}
+		case reflect.Map:
+			strValue = fmt.Sprintf("%v", fieldValue.Interface())
+		case reflect.String:
+			strValue = fieldValue.String()
+		case reflect.Struct:
+			strValue = fmt.Sprintf("%+v", fieldValue.Interface())
 		default:
-			// For unsupported types, use the default string representation
 			strValue = fmt.Sprintf("%v", fieldValue.Interface())
 		}
 
@@ -96,7 +111,7 @@ func (c *Config) ToMap() map[string]string {
 	return result
 }
 
-// NewDefaultConfig creates a new configuration with default values
+// NewDefaultConfig creates a new configuration with default values.
 func NewDefaultConfig() *Config {
 	return &Config{
 		Settings: Settings{

@@ -23,7 +23,7 @@ func setupTestEnvironment(t *testing.T) (string, func()) {
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0750); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			t.Fatalf("Failed to create test directory %s: %v", dir, err)
 		}
 	}
@@ -42,11 +42,11 @@ func setupTestEnvironment(t *testing.T) (string, func()) {
 
 	for path, content := range testFiles {
 		// Ensure parent directory exists with correct permissions
-		if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			t.Fatalf("Failed to create parent directory for %s: %v", path, err)
 		}
 		// On Windows, we need to ensure the file is closed and handles are released
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			t.Fatalf("Failed to create test file %s: %v", path, err)
 		}
 	}
@@ -60,8 +60,8 @@ func setupTestEnvironment(t *testing.T) (string, func()) {
 			}
 			if !info.IsDir() {
 				// Try to remove read-only attributes if they exist
-				if info.Mode()&0200 == 0 {
-					if err := os.Chmod(path, 0666); err != nil {
+				if info.Mode()&0o200 == 0 {
+					if err := os.Chmod(path, 0o666); err != nil {
 						t.Logf("Warning: failed to change permissions for %s: %v", path, err)
 					}
 				}
@@ -136,7 +136,7 @@ func TestReadPackageMetadata(t *testing.T) {
 			path:    filepath.Join(tempDir, "invalid.json"),
 			wantErr: true,
 			setup: func() {
-				if err := os.WriteFile(filepath.Join(tempDir, "invalid.json"), []byte("{invalid}"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(tempDir, "invalid.json"), []byte("{invalid}"), 0o644); err != nil {
 					t.Fatalf("Failed to create invalid.json: %v", err)
 				}
 			},

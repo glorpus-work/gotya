@@ -3,6 +3,7 @@ package pkg
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,14 +13,14 @@ import (
 	"github.com/cperrin88/gotya/pkg/util"
 )
 
-// PackageStructure represents the expected structure of a package
+// PackageStructure represents the expected structure of a package.
 type PackageStructure struct {
 	FilesDir   string // Directory containing files to install
 	ScriptsDir string // Directory containing pre/post install scripts
 	Metadata   *PackageMetadata
 }
 
-// ExtractPackage extracts an archive package and returns its structure
+// ExtractPackage extracts an archive package and returns its structure.
 func ExtractPackage(packagePath, extractDir string) (*PackageStructure, error) {
 	// Extract the archive using the appropriate method
 	if err := ExtractArchive(packagePath, extractDir); err != nil {
@@ -35,7 +36,7 @@ func ExtractPackage(packagePath, extractDir string) (*PackageStructure, error) {
 	return structure, nil
 }
 
-// extractTarGz extracts a tar.gz file using stdlib gzip
+// extractTarGz extracts a tar.gz file using stdlib gzip.
 func extractTarGz(packagePath, extractDir string) error {
 	// Open the .tar.gz file
 	file, err := os.Open(packagePath)
@@ -55,7 +56,7 @@ func extractTarGz(packagePath, extractDir string) error {
 	return extractTar(gzReader, extractDir)
 }
 
-// ExtractArchive extracts tar.gz archive files
+// ExtractArchive extracts tar.gz archive files.
 func ExtractArchive(packagePath, extractDir string) error {
 	// Create extraction directory
 	if err := util.EnsureDir(extractDir); err != nil {
@@ -70,13 +71,13 @@ func ExtractArchive(packagePath, extractDir string) error {
 	return extractTarGz(packagePath, extractDir)
 }
 
-// tarExtractor handles the extraction of tar archives
+// tarExtractor handles the extraction of tar archives.
 type tarExtractor struct {
 	tarReader  *tar.Reader
 	extractDir string
 }
 
-// newTarExtractor creates a new tarExtractor instance
+// newTarExtractor creates a new tarExtractor instance.
 func newTarExtractor(reader io.Reader, extractDir string) *tarExtractor {
 	return &tarExtractor{
 		tarReader:  tar.NewReader(reader),
@@ -84,7 +85,7 @@ func newTarExtractor(reader io.Reader, extractDir string) *tarExtractor {
 	}
 }
 
-// validatePath ensures the target path is safe and within the extraction directory
+// validatePath ensures the target path is safe and within the extraction directory.
 func (e *tarExtractor) validatePath(header *tar.Header) (string, error) {
 	// Sanitize the path to prevent directory traversal
 	targetPath := filepath.Join(e.extractDir, filepath.Clean("/"+header.Name))
@@ -103,20 +104,20 @@ func (e *tarExtractor) validatePath(header *tar.Header) (string, error) {
 	return targetPath, nil
 }
 
-// safeFileMode converts tar header mode to os.FileMode safely
+// safeFileMode converts tar header mode to os.FileMode safely.
 func safeFileMode(mode int64) os.FileMode {
 	// Use type assertion to ensure we handle the conversion safely
 	var perm os.FileMode
-	if mode >= 0 && mode <= 0777 {
+	if mode >= 0 && mode <= 0o777 {
 		perm = os.FileMode(mode)
 	} else {
 		// If mode is out of bounds, use a safe default (read/write for owner, read for others)
-		perm = 0644
+		perm = 0o644
 	}
 	return perm
 }
 
-// extractDirectory handles the extraction of a directory entry
+// extractDirectory handles the extraction of a directory entry.
 func (e *tarExtractor) extractDirectory(header *tar.Header, targetPath string) error {
 	// Ensure the directory exists with secure permissions
 	if err := util.EnsureDir(targetPath); err != nil {
@@ -124,7 +125,7 @@ func (e *tarExtractor) extractDirectory(header *tar.Header, targetPath string) e
 	}
 
 	// Set the original mode if it's more restrictive than our default
-	if header.Mode&0777 < 0750 {
+	if header.Mode&0o777 < 0o750 {
 		if err := os.Chmod(targetPath, safeFileMode(header.Mode)); err != nil {
 			return fmt.Errorf("failed to set permissions for %s: %w", targetPath, err)
 		}
@@ -132,7 +133,7 @@ func (e *tarExtractor) extractDirectory(header *tar.Header, targetPath string) e
 	return nil
 }
 
-// extractRegularFile handles the extraction of a regular file
+// extractRegularFile handles the extraction of a regular file.
 func (e *tarExtractor) extractRegularFile(header *tar.Header, targetPath string) error {
 	// Create directory if it doesn't exist
 	if err := util.EnsureFileDir(targetPath); err != nil {
@@ -154,11 +155,7 @@ func (e *tarExtractor) extractRegularFile(header *tar.Header, targetPath string)
 	return file.Close()
 }
 
-// validateSymlinkTarget ensures the symlink target is safe and within the expected directory
-// linkPath is the path where the symlink will be created
-// linkTarget is the target of the symlink (can be relative or absolute)
-// baseDir is the root directory that the symlink must point within
-// Returns the resolved target path if valid, or an error if the target is invalid
+// Returns the resolved target path if valid, or an error if the target is invalid.
 func validateSymlinkTarget(linkPath, linkTarget, baseDir string) (string, error) {
 	// If the target is absolute, make it relative to the base directory
 	var targetPath string
@@ -182,7 +179,7 @@ func validateSymlinkTarget(linkPath, linkTarget, baseDir string) (string, error)
 	return targetPath, nil
 }
 
-// extractSymlink handles the extraction of a symlink
+// extractSymlink handles the extraction of a symlink.
 func (e *tarExtractor) extractSymlink(header *tar.Header, targetPath string) error {
 	// First validate the symlink target
 	_, err := validateSymlinkTarget(targetPath, header.Linkname, e.extractDir)
@@ -207,7 +204,7 @@ func (e *tarExtractor) extractSymlink(header *tar.Header, targetPath string) err
 	return nil
 }
 
-// extractHardlink handles the extraction of a hard link
+// extractHardlink handles the extraction of a hard link.
 func (e *tarExtractor) extractHardlink(header *tar.Header, targetPath string) error {
 	// Sanitize link target path
 	linkTarget := filepath.Join(e.extractDir, filepath.Clean("/"+header.Linkname))
@@ -234,13 +231,13 @@ func (e *tarExtractor) extractHardlink(header *tar.Header, targetPath string) er
 	return nil
 }
 
-// extractTar extracts a tar stream to the specified directory
+// extractTar extracts a tar stream to the specified directory.
 func extractTar(reader io.Reader, extractDir string) error {
 	extractor := newTarExtractor(reader, extractDir)
 
 	for {
 		header, err := extractor.tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -282,7 +279,7 @@ func extractTar(reader io.Reader, extractDir string) error {
 	return nil
 }
 
-// parsePackageStructure parses the extracted package directory structure
+// parsePackageStructure parses the extracted package directory structure.
 func parsePackageStructure(extractDir string) (*PackageStructure, error) {
 	structure := &PackageStructure{}
 
@@ -334,7 +331,7 @@ func parsePackageStructure(extractDir string) (*PackageStructure, error) {
 // 2. Having predefined hooks in Go code
 // 3. Using a sandboxed execution environment
 
-// CopyFiles recursively copies files from src to dst, tracking installed files
+// CopyFiles recursively copies files from src to dst, tracking installed files.
 func CopyFiles(src, dst string) ([]string, error) {
 	var installedFiles []string
 
@@ -351,11 +348,13 @@ func CopyFiles(src, dst string) ([]string, error) {
 
 		targetPath := filepath.Join(dst, relPath)
 
-		if info.IsDir() {
+		switch {
+		case info.IsDir():
 			if err := util.EnsureDir(targetPath); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
 			}
-		} else if info.Mode()&os.ModeSymlink != 0 {
+
+		case info.Mode()&os.ModeSymlink != 0:
 			// Handle symlink
 			linkTarget, err := os.Readlink(path)
 			if err != nil {
@@ -372,19 +371,20 @@ func CopyFiles(src, dst string) ([]string, error) {
 				return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
 			}
 
-			// Remove existing file/symlink if it exists
-			if _, err := os.Lstat(targetPath); err == nil {
-				if err := os.Remove(targetPath); err != nil {
-					return fmt.Errorf("failed to remove existing file/symlink %s: %w", targetPath, err)
-				}
+			// Remove existing symlink or file if it exists
+			if err := os.RemoveAll(targetPath); err != nil {
+				return fmt.Errorf("failed to remove existing symlink %s: %w", targetPath, err)
 			}
 
+			// Create the symlink
 			if err := os.Symlink(linkTarget, targetPath); err != nil {
-				return fmt.Errorf("failed to create symlink %s: %w", targetPath, err)
+				return fmt.Errorf("failed to create symlink %s -> %s: %w", targetPath, linkTarget, err)
 			}
+
 			installedFiles = append(installedFiles, targetPath)
-		} else {
-			// Copy regular file
+
+		default:
+			// Regular file
 			if err := copyFile(path, targetPath, info.Mode()); err != nil {
 				return fmt.Errorf("failed to copy file %s: %w", path, err)
 			}
@@ -393,7 +393,6 @@ func CopyFiles(src, dst string) ([]string, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to copy files: %w", err)
 	}
@@ -401,7 +400,7 @@ func CopyFiles(src, dst string) ([]string, error) {
 	return installedFiles, nil
 }
 
-// copyFile copies a single file from src to dst with the given mode
+// copyFile copies a single file from src to dst with the given mode.
 func copyFile(src, dst string, mode os.FileMode) error {
 	// Ensure destination directory exists
 	if err := util.EnsureFileDir(dst); err != nil {
@@ -432,7 +431,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	return nil
 }
 
-// RemoveFiles removes all files in the given list
+// RemoveFiles removes all files in the given list.
 func RemoveFiles(files []string) error {
 	var errors []string
 

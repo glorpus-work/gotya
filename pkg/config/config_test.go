@@ -38,7 +38,7 @@ settings:
     arch: amd64
     prefer_native: true`
 
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	require.NoError(t, err)
 
 	// Test loading the config

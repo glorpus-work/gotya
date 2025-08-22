@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the application configuration
+// Config represents the application configuration.
 type Config struct {
 	// Repository configuration
 	Repositories []RepositoryConfig `yaml:"repositories"`
@@ -20,7 +20,7 @@ type Config struct {
 	Settings Settings `yaml:"settings"`
 }
 
-// RepositoryConfig represents a single repository configuration
+// RepositoryConfig represents a single repository configuration.
 type RepositoryConfig struct {
 	Name     string `yaml:"name"`
 	URL      string `yaml:"url"`
@@ -28,7 +28,7 @@ type RepositoryConfig struct {
 	Priority int    `yaml:"priority"`
 }
 
-// PlatformConfig represents platform-specific configuration
+// PlatformConfig represents platform-specific configuration.
 type PlatformConfig struct {
 	// OS overrides the target operating system (e.g., "windows", "linux", "darwin")
 	// If empty, the system will auto-detect the current OS
@@ -43,7 +43,7 @@ type PlatformConfig struct {
 	PreferNative bool `yaml:"prefer_native,omitempty"`
 }
 
-// Settings represents general application settings
+// Settings represents general application settings.
 type Settings struct {
 	// Cache settings
 	CacheDir string        `yaml:"cache_dir,omitempty"`
@@ -66,7 +66,7 @@ type Settings struct {
 	LogLevel     string `yaml:"log_level"` // panic, fatal, error, warn, info, debug, trace
 }
 
-// DefaultConfig returns a configuration with sensible defaults
+// DefaultConfig returns a configuration with sensible defaults.
 func DefaultConfig() *Config {
 	// Get the default install directory (usually ~/.local/share/gotya/install on Linux)
 	installDir, _ := getUserDataDir()
@@ -95,7 +95,7 @@ func DefaultConfig() *Config {
 	}
 }
 
-// LoadConfig loads configuration from a file
+// LoadConfig loads configuration from a file.
 func LoadConfig(path string) (*Config, error) {
 	// Validate the config file path
 	if path == "" {
@@ -121,7 +121,7 @@ func LoadConfig(path string) (*Config, error) {
 	return LoadConfigFromReader(file)
 }
 
-// LoadConfigFromReader loads configuration from an io.Reader
+// LoadConfigFromReader loads configuration from an io.Reader.
 func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
@@ -133,10 +133,8 @@ func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	// Apply defaults for missing values
-	if err := config.applyDefaults(); err != nil {
-		return nil, fmt.Errorf("failed to apply defaults: %w", err)
-	}
+	// Apply defaults and validate
+	config.applyDefaults()
 
 	// Validate configuration
 	if err := config.Validate(); err != nil {
@@ -146,7 +144,7 @@ func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 	return &config, nil
 }
 
-// SaveConfig saves configuration to a file
+// SaveConfig saves configuration to a file.
 func (c *Config) SaveConfig(path string) error {
 	// Validate the config file path
 	if path == "" {
@@ -160,13 +158,13 @@ func (c *Config) SaveConfig(path string) error {
 	}
 
 	// Ensure the directory exists with secure permissions (0700)
-	if err := os.MkdirAll(filepath.Dir(absPath), 0700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(absPath), 0o700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
 	// Create temporary file with secure permissions (0600)
 	tempPath := absPath + ".tmp"
-	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to create temp config file: %w", err)
 	}
@@ -192,7 +190,7 @@ func (c *Config) SaveConfig(path string) error {
 	}
 
 	// Ensure the final file has the correct permissions (0600)
-	if err := os.Chmod(absPath, 0600); err != nil {
+	if err := os.Chmod(absPath, 0o600); err != nil {
 		// This is not fatal, but we should log it
 		return fmt.Errorf("warning: failed to set permissions on config file: %w", err)
 	}
@@ -200,7 +198,7 @@ func (c *Config) SaveConfig(path string) error {
 	return nil
 }
 
-// ToYAML converts the config to YAML bytes
+// ToYAML converts the config to YAML bytes.
 func (c *Config) ToYAML() ([]byte, error) {
 	data, err := yaml.Marshal(c)
 	if err != nil {
@@ -209,8 +207,8 @@ func (c *Config) ToYAML() ([]byte, error) {
 	return data, nil
 }
 
-// applyDefaults fills in missing values with defaults
-func (c *Config) applyDefaults() error {
+// applyDefaults fills in missing values with defaults.
+func (c *Config) applyDefaults() {
 	defaults := DefaultConfig()
 
 	// Apply default settings if not set
@@ -240,11 +238,9 @@ func (c *Config) applyDefaults() error {
 			}
 		}
 	}
-
-	return nil
 }
 
-// Validate checks if the configuration is valid
+// Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
 	// Validate repositories
 	repoNames := make(map[string]bool)
@@ -306,7 +302,7 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// GetDefaultConfigPath returns the default configuration file path
+// GetDefaultConfigPath returns the default configuration file path.
 func GetDefaultConfigPath() (string, error) {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
@@ -339,7 +335,7 @@ func (c *Config) AddRepository(name, url string, enabled bool) error {
 	return nil
 }
 
-// RemoveRepository removes a repository from the configuration
+// RemoveRepository removes a repository from the configuration.
 func (c *Config) RemoveRepository(name string) bool {
 	for i, repo := range c.Repositories {
 		if repo.Name == name {
@@ -350,7 +346,7 @@ func (c *Config) RemoveRepository(name string) bool {
 	return false
 }
 
-// GetRepository gets a repository configuration by name
+// GetRepository gets a repository configuration by name.
 func (c *Config) GetRepository(name string) *RepositoryConfig {
 	for i, repo := range c.Repositories {
 		if repo.Name == name {
@@ -360,7 +356,7 @@ func (c *Config) GetRepository(name string) *RepositoryConfig {
 	return nil
 }
 
-// EnableRepository enables or disables a repository
+// EnableRepository enables or disables a repository.
 func (c *Config) EnableRepository(name string, enabled bool) bool {
 	for i, repo := range c.Repositories {
 		if repo.Name == name {
@@ -371,7 +367,7 @@ func (c *Config) EnableRepository(name string, enabled bool) bool {
 	return false
 }
 
-// GetDatabasePath returns the path to the installed packages database
+// GetDatabasePath returns the path to the installed packages database.
 func (c *Config) GetDatabasePath() string {
 	stateDir, err := getUserDataDir()
 	if err != nil {
@@ -382,7 +378,7 @@ func (c *Config) GetDatabasePath() string {
 	return filepath.Join(stateDir, "gotya", "state", "installed.json")
 }
 
-// getUserDataDir returns the user state directory following platform conventions
+// getUserDataDir returns the user state directory following platform conventions.
 func getUserDataDir() (string, error) {
 	// Check for XDG_STATE_HOME environment variable - if set, always use it
 	if dir := os.Getenv("XDG_DATA_HOME"); dir != "" {

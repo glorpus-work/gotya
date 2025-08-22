@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewSyncCmd creates the sync command
+// NewSyncCmd creates the sync command.
 func NewSyncCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",

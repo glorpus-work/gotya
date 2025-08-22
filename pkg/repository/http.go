@@ -9,13 +9,13 @@ import (
 	"time"
 )
 
-// HTTPClient handles HTTP operations for repositories
+// HTTPClient handles HTTP operations for repositories.
 type HTTPClient struct {
 	client    *http.Client
 	userAgent string
 }
 
-// NewHTTPClient creates a new HTTP client for repository operations
+// NewHTTPClient creates a new HTTP client for repository operations.
 func NewHTTPClient(timeout time.Duration) *HTTPClient {
 	return &HTTPClient{
 		client: &http.Client{
@@ -25,7 +25,7 @@ func NewHTTPClient(timeout time.Duration) *HTTPClient {
 	}
 }
 
-// ErrNotModified is returned when the index hasn't been modified since the last request
+// ErrNotModified is returned when the index hasn't been modified since the last request.
 var ErrNotModified = fmt.Errorf("index not modified")
 
 // DownloadIndex downloads the repository index from the given URL.
@@ -37,7 +37,7 @@ func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, lastMod
 		return nil, time.Time{}, fmt.Errorf("failed to build index URL: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", indexURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, indexURL, nil)
 	if err != nil {
 		return nil, time.Time{}, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -89,9 +89,9 @@ func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, lastMod
 	return index, modifiedTime, nil
 }
 
-// DownloadPackage downloads a package file from the repository
+// DownloadPackage downloads a package file from the repository.
 func (hc *HTTPClient) DownloadPackage(ctx context.Context, packageURL string, writer io.Writer) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", packageURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, packageURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -116,14 +116,14 @@ func (hc *HTTPClient) DownloadPackage(ctx context.Context, packageURL string, wr
 	return nil
 }
 
-// CheckRepositoryHealth checks if a repository is accessible
+// CheckRepositoryHealth checks if a repository is accessible.
 func (hc *HTTPClient) CheckRepositoryHealth(ctx context.Context, repoURL string) error {
 	indexURL, err := hc.buildIndexURL(repoURL)
 	if err != nil {
 		return fmt.Errorf("failed to build index URL: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "HEAD", indexURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, indexURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -143,7 +143,7 @@ func (hc *HTTPClient) CheckRepositoryHealth(ctx context.Context, repoURL string)
 	return nil
 }
 
-// buildIndexURL constructs the index URL from a repository base URL
+// buildIndexURL constructs the index URL from a repository base URL.
 func (hc *HTTPClient) buildIndexURL(repoURL string) (string, error) {
 	u, err := url.Parse(repoURL)
 	if err != nil {

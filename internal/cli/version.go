@@ -12,7 +12,7 @@ const (
 	GitCommit = "unknown"
 )
 
-// NewVersionCmd creates the version command
+// NewVersionCmd creates the version command.
 func NewVersionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
