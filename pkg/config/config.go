@@ -6,12 +6,14 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
+	"github.com/cperrin88/gotya/pkg/platform"
 )
 
 // Default configuration values.
@@ -87,9 +89,10 @@ type Settings struct {
 // DefaultConfig returns a configuration with sensible defaults.
 func DefaultConfig() *Config {
 	// Get the default install directory (usually ~/.local/share/gotya/install on Linux)
-	installDir, _ := getUserDataDir()
-	if installDir != "" {
-		installDir = filepath.Join(installDir, "install")
+	var installDir string
+	userDataDir, err := getUserDataDir()
+	if err == nil && userDataDir != "" {
+		installDir = filepath.Join(userDataDir, "install")
 	}
 
 	return &Config{
@@ -264,13 +267,13 @@ func (c *Config) Validate() error {
 	repoNames := make(map[string]bool)
 	for i, repo := range c.Repositories {
 		if repo.Name == "" {
-			return fmt.Errorf("repository %d: name cannot be empty", i)
+			return errors.ErrEmptyRepositoryName(i)
 		}
 		if repo.URL == "" {
-			return fmt.Errorf("repository '%s': URL cannot be empty", repo.Name)
+			return errors.ErrEmptyRepositoryURL(repo.Name)
 		}
 		if repoNames[repo.Name] {
-			return fmt.Errorf("repository '%s': duplicate repository name", repo.Name)
+			return errors.ErrDuplicateRepository(repo.Name)
 		}
 		repoNames[repo.Name] = true
 	}
@@ -278,11 +281,10 @@ func (c *Config) Validate() error {
 	// Validate platform settings
 	if c.Settings.Platform.OS != "" {
 		switch c.Settings.Platform.OS {
-		case "windows", "linux", "darwin", "freebsd", "openbsd", "netbsd":
+		case platform.OSWindows, platform.OSLinux, platform.OSDarwin, platform.OSFreeBSD, platform.OSOpenBSD, platform.OSNetBSD:
 			// Valid OS
 		default:
-			return fmt.Errorf("invalid OS: %s, must be one of: windows, linux, darwin, freebsd, openbsd, netbsd",
-				c.Settings.Platform.OS)
+			return errors.ErrInvalidOSValue(c.Settings.Platform.OS)
 		}
 	}
 
@@ -291,28 +293,33 @@ func (c *Config) Validate() error {
 		case "amd64", "386", "arm", "arm64":
 			// Valid architecture
 		default:
-			return fmt.Errorf("invalid architecture: %s, must be one of: amd64, 386, arm, arm64",
-				c.Settings.Platform.Arch)
+			return errors.ErrInvalidArchValue(c.Settings.Platform.Arch)
 		}
 	}
 
 	// Validate settings
 	if c.Settings.HTTPTimeout < 0 {
-		return fmt.Errorf("http_timeout cannot be negative")
+		return errors.ErrHTTPTimeoutNegative
 	}
 	if c.Settings.CacheTTL < 0 {
-		return fmt.Errorf("cache_ttl cannot be negative")
+		return errors.ErrCacheTTLNegative
 	}
 	if c.Settings.MaxConcurrent < 1 {
-		return fmt.Errorf("max_concurrent_syncs must be at least 1")
+		return errors.ErrMaxConcurrentInvalid
 	}
 
-	validFormats := map[string]bool{"json": true, "table": true, "yaml": true}
+	// Validate output format
+	validFormats := map[string]bool{
+		"json":  true,
+		"table": true,
+		"yaml":  true,
+	}
 	if !validFormats[c.Settings.OutputFormat] {
-		return fmt.Errorf("invalid output_format '%s', must be one of: json, table, yaml", c.Settings.OutputFormat)
+		return errors.ErrInvalidOutputFormat(c.Settings.OutputFormat)
 	}
 
-	validLogLevels := map[string]bool{
+	// Validate log level
+	validLevels := map[string]bool{
 		"panic": true,
 		"fatal": true,
 		"error": true,
@@ -321,8 +328,8 @@ func (c *Config) Validate() error {
 		"debug": true,
 		"trace": true,
 	}
-	if !validLogLevels[c.Settings.LogLevel] {
-		return fmt.Errorf("invalid log_level '%s', must be one of: panic, fatal, error, warn, info, debug, trace", c.Settings.LogLevel)
+	if !validLevels[strings.ToLower(c.Settings.LogLevel)] {
+		return errors.ErrInvalidLogLevel(c.Settings.LogLevel)
 	}
 
 	return nil
@@ -412,7 +419,7 @@ func getUserDataDir() (string, error) {
 	}
 
 	// Special case for Linux: follow XDG Base Directory Specification
-	if runtime.GOOS == "linux" {
+	if runtime.GOOS == platform.OSLinux {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("failed to get user home directory: %w", err)

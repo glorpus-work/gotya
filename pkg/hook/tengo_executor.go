@@ -52,7 +52,7 @@ func (e *TengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	// Run the script
 	compiled, err := scriptInstance.Run()
 	if err != nil {
-		return fmt.Errorf("%s: %w: %v", hookType, ErrHookExecution, err)
+		return fmt.Errorf("%s: %w: %w", hookType, ErrHookExecution, err)
 	}
 
 	// Check for any returned error
@@ -60,7 +60,7 @@ func (e *TengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	if errVar != nil {
 		switch v := errVar.Value().(type) {
 		case error:
-			return fmt.Errorf("%w: %v", ErrHookScript, v)
+			return fmt.Errorf("%w: %w", ErrHookScript, v)
 		case string:
 			if v != "" {
 				return fmt.Errorf("%w: %s", ErrHookScript, v)

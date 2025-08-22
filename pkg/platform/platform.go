@@ -6,9 +6,8 @@ import (
 	"strings"
 )
 
-// Platform represents a target platform with OS and Architecture
-// Both OS and Arch can be "any" to match any platform
-// or a specific value like "linux", "windows", "amd64", etc.
+// Platform represents a target platform with OS and Architecture.
+// Both OS and Arch can be "any" to match any platform.
 type Platform struct {
 	OS   string `yaml:"os" json:"os"`
 	Arch string `yaml:"arch" json:"arch"`
@@ -35,7 +34,7 @@ func CurrentPlatform() Platform {
 // Detect returns the current OS and architecture as normalized strings.
 // This is a convenience function that returns the same values as CurrentPlatform()
 // but as separate return values for backward compatibility.
-func Detect() (string, string) {
+func Detect() (os, arch string) {
 	p := CurrentPlatform()
 	return p.OS, p.Arch
 }
@@ -52,38 +51,34 @@ func (p Platform) String() string {
 }
 
 // NormalizeOS normalizes OS names to a common format.
-func NormalizeOS(os string) string {
-	os = strings.ToLower(os)
-	// Map common variations to standard names
-	switch os {
+func NormalizeOS(osName string) string {
+	switch strings.ToLower(strings.TrimSpace(osName)) {
 	case "darwin":
-		return "macos"
+		return OSDarwin
 	case "win", "windows":
-		return "windows"
+		return OSWindows
 	case "linux":
-		return "linux"
+		return OSLinux
 	case "freebsd", "openbsd", "netbsd":
-		return os // Keep as is but normalized to lowercase
+		return strings.ToLower(strings.TrimSpace(osName)) // Keep as is but normalized to lowercase
 	default:
-		return os
+		return strings.ToLower(strings.TrimSpace(osName))
 	}
 }
 
 // NormalizeArch normalizes architecture names to a common format.
 func NormalizeArch(arch string) string {
-	arch = strings.ToLower(arch)
-	// Map common variations to standard names
-	switch arch {
+	switch strings.ToLower(strings.TrimSpace(arch)) {
 	case "x86_64", "x64":
-		return "amd64"
-	case "x86", "i386", "i686":
-		return "386"
-	case "arm64", "aarch64":
-		return "arm64"
-	case "arm":
-		return "arm" // Note: ARM version (v5, v6, v7) would need more context
+		return ArchAMD64
+	case "i386", "i486", "i586", "i686":
+		return Arch386
+	case "aarch64":
+		return ArchARM64
+	case "armv6l", "armv7l":
+		return ArchARM
 	default:
-		return arch
+		return strings.ToLower(strings.TrimSpace(arch))
 	}
 }
 

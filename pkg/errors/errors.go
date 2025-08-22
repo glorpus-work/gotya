@@ -11,18 +11,50 @@ import (
 var (
 	// Config errors are related to configuration file operations and validation.
 	// These errors typically occur during application startup or config reload.
-	ErrEmptyConfigPath   = fmt.Errorf("config file path cannot be empty")  // Returned when a configuration file path is empty
-	ErrInvalidConfigPath = fmt.Errorf("invalid config file path")          // Returned when the provided config file path is invalid
-	ErrConfigParse       = fmt.Errorf("failed to parse config")            // Returned when the config file cannot be parsed (e.g., invalid YAML/JSON)
-	ErrConfigValidation  = fmt.Errorf("invalid configuration")             // Returned when configuration values fail validation
-	ErrConfigEncode      = fmt.Errorf("failed to encode config")           // Returned when the config cannot be encoded (e.g., during save)
-	ErrConfigDirectory   = fmt.Errorf("failed to create config directory") // Returned when the config directory cannot be created
-	ErrConfigFileCreate  = fmt.Errorf("failed to create config file")      // Returned when the config file cannot be created
+	ErrEmptyConfigPath = fmt.Errorf(
+		"config file path cannot be empty") // When config file path is empty
+
+	ErrInvalidConfigPath = fmt.Errorf(
+		"invalid config file path") // When provided config file path is invalid
+
+	ErrConfigParse = fmt.Errorf(
+		"failed to parse config") // When config file cannot be parsed
+
+	// ErrConfigValidation is returned when configuration values fail validation.
+	ErrConfigValidation = fmt.Errorf(
+		"invalid configuration") // When config values fail validation
+
+	ErrConfigEncode = fmt.Errorf(
+		"failed to encode config") // When config cannot be encoded
+
+	ErrConfigDirectory = fmt.Errorf(
+		"failed to create config directory") // When config dir cannot be created
+
+	ErrConfigFileCreate = fmt.Errorf(
+		"failed to create config file") // When config file cannot be created
+
+	ErrConfigFileNotExists = fmt.Errorf(
+		"configuration file does not exist") // When config file does not exist
+
+	ErrConfigInvalidFormat = fmt.Errorf(
+		"invalid configuration format") // When config format is invalid
+
+	ErrConfigInvalidValue = fmt.Errorf(
+		"invalid configuration value") // When config value is invalid
+
+	// ErrConfigFileExists is returned when attempting to create a configuration file that already exists.
+	// The error includes the path to the existing file and suggests using --force to overwrite.
+	ErrConfigFileExists = func(configPath string) error {
+		return fmt.Errorf("configuration file already exists at %s (use --force to overwrite)", configPath)
+	}
 
 	// Cache errors are related to cache management operations.
 	// These errors occur during cache cleanup or access operations.
-	ErrCacheCleanIndex   = fmt.Errorf("failed to clean index cache")   // Returned when index cache cleanup fails
-	ErrCacheCleanPackage = fmt.Errorf("failed to clean package cache") // Returned when package cache cleanup fails
+	ErrCacheCleanIndex = fmt.Errorf(
+		"failed to clean index cache") // When index cache cleanup fails
+
+	ErrCacheCleanPackage = fmt.Errorf(
+		"failed to clean package cache") // When package cache cleanup fails
 
 	// Platform and configuration validation errors.
 	// These errors are used to validate system-specific configuration values.
@@ -39,12 +71,6 @@ var (
 		return fmt.Errorf("invalid architecture value: %s. Valid values are: %v", value, platform.GetValidArch())
 	}
 
-	// ErrConfigFileExists is returned when attempting to create a configuration file that already exists.
-	// The error includes the path to the existing file and suggests using --force to overwrite.
-	ErrConfigFileExists = func(configPath string) error {
-		return fmt.Errorf("configuration file already exists at %s (use --force to overwrite)", configPath)
-	}
-
 	// CLI errors are returned during command-line interface operations.
 	// These errors help users understand and correct their command usage.
 
@@ -58,7 +84,7 @@ var (
 
 	// ErrPackageNotFound is returned when an operation is attempted on a package
 	// that doesn't exist in the database.
-	ErrPackageNotFound = fmt.Errorf("failed to remove package from database: package not found")
+	ErrPackageNotFound = fmt.Errorf("package not found")
 
 	// Repository errors are related to repository management operations.
 
@@ -91,7 +117,8 @@ var (
 	// ErrInvalidFile is returned when a file exists but is invalid or corrupted.
 	ErrInvalidFile = fmt.Errorf("invalid file")
 
-	// ErrPackageInvalid is returned when a package is malformed or contains invalid data.
+	// Package errors are related to package management operations.
+	// ErrPackageInvalid is returned when a package is invalid or contains invalid data.
 	ErrPackageInvalid = fmt.Errorf("invalid package")
 
 	// ErrValidationFailed is returned when package validation fails.
@@ -102,13 +129,39 @@ var (
 	ErrNameRequired = fmt.Errorf("name is required")
 
 	// ErrInvalidPackageName is returned when a package name contains invalid characters.
-	ErrInvalidPackageName = fmt.Errorf("invalid package name")
+	// The format string is used to include the package name and regex pattern.
+	// Example: fmt.Errorf("invalid package name: %s - must match %s", name, pattern)
+	ErrInvalidPackageName = fmt.Errorf("invalid package name: %%s - must match %%s")
 
 	// ErrVersionRequired is returned when a package version is required but not provided.
 	ErrVersionRequired = fmt.Errorf("version is required")
 
-	// ErrInvalidVersionString is returned when a version string is malformed.
-	ErrInvalidVersionString = fmt.Errorf("invalid version string")
+	// ErrInvalidVersionString is returned when a package version string is invalid.
+	// The format string is used to include the version string and regex pattern.
+	// Example: fmt.Errorf(ErrInvalidVersionString.Error(), "1.0", "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+	// The %%s placeholders will be replaced with the actual values when the error is created.
+	ErrInvalidVersionString = fmt.Errorf("invalid package version: %%s - must match %%s")
+
+	// ErrHTTPTimeoutNegative is returned when HTTP timeout is set to a negative value.
+	ErrHTTPTimeoutNegative = fmt.Errorf("http_timeout cannot be negative")
+
+	// ErrCacheTTLNegative is returned when cache TTL is set to a negative value.
+	ErrCacheTTLNegative = fmt.Errorf("cache_ttl cannot be negative")
+
+	// ErrMaxConcurrentInvalid is returned when max_concurrent_syncs is less than 1.
+	ErrMaxConcurrentInvalid = fmt.Errorf("max_concurrent_syncs must be at least 1")
+
+	// ErrInvalidOutputFormat is returned when an invalid output format is specified.
+	// The error includes the invalid format and a list of valid formats.
+	ErrInvalidOutputFormat = func(format string) error {
+		return fmt.Errorf("invalid output format '%s', must be one of: json, table, yaml", format)
+	}
+
+	// ErrInvalidLogLevel is returned when an invalid log level is specified.
+	// The error includes the invalid level and a list of valid log levels.
+	ErrInvalidLogLevel = func(level string) error {
+		return fmt.Errorf("invalid log level '%s', must be one of: panic, fatal, error, warn, info, debug, trace", level)
+	}
 
 	// ErrTargetOSEmpty is returned when a target operating system is required but not provided.
 	ErrTargetOSEmpty = fmt.Errorf("target OS cannot be empty")
@@ -131,26 +184,17 @@ var (
 	}
 
 	// ErrNegativeHTTPTimeout is returned when a negative HTTP timeout value is provided.
-	ErrNegativeHTTPTimeout = fmt.Errorf("http_timeout cannot be negative")
+	// This is an alias for ErrHTTPTimeoutNegative for backward compatibility.
+	ErrNegativeHTTPTimeout = ErrHTTPTimeoutNegative
 
 	// ErrNegativeCacheTTL is returned when a negative cache TTL value is provided.
-	ErrNegativeCacheTTL = fmt.Errorf("cache_ttl cannot be negative")
+	// This is an alias for ErrCacheTTLNegative for backward compatibility.
+	ErrNegativeCacheTTL = ErrCacheTTLNegative
 
 	// ErrInvalidConcurrency is returned when an invalid concurrency value is provided.
 	// The value must be at least 1.
-	ErrInvalidConcurrency = fmt.Errorf("max_concurrent_syncs must be at least 1")
-
-	// ErrInvalidOutputFormat is returned when an invalid output format is specified.
-	// The error includes the invalid format and a list of valid formats.
-	ErrInvalidOutputFormat = func(format string) error {
-		return fmt.Errorf("invalid output_format '%s', must be one of: json, table, yaml", format)
-	}
-
-	// ErrInvalidLogLevel is returned when an invalid log level is specified.
-	// The error includes the invalid level and a list of valid log levels.
-	ErrInvalidLogLevel = func(level string) error {
-		return fmt.Errorf("invalid log_level '%s', must be one of: panic, fatal, error, warn, info, debug, trace", level)
-	}
+	// This is an alias for ErrMaxConcurrentInvalid for backward compatibility.
+	ErrInvalidConcurrency = ErrMaxConcurrentInvalid
 
 	// ErrRepositoryExists is returned when attempting to add a repository that already exists.
 	// The error includes the name of the existing repository.

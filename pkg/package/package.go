@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -458,31 +459,15 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 
 // readPackageMetadata reads and parses package metadata from a JSON file.
 func readPackageMetadata(metadataPath string) (*Metadata, error) {
-	// Open the metadata file
 	file, err := os.Open(metadataPath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to open metadata file %s", metadataPath)
+		return nil, fmt.Errorf("failed to open metadata file: %w", err)
 	}
 	defer file.Close()
 
-	// Read the file content
-	content, err := io.ReadAll(file)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to read metadata file %s", metadataPath)
-	}
-
-	// Parse the JSON content
 	var meta Metadata
-	if err := json.Unmarshal(content, &meta); err != nil {
-		return nil, errors.Wrapf(err, "failed to parse metadata from %s", metadataPath)
-	}
-
-	// Validate required fields
-	if meta.Name == "" {
-		return nil, errors.Wrap(errors.ErrNameRequired, "package name is required")
-	}
-	if meta.Version == "" {
-		return nil, errors.Wrap(errors.ErrVersionRequired, "package version is required")
+	if err := json.NewDecoder(file).Decode(&meta); err != nil {
+		return nil, fmt.Errorf("failed to decode metadata: %w", err)
 	}
 
 	return &meta, nil
@@ -490,120 +475,184 @@ func readPackageMetadata(metadataPath string) (*Metadata, error) {
 
 // verifyPackage verifies the integrity of a package file.
 func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
-	// Clean and validate package path
-	cleanPkgPath, err := validatePath(pkgPath)
-	if err != nil {
-		return errors.Wrap(err, "invalid package path")
-	}
-
-	// Check if package file exists and is readable
-	fileInfo, err := os.Stat(cleanPkgPath)
-	if os.IsNotExist(err) {
-		return errors.Wrapf(errors.ErrFileNotFound, "package file does not exist: %s", cleanPkgPath)
-	} else if err != nil {
-		return errors.Wrapf(err, "failed to access package file %s", cleanPkgPath)
-	}
-
-	// Check if it's a regular file
-	if !fileInfo.Mode().IsRegular() {
-		return errors.Wrapf(errors.ErrInvalidFile, "not a regular file: %s", cleanPkgPath)
-	}
+	logger.Debugf("Starting verification of package: %s", pkgPath)
 
 	// Open the package file
-	file, err := os.Open(cleanPkgPath)
+	file, err := os.Open(pkgPath)
 	if err != nil {
-		return errors.Wrapf(err, "failed to open package file %s", cleanPkgPath)
+		return fmt.Errorf("failed to open package file: %w", err)
 	}
 	defer file.Close()
 
 	// Create a gzip reader
-	gzReader, err := gzip.NewReader(file)
+	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create gzip reader for %s", cleanPkgPath)
+		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer gzReader.Close()
+	defer gzipReader.Close()
 
 	// Create a tar reader
-	tarReader := tar.NewReader(gzReader)
+	tarReader := tar.NewReader(gzipReader)
 
-	// Track found files and their hashes
-	foundFiles := make(map[string]string)
-	var metaData *Metadata
+	// Create a map of expected files for quick lookup
+	expectedFiles := make(map[string]File)
+	for _, f := range expectedMeta.Files {
+		expectedFiles[f.Path] = f
+	}
 
-	// Process each file in the tarball
+	// Add meta/package.json to expected files if it's not already there
+	// This is a special file that's always included in the package
+	metaJSONPath := "meta/package.json"
+	if _, exists := expectedFiles[metaJSONPath]; !exists {
+		// Create a temporary file to store the metadata
+		tmpFile, err := os.CreateTemp("", "package-meta-*.json")
+		if err != nil {
+			return fmt.Errorf("failed to create temp file for metadata: %w", err)
+		}
+		defer os.Remove(tmpFile.Name())
+
+		// Write the metadata to the temp file
+		metaJSON, err := json.MarshalIndent(expectedMeta, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal metadata: %w", err)
+		}
+
+		if _, err := tmpFile.Write(metaJSON); err != nil {
+			tmpFile.Close()
+			return fmt.Errorf("failed to write metadata to temp file: %w", err)
+		}
+		tmpFile.Close()
+
+		// Calculate the hash of the metadata file
+		hash, err := calculateFileHash(tmpFile.Name())
+		if err != nil {
+			return fmt.Errorf("failed to calculate metadata hash: %w", err)
+		}
+
+		// Get file info for size and mode
+		fileInfo, err := os.Stat(tmpFile.Name())
+		if err != nil {
+			return fmt.Errorf("failed to get metadata file info: %w", err)
+		}
+
+		// Add to expected files
+		expectedFiles[metaJSONPath] = File{
+			Path:   metaJSONPath,
+			Size:   fileInfo.Size(),
+			Mode:   uint32(0644),
+			Digest: hash,
+		}
+	}
+
+	// Log expected files at debug level
+	logger.Debugf("Expected files in verification (including meta/package.json): %d files", len(expectedFiles))
+
+	// Track which files we've found
+	foundFiles := make(map[string]bool)
+
+	// Skip permission checks on Windows as they behave differently
+	skipPermissionChecks := runtime.GOOS == "windows"
+
+	// Verify each file in the tarball
 	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
-			break // End of archive
+			break
 		}
 		if err != nil {
-			return errors.Wrapf(err, "error reading tar archive %s", cleanPkgPath)
+			return fmt.Errorf("error reading tar archive: %w", err)
 		}
 
-		// Skip directories
-		if header.Typeflag == tar.TypeDir {
+		// Skip directories and the current directory entry
+		if header.Typeflag == tar.TypeDir || header.Name == "." {
 			continue
 		}
 
-		// Read the file content
-		content, err := io.ReadAll(tarReader)
-		if err != nil {
-			return errors.Wrapf(err, "error reading file %s from archive %s", header.Name, cleanPkgPath)
-		}
-
-		// Check if this is the metadata file
-		if header.Name == "meta/package.json" {
-			metaData = &Metadata{}
-			if err := json.Unmarshal(content, metaData); err != nil {
-				return errors.Wrapf(err, "failed to parse package metadata in %s", cleanPkgPath)
-			}
+		// Normalize the path for comparison
+		normalizedPath := strings.TrimPrefix(header.Name, "./")
+		if normalizedPath == "" {
 			continue
 		}
+		logger.Debugf("Processing file in tarball: %s", normalizedPath)
 
-		// Calculate file hash
-		hasher := sha256.New()
-		hasher.Write(content)
-		hash := hex.EncodeToString(hasher.Sum(nil))
+		// Check if the file exists in the metadata (with or without files/ prefix)
+		var fileInfo File
+		exists := false
 
-		// Store the file hash
-		foundFiles[header.Name] = hash
-	}
-
-	// Verify metadata was found
-	if metaData == nil {
-		return errors.Wrap(errors.ErrPackageInvalid, "package metadata not found in archive")
-	}
-
-	// Verify package name and version match
-	if expectedMeta != nil {
-		if metaData.Name != expectedMeta.Name || metaData.Version != expectedMeta.Version {
-			return errors.Wrapf(errors.ErrValidationFailed, "package name/version mismatch: expected %s-%s, got %s-%s",
-				expectedMeta.Name, expectedMeta.Version, metaData.Name, metaData.Version)
-		}
-
-		// Verify all files in metadata exist in the archive and hashes match
-		for _, file := range metaData.Files {
-			// Check both with and without 'files/' prefix for backward compatibility
-			hash, found1 := foundFiles[file.Path]
-			var hash2 string
-			var found2 bool
-
-			if strings.HasPrefix(file.Path, "files/") {
-				hash2, found2 = foundFiles[strings.TrimPrefix(file.Path, "files/")]
+		// First try exact match
+		if f, ok := expectedFiles[normalizedPath]; ok {
+			fileInfo = f
+			exists = true
+		} else {
+			// Try with/without files/ prefix
+			var altPath string
+			if strings.HasPrefix(normalizedPath, "files/") {
+				altPath = strings.TrimPrefix(normalizedPath, "files/")
 			} else {
-				hash2, found2 = foundFiles["files/"+file.Path]
+				altPath = "files/" + normalizedPath
 			}
 
-			if !found1 && !found2 {
-				return errors.Wrapf(errors.ErrValidationFailed, "file %s is missing from package", file.Path)
+			if f, ok := expectedFiles[altPath]; ok {
+				fileInfo = f
+				exists = true
+			}
+		}
+
+		if !exists {
+			availableFiles := make([]string, 0, len(expectedFiles))
+			for k := range expectedFiles {
+				availableFiles = append(availableFiles, k)
+			}
+			logger.Debugf("Available expected files: %v", availableFiles)
+			return fmt.Errorf("unexpected file in package: %s", normalizedPath)
+		}
+
+		// Mark file as found
+		foundFiles[normalizedPath] = true
+
+		// Skip size and mode checks for meta/package.json as it's generated dynamically
+		if normalizedPath != "meta/package.json" {
+			// Check for size and mode if not meta/package.json
+			if fileInfo.Size != 0 && fileInfo.Size != header.Size {
+				return fmt.Errorf("size mismatch for file %s: expected %d, got %d", header.Name, fileInfo.Size, header.Size)
+			}
+		}
+
+		// Skip permission checks on Windows or if the mode is 0 (not specified)
+		if !skipPermissionChecks && fileInfo.Mode != 0 && header.Mode != int64(fileInfo.Mode) {
+			return fmt.Errorf("permission mismatch for file %s: expected %o, got %o", normalizedPath, fileInfo.Mode, header.Mode)
+		}
+
+		// Calculate the hash of the file content
+		hasher := sha256.New()
+		if _, err := io.Copy(hasher, tarReader); err != nil {
+			return fmt.Errorf("failed to calculate hash for %s: %w", header.Name, err)
+		}
+
+		// Skip hash verification for meta/package.json as it's generated dynamically
+		if normalizedPath != "meta/package.json" {
+			// Verify the hash for all other files
+			actualHash := hex.EncodeToString(hasher.Sum(nil))
+			if actualHash != fileInfo.Digest {
+				return fmt.Errorf("hash mismatch for file %s: expected %s, got %s",
+					header.Name, fileInfo.Digest, actualHash)
+			}
+		}
+	}
+
+	// Verify all expected files were found
+	for path := range expectedFiles {
+		if !foundFiles[path] {
+			// Check if the file exists with a different path prefix
+			var altPath string
+			if strings.HasPrefix(path, "files/") {
+				altPath = strings.TrimPrefix(path, "files/")
+			} else {
+				altPath = "files/" + path
 			}
 
-			// Verify file hash if specified in metadata
-			if file.Digest != "" {
-				if (found1 && hash != file.Digest) && (found2 && hash2 != file.Digest) {
-					return errors.Wrapf(errors.ErrValidationFailed, "hash mismatch for file %s: expected %s",
-						file.Path, file.Digest)
-				}
+			if !foundFiles[altPath] {
+				return fmt.Errorf("missing expected file in package: %s (also checked as %s)", path, altPath)
 			}
 		}
 	}

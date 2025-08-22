@@ -106,6 +106,11 @@ func newTarExtractor(reader io.Reader, extractDir string) *tarExtractor {
 
 // validatePath ensures the target path is safe and within the extraction directory.
 func (t *tarExtractor) validatePath(header *tar.Header) (string, error) {
+	// Skip the current directory entry
+	if header.Name == "." {
+		return "", nil
+	}
+
 	// Clean the path to prevent directory traversal
 	cleanPath := filepath.Clean(header.Name)
 	if cleanPath == "." || cleanPath == ".." || strings.HasPrefix(cleanPath, "../") {
@@ -298,6 +303,11 @@ func extractTar(reader io.Reader, extractDir string) error {
 			return fmt.Errorf("invalid path validation: %w", err)
 		}
 
+		// Skip entries with empty paths (like the current directory entry)
+		if targetPath == "" {
+			continue
+		}
+
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := extractor.extractDirectory(header, targetPath); err != nil {
@@ -341,10 +351,16 @@ func LoadMetadata(metadataPath string) (*PackageMetadata, error) {
 
 // parsePackageStructure parses the extracted package directory structure.
 func parsePackageStructure(extractDir string) (*PackageStructure, error) {
-	// Look for metadata file
-	metadataPath := filepath.Join(extractDir, "pkg.json")
+	// Look for metadata file in meta/package.json
+	metadataPath := filepath.Join(extractDir, "meta", "package.json")
 	if _, err := os.Stat(metadataPath); os.IsNotExist(err) {
-		return nil, ErrMetadataNotFound
+		// Fall back to pkg.json for backward compatibility
+		metadataPath = filepath.Join(extractDir, "pkg.json")
+		if _, err := os.Stat(metadataPath); os.IsNotExist(err) {
+			return nil, ErrMetadataNotFound
+		} else if err != nil {
+			return nil, fmt.Errorf("error checking for metadata file: %w", err)
+		}
 	} else if err != nil {
 		return nil, fmt.Errorf("error checking for metadata file: %w", err)
 	}
