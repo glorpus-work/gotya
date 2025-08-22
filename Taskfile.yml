@@ -1,0 +1,78 @@
+version: '3'
+
+vars:
+  BIN_DIR: ./bin
+  COVER_PROFILE: coverage.out
+  LINT_CONFIG: .golangci.yml
+
+env:
+  GO111MODULE: on
+  CGO_ENABLED: 0
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list-all
+    silent: true
+
+  # Build tasks
+  build:
+    desc: Build the project
+    cmds:
+      - go build -o {{.BIN_DIR}}/gotya ./cmd/gotya
+
+  install:
+    desc: Install the application
+    cmds:
+      - go install ./cmd/gotya
+
+  # Test tasks
+  test:
+    desc: Run all tests
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go test -v -coverprofile={{.COVER_PROFILE}} ./...
+
+  test-cover:
+    desc: Run tests and show coverage
+    cmds:
+      - task: test
+      - go tool cover -func={{.COVER_PROFILE}}
+
+  test-cover-html:
+    desc: Generate HTML coverage report
+    cmds:
+      - go tool cover -html={{.COVER_PROFILE}} -o coverage.html
+
+  # Lint and format
+  lint:
+    desc: Run linters
+    cmds:
+      - golangci-lint run --config {{.LINT_CONFIG}} ./...
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - go fmt ./...
+
+  tidy:
+    desc: Tidy Go modules
+    cmds:
+      - go mod tidy
+
+  # Cleanup
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - go clean
+      - rm -rf {{.BIN_DIR}} {{.COVER_PROFILE}} coverage.html
+
+  # CI/CD
+  ci:
+    desc: Run CI pipeline (test, lint, build)
+    cmds:
+      - task: test
+      - task: lint
+      - task: build
