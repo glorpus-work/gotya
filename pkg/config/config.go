@@ -202,7 +202,11 @@ func (c *Config) SaveConfig(path string) error {
 
 // ToYAML converts the config to YAML bytes
 func (c *Config) ToYAML() ([]byte, error) {
-	return yaml.Marshal(c)
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal config to YAML: %w", err)
+	}
+	return data, nil
 }
 
 // applyDefaults fills in missing values with defaults

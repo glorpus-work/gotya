@@ -65,7 +65,11 @@ func ParseIndexFromReader(reader io.Reader) (*IndexImpl, error) {
 
 // ToJSON converts the index to JSON bytes
 func (idx *IndexImpl) ToJSON() ([]byte, error) {
-	return json.MarshalIndent(idx, "", "  ")
+	data, err := json.MarshalIndent(idx, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal index to JSON: %w", err)
+	}
+	return data, nil
 }
 
 // FindPackage finds a package by name

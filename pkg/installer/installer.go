@@ -199,5 +199,8 @@ func (i *Installer) runHooks(event, packageName string, pkg *repository.Package)
 	}
 
 	// Execute the hook
-	return i.hookManager.Execute(hookType, hookCtx)
+	if err := i.hookManager.Execute(hookType, hookCtx); err != nil {
+		return fmt.Errorf("failed to execute %s hook: %w", event, err)
+	}
+	return nil
 }

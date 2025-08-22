@@ -221,12 +221,19 @@ func getConfigPath() string {
 
 // setConfigValue sets a configuration value by key
 func setConfigValue(cfg *config.Config, key, value string) error {
-	return cfg.SetValue(key, value)
+	if err := cfg.SetValue(key, value); err != nil {
+		return fmt.Errorf("failed to set config value for key '%s': %w", key, err)
+	}
+	return nil
 }
 
 // getConfigValue gets a configuration value by key
 func getConfigValue(cfg *config.Config, key string) (string, error) {
-	return cfg.GetValue(key)
+	value, err := cfg.GetValue(key)
+	if err != nil {
+		return "", fmt.Errorf("failed to get config value for key '%s': %w", key, err)
+	}
+	return value, nil
 }
 
 // Helper function to convert CamelCase to snake_case

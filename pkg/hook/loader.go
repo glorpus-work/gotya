@@ -20,14 +20,18 @@ var HookFileExtensions = map[string]bool{
 func LoadHooksFromPackageDir(manager HookManager, packageDir string) error {
 	// Try .gotya/hooks directory first
 	hooksDir := filepath.Join(packageDir, ".gotya", "hooks")
-	if err := loadHooksFromDir(manager, hooksDir); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("error loading hooks from .gotya/hooks: %w", err)
+	if _, err := os.Stat(hooksDir); err == nil {
+		if err := loadHooksFromDir(manager, hooksDir); err != nil {
+			return fmt.Errorf("error loading hooks from .gotya/hooks: %w", err)
+		}
 	}
 
 	// Then try the hooks directory
 	hooksDir = filepath.Join(packageDir, "hooks")
-	if err := loadHooksFromDir(manager, hooksDir); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("error loading hooks from hooks/: %w", err)
+	if _, err := os.Stat(hooksDir); err == nil {
+		if err := loadHooksFromDir(manager, hooksDir); err != nil {
+			return fmt.Errorf("error loading hooks from hooks/: %w", err)
+		}
 	}
 
 	return nil
@@ -37,7 +41,7 @@ func LoadHooksFromPackageDir(manager HookManager, packageDir string) error {
 func loadHooksFromDir(manager HookManager, dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read hooks directory %s: %w", dir, err)
 	}
 
 	for _, entry := range entries {

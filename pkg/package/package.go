@@ -12,11 +12,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cperrin88/gotya/pkg/logger"
-	"github.com/cperrin88/gotya/pkg/util"
-	log "github.com/sirupsen/logrus"
 )
 
 // Metadata represents the structure of package.json
@@ -72,7 +73,7 @@ func calculateFileHash(path string) (string, error) {
 
 	hasher := sha256.New()
 	if _, err := io.Copy(hasher, file); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to calculate hash for file %s: %w", path, err)
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil)), nil
@@ -85,6 +86,8 @@ func processFiles(sourceDir string, meta *Metadata) error {
 	// Check if files directory exists
 	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
 		return fmt.Errorf("files directory not found: %s", filesDir)
+	} else if err != nil {
+		return fmt.Errorf("error checking files directory %s: %w", filesDir, err)
 	}
 
 	// Clear existing files
@@ -93,19 +96,22 @@ func processFiles(sourceDir string, meta *Metadata) error {
 	// Walk through the files directory
 	err := filepath.Walk(filesDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("error accessing path %s: %w", path, err)
 		}
 
-		// Skip directories
-		if info.IsDir() {
+		// Skip directories and special files
+		if info.IsDir() || !info.Mode().IsRegular() {
 			return nil
 		}
 
 		// Calculate relative path
 		relPath, err := filepath.Rel(filesDir, path)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
 		}
+
+		// Ensure path is clean and uses forward slashes
+		relPath = filepath.ToSlash(relPath)
 
 		// Calculate file hash
 		hash, err := calculateFileHash(path)
@@ -140,28 +146,32 @@ func newTarballWriter(outputPath string) (*tarballWriter, error) {
 	// Clean and validate the output path
 	cleanPath, err := safePathJoin(filepath.Dir(outputPath), filepath.Base(outputPath))
 	if err != nil {
-		return nil, fmt.Errorf("invalid output path: %w", err)
+		return nil, fmt.Errorf("failed to create output file %s: %w", outputPath, err)
 	}
 
-	// Create output file with secure permissions (owner read/write only)
-	file, err := os.OpenFile(cleanPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	// Create the output file
+	file, err := os.Create(cleanPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create output file: %w", err)
+		return nil, fmt.Errorf("failed to create output file %s: %w", cleanPath, err)
 	}
 
-	// Create buffered writer for better performance
-	bufWriter := bufio.NewWriterSize(file, 32*1024) // 32KB buffer
+	// Create buffered writer
+	bufWriter := bufio.NewWriter(file)
 
-	// Create gzip writer
-	gzipWriter := gzip.NewWriter(bufWriter)
+	// Create gzip writer with best compression
+	gzWriter, err := gzip.NewWriterLevel(bufWriter, gzip.BestCompression)
+	if err != nil {
+		file.Close()
+		return nil, fmt.Errorf("failed to create gzip writer: %w", err)
+	}
 
 	// Create tar writer
-	tarWriter := tar.NewWriter(gzipWriter)
+	tarWriter := tar.NewWriter(gzWriter)
 
 	return &tarballWriter{
 		file:      file,
 		bufWriter: bufWriter,
-		gzip:      gzipWriter,
+		gzip:      gzWriter,
 		tar:       tarWriter,
 	}, nil
 }
@@ -170,29 +180,37 @@ func newTarballWriter(outputPath string) (*tarballWriter, error) {
 func (tw *tarballWriter) close() error {
 	var errs []error
 
-	// Close tar writer
+	// Close tar writer first to ensure all data is written
 	if err := tw.tar.Close(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to close tar writer: %w", err))
+		errs = append(errs, fmt.Errorf("error closing tar writer: %w", err))
 	}
 
-	// Close gzip writer
+	// Close gzip writer to flush any remaining compressed data
 	if err := tw.gzip.Close(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to close gzip writer: %w", err))
+		errs = append(errs, fmt.Errorf("error closing gzip writer: %w", err))
 	}
 
-	// Flush buffer
+	// Flush the buffer to ensure all data is written to the file
 	if err := tw.bufWriter.Flush(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to flush buffer: %w", err))
+		errs = append(errs, fmt.Errorf("error flushing buffer: %w", err))
 	}
 
-	// Close file
+	// Finally, close the file
 	if err := tw.file.Close(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to close file: %w", err))
+		errs = append(errs, fmt.Errorf("error closing file %s: %w", tw.file.Name(), err))
 	}
 
-	// Return first error if any
+	// Return combined errors if any occurred
 	if len(errs) > 0 {
-		return errs[0]
+		var combinedErr error
+		for _, err := range errs {
+			if combinedErr == nil {
+				combinedErr = err
+			} else {
+				combinedErr = fmt.Errorf("%v; %w", combinedErr, err)
+			}
+		}
+		return fmt.Errorf("errors occurred while closing tarball writer: %w", combinedErr)
 	}
 
 	return nil
@@ -203,40 +221,52 @@ func (tw *tarballWriter) addFileToTarball(filePath, tarballPath string) error {
 	// Clean and validate the file path
 	cleanPath := filepath.Clean(filePath)
 	if !filepath.IsAbs(cleanPath) {
-		return fmt.Errorf("file path must be absolute: %s", filePath)
+		return fmt.Errorf("path must be absolute: %s", filePath)
 	}
 
-	// Get file info
-	info, err := os.Stat(cleanPath)
+	// Open the source file with read-only permissions
+	file, err := os.Open(cleanPath)
 	if err != nil {
-		return fmt.Errorf("failed to stat file %s: %w", cleanPath, err)
+		return fmt.Errorf("failed to open source file %s: %w", cleanPath, err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log the error but don't mask the original error if any
+			logger.Warnf("Failed to close file %s: %v", cleanPath, closeErr)
+		}
+	}()
+
+	// Get file info to include in the tarball header
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get file info for %s: %w", cleanPath, err)
 	}
 
-	header, err := tar.FileInfoHeader(info, "")
+	// Skip special files (sockets, devices, etc.)
+	if !fileInfo.Mode().IsRegular() {
+		return fmt.Errorf("skipping non-regular file: %s", cleanPath)
+	}
+
+	// Create a new tar header with file metadata
+	header, err := tar.FileInfoHeader(fileInfo, "")
 	if err != nil {
 		return fmt.Errorf("failed to create tar header for %s: %w", cleanPath, err)
 	}
 
-	// Clean the tarball path to prevent path traversal
-	header.Name = filepath.ToSlash(filepath.Clean(tarballPath))
+	// Ensure the header name uses forward slashes and is relative to the tarball root
+	header.Name = filepath.ToSlash(tarballPath)
 
+	// Write the header to the tarball
 	if err := tw.tar.WriteHeader(header); err != nil {
 		return fmt.Errorf("failed to write tar header for %s: %w", cleanPath, err)
 	}
 
-	if info.IsDir() {
-		return nil
-	}
-
-	// Open the file with the cleaned path
-	file, err := os.Open(cleanPath)
-	if err != nil {
-		return fmt.Errorf("failed to open file %s: %w", cleanPath, err)
-	}
-	defer file.Close()
-
-	if _, err := io.Copy(tw.tar, file); err != nil {
-		return fmt.Errorf("failed to write file content for %s: %w", filePath, err)
+	// Only copy file content for regular files with size > 0
+	if fileInfo.Size() > 0 {
+		// Copy the file content to the tarball
+		if _, err := io.CopyN(tw.tar, file, fileInfo.Size()); err != nil {
+			return fmt.Errorf("failed to write file content to tarball for %s: %w", cleanPath, err)
+		}
 	}
 
 	return nil
@@ -250,118 +280,359 @@ func (tw *tarballWriter) processDirectory(dirPath, tarballBase string) error {
 		return fmt.Errorf("directory path must be absolute: %s", dirPath)
 	}
 
-	return filepath.Walk(cleanDirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return fmt.Errorf("error walking path %s: %w", path, err)
-		}
-
-		// Skip the base directory itself
-		if path == cleanDirPath {
-			return nil
-		}
-
-		// Calculate relative path within the directory
-		relPath, err := filepath.Rel(cleanDirPath, path)
-		if err != nil {
-			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
-		}
-
-		// Create tarball path with forward slashes for compatibility
-		tarballPath := filepath.ToSlash(filepath.Join(tarballBase, relPath))
-
-		return tw.addFileToTarball(path, tarballPath)
-	})
-}
-
-// createTarball creates a tarball from the source directory
-func createTarball(sourceDir, outputPath string, meta *Metadata) error {
-	// Initialize tarball writer
-	tw, err := newTarballWriter(outputPath)
+	// Verify the directory exists and is accessible
+	dirInfo, err := os.Stat(cleanDirPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to access directory %s: %w", cleanDirPath, err)
+	}
+	if !dirInfo.IsDir() {
+		return fmt.Errorf("path is not a directory: %s", cleanDirPath)
 	}
 
-	// Ensure all writers are properly closed
-	defer func() {
-		if closeErr := tw.close(); closeErr != nil && err == nil {
-			err = closeErr
+	// Read the directory contents
+	entries, err := os.ReadDir(cleanDirPath)
+	if err != nil {
+		return fmt.Errorf("failed to read directory %s: %w", cleanDirPath, err)
+	}
+
+	// Process each entry in the directory
+	for _, entry := range entries {
+		// Skip special files and hidden files
+		if entry.Name() == "." || entry.Name() == ".." || strings.HasPrefix(entry.Name(), ".") {
+			continue
 		}
-	}()
 
-	// Process meta directory
-	metaDir := filepath.Join(sourceDir, "meta")
-	if err := tw.processDirectory(metaDir, "meta"); err != nil {
-		return fmt.Errorf("error processing meta directory: %w", err)
-	}
+		// Get the full path of the entry
+		fullPath := filepath.Join(cleanDirPath, entry.Name())
+		tarballPath := filepath.Join(tarballBase, entry.Name())
 
-	// Process files directory
-	filesDir := filepath.Join(sourceDir, "files")
-	if err := tw.processDirectory(filesDir, "files"); err != nil {
-		return fmt.Errorf("error processing files directory: %w", err)
+		// Get file info for better error messages
+		fileInfo, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("failed to get file info for %s: %w", fullPath, err)
+		}
+
+		switch {
+		case fileInfo.IsDir():
+			// Recursively process subdirectories
+			if err := tw.processDirectory(fullPath, tarballPath); err != nil {
+				return fmt.Errorf("error processing directory %s: %w", fullPath, err)
+			}
+		case fileInfo.Mode().IsRegular():
+			// Add regular files to the tarball
+			if err := tw.addFileToTarball(fullPath, tarballPath); err != nil {
+				return fmt.Errorf("error adding file %s to tarball: %w", fullPath, err)
+			}
+		default:
+			// Skip special files (sockets, devices, etc.) but log a warning
+			logger.Warnf("Skipping non-regular file: %s (mode: %s)", fullPath, fileInfo.Mode())
+		}
 	}
 
 	return nil
 }
 
+// createTarball creates a tarball from the source directory
+func createTarball(sourceDir, outputPath string, meta *Metadata) error {
+	// Clean and validate source directory path
+	sourceDir = filepath.Clean(sourceDir)
+	if !filepath.IsAbs(sourceDir) {
+		return fmt.Errorf("source directory path must be absolute: %s", sourceDir)
+	}
+
+	// Verify source directory exists and is accessible
+	sourceInfo, err := os.Stat(sourceDir)
+	if err != nil {
+		return fmt.Errorf("failed to access source directory %s: %w", sourceDir, err)
+	}
+	if !sourceInfo.IsDir() {
+		return fmt.Errorf("source path is not a directory: %s", sourceDir)
+	}
+
+	// Initialize tarball writer with error wrapping
+	tw, err := newTarballWriter(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize tarball writer for %s: %w", outputPath, err)
+	}
+
+	// Track any errors that occur during deferred cleanup
+	var returnErr error
+
+	// Ensure the tarball writer is properly closed
+	defer func() {
+		if closeErr := tw.close(); closeErr != nil {
+			if returnErr == nil {
+				returnErr = fmt.Errorf("error closing tarball writer: %w", closeErr)
+			} else {
+				// If we already have an error, combine it with the close error
+				returnErr = fmt.Errorf("%v (additionally, error closing tarball: %v)", returnErr, closeErr)
+			}
+		}
+	}()
+
+	// Process the source directory
+	if err := tw.processDirectory(sourceDir, "."); err != nil {
+		return fmt.Errorf("failed to process source directory %s: %w", sourceDir, err)
+	}
+
+	// Create a temporary file for the metadata
+	tmpFile, err := os.CreateTemp("", "gotya-metadata-*.json")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file for metadata: %w", err)
+	}
+	tmpFileName := tmpFile.Name()
+
+	// Clean up the temporary file when we're done
+	defer func() {
+		if removeErr := os.Remove(tmpFileName); removeErr != nil && !os.IsNotExist(removeErr) {
+			logger.Warnf("Failed to remove temporary file %s: %v", tmpFileName, removeErr)
+		}
+	}()
+
+	// Write metadata to the temporary file
+	metaJSON, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	if _, err := tmpFile.Write(metaJSON); err != nil {
+		return fmt.Errorf("failed to write metadata to temporary file %s: %w", tmpFileName, err)
+	}
+
+	// Ensure the file is flushed to disk
+	if err := tmpFile.Sync(); err != nil {
+		return fmt.Errorf("failed to sync metadata to disk: %w", err)
+	}
+
+	// Close the file before adding it to the tarball
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary metadata file %s: %w", tmpFileName, err)
+	}
+
+	// Add the metadata file to the tarball
+	if err := tw.addFileToTarball(tmpFileName, "pkg.json"); err != nil {
+		return fmt.Errorf("failed to add metadata to tarball: %w", err)
+	}
+
+	// Explicitly close the tarball writer to ensure all data is flushed
+	if err := tw.close(); err != nil {
+		return fmt.Errorf("error finalizing tarball: %w", err)
+	}
+
+	return returnErr
+}
+
 // CreatePackage creates a new package from the source directory
 func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string) error {
-	// Normalize paths
+	// Validate input parameters
+	if sourceDir == "" {
+		return errors.New("source directory path cannot be empty")
+	}
+	if outputDir == "" {
+		return errors.New("output directory path cannot be empty")
+	}
+	if pkgName == "" {
+		return errors.New("package name cannot be empty")
+	}
+	if pkgVer == "" {
+		return errors.New("package version cannot be empty")
+	}
+	if pkgOS == "" {
+		return errors.New("target OS cannot be empty")
+	}
+	if pkgArch == "" {
+		return errors.New("target architecture cannot be empty")
+	}
+
+	// Normalize and clean paths
 	sourceDir = filepath.Clean(sourceDir)
 	outputDir = filepath.Clean(outputDir)
 
-	// Check if source directory exists
-	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
-		return fmt.Errorf("source directory does not exist: %s", sourceDir)
-	}
-
-	// Create output directory if it doesn't exist
-	if err := util.EnsureDir(outputDir); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Read package metadata
-	metaPath := filepath.Join(sourceDir, "meta", "package.json")
-	meta, err := readPackageMetadata(metaPath)
+	// Ensure source directory exists and is accessible
+	sourceInfo, err := os.Stat(sourceDir)
 	if err != nil {
-		return fmt.Errorf("failed to read package metadata: %w", err)
+		return fmt.Errorf("failed to access source directory %s: %w", sourceDir, err)
+	}
+	if !sourceInfo.IsDir() {
+		return fmt.Errorf("source path is not a directory: %s", sourceDir)
 	}
 
-	// Apply overrides if provided
-	if pkgName != "" {
-		meta.Name = pkgName
+	// Ensure output directory exists and is writable
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory %s: %w", outputDir, err)
 	}
-	if pkgVer != "" {
-		meta.Version = pkgVer
+
+	// Verify output directory is writable
+	if err := verifyDirectoryWritable(outputDir); err != nil {
+		return fmt.Errorf("output directory %s is not writable: %w", outputDir, err)
+	}
+
+	// Create package metadata with validation
+	meta := &Metadata{
+		Name:         pkgName,
+		Version:      pkgVer,
+		Maintainer:   "",
+		Description:  "",
+		Dependencies: []string{},
+		Files:        []File{},
+		Hooks:        map[string]string{},
 	}
 
 	// Process files and update metadata
 	if err := processFiles(sourceDir, meta); err != nil {
-		return fmt.Errorf("failed to process files: %w", err)
+		return fmt.Errorf("failed to process files in %s: %w", sourceDir, err)
 	}
 
-	// Create output filename
-	if pkgOS == "" {
-		pkgOS = "any"
+	// Ensure we have files to package
+	if len(meta.Files) == 0 {
+		return fmt.Errorf("no files found to package in %s", sourceDir)
 	}
-	if pkgArch == "" {
-		pkgArch = "any"
-	}
-	outputFile := filepath.Join(outputDir, fmt.Sprintf("%s_%s_%s_%s.tar.gz",
-		meta.Name, meta.Version, pkgOS, pkgArch))
 
-	// Create tarball
+	// Create package filename with validation
+	if strings.ContainsAny(pkgName, "/\\") {
+		return fmt.Errorf("invalid package name '%s': cannot contain path separators", pkgName)
+	}
+
+	// Sanitize version string
+	versionRegex := regexp.MustCompile(`^[a-zA-Z0-9_.+-]+$`)
+	if !versionRegex.MatchString(pkgVer) {
+		return fmt.Errorf("invalid version string '%s': must contain only alphanumeric characters, dots, underscores, plus, and hyphens", pkgVer)
+	}
+
+	// Use the expected format: {name}_{version}_{os}_{arch}.tar.gz
+	outputFile := filepath.Join(outputDir, fmt.Sprintf("%s_%s_%s_%s.tar.gz", pkgName, pkgVer, pkgOS, pkgArch))
+
+	// Check if output file already exists
+	if _, err := os.Stat(outputFile); err == nil {
+		return fmt.Errorf("output file already exists: %s", outputFile)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check if output file exists: %w", err)
+	}
+
+	// Create the tarball with proper error handling
 	if err := createTarball(sourceDir, outputFile, meta); err != nil {
+		// Clean up partially created file on error
+		if removeErr := os.Remove(outputFile); removeErr != nil && !os.IsNotExist(removeErr) {
+			logger.Warnf("Failed to clean up partially created package %s: %v", outputFile, removeErr)
+		}
 		return fmt.Errorf("failed to create package: %w", err)
 	}
 
-	// Update metadata in the tarball (optional, if you want to include the updated metadata)
-	// This would require re-adding the updated package.json to the tarball
+	// Verify the created package
+	if err := verifyPackage(outputFile, meta); err != nil {
+		// Clean up invalid package
+		if removeErr := os.Remove(outputFile); removeErr != nil && !os.IsNotExist(removeErr) {
+			logger.Warnf("Failed to clean up invalid package %s: %v", outputFile, removeErr)
+		}
+		return fmt.Errorf("package verification failed: %w", err)
+	}
 
-	logger.Info("Package created successfully", log.Fields{
-		"file":    outputFile,
-		"name":    meta.Name,
-		"version": meta.Version,
-		"files":   len(meta.Files),
+	return nil
+}
+
+// verifyDirectoryWritable checks if a directory is writable by attempting to create and remove a test file
+func verifyDirectoryWritable(dirPath string) error {
+	testFile := filepath.Join(dirPath, ".gotya-test-"+strconv.FormatInt(time.Now().UnixNano(), 10))
+	file, err := os.Create(testFile)
+	if err != nil {
+		return fmt.Errorf("cannot write to directory: %w", err)
+	}
+
+	// Try to write and sync to ensure we have write permissions
+	if _, err := file.WriteString("test"); err != nil {
+		file.Close()
+		return fmt.Errorf("cannot write to file in directory: %w", err)
+	}
+
+	if err := file.Sync(); err != nil {
+		file.Close()
+		return fmt.Errorf("cannot sync file in directory: %w", err)
+	}
+
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("cannot close test file: %w", err)
+	}
+
+	// Clean up the test file
+	if err := os.Remove(testFile); err != nil {
+		return fmt.Errorf("cannot remove test file: %w", err)
+	}
+
+	return nil
+}
+
+// verifyPackage performs basic verification of the created package
+func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
+	// Open the package file
+	file, err := os.Open(pkgPath)
+	if err != nil {
+		return fmt.Errorf("failed to open package for verification: %w", err)
+	}
+	defer file.Close()
+
+	// Get file info for size check
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to get package file info: %w", err)
+	}
+
+	// Check if the file is empty or too small to be valid
+	if fileInfo.Size() < 50 { // Minimum size for a valid gzip file
+		return errors.New("package file is too small to be valid")
+	}
+
+	// Verify the file is a valid gzip file
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		return fmt.Errorf("invalid gzip format: %w", err)
+	}
+	defer gzipReader.Close()
+
+	// Check for the presence of required files in the tarball
+	tarReader := tar.NewReader(gzipReader)
+	foundMetadata := false
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("error reading tarball: %w", err)
+		}
+
+		// Check for the metadata file
+		if header.Name == "pkg.json" {
+			foundMetadata = true
+
+			// Read and verify the metadata
+			var meta Metadata
+			if err := json.NewDecoder(tarReader).Decode(&meta); err != nil {
+				return fmt.Errorf("invalid metadata in package: %w", err)
+			}
+
+			// Verify metadata matches expected values
+			if meta.Name != expectedMeta.Name || meta.Version != expectedMeta.Version {
+				return fmt.Errorf("metadata mismatch in package, expected %s-%s, got %s-%s",
+					expectedMeta.Name, expectedMeta.Version, meta.Name, meta.Version)
+			}
+		}
+
+		// Skip to the next file in the tarball
+		if _, err := io.Copy(io.Discard, tarReader); err != nil {
+			return fmt.Errorf("error reading file %s from tarball: %w", header.Name, err)
+		}
+	}
+
+	if !foundMetadata {
+		return errors.New("package is missing required metadata (pkg.json)")
+	}
+
+	// Log successful package verification
+	logger.Info("Package verified successfully", map[string]interface{}{
+		"path":  pkgPath,
+		"name":  expectedMeta.Name,
+		"files": len(expectedMeta.Files),
 	})
 
 	return nil

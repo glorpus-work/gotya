@@ -100,7 +100,10 @@ func runRepoRemove(name string) error {
 	}
 
 	repoOp := repository.NewRepositoryOperation(manager)
-	return repoOp.Remove(name)
+	if err := repoOp.Remove(name); err != nil {
+		return fmt.Errorf("failed to remove repository '%s': %w", name, err)
+	}
+	return nil
 }
 
 func runRepoList(cmd *cobra.Command, args []string) error {
@@ -112,7 +115,7 @@ func runRepoList(cmd *cobra.Command, args []string) error {
 	repoOp := repository.NewRepositoryOperation(manager)
 	output, err := repoOp.List()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to list repositories: %w", err)
 	}
 
 	fmt.Print(output)
@@ -128,7 +131,7 @@ func runRepoUpdate(cmd *cobra.Command, args []string) error {
 	repoOp := repository.NewRepositoryOperation(manager)
 	output, err := repoOp.Update(args)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update repositories: %w", err)
 	}
 
 	fmt.Print(output)

@@ -35,7 +35,11 @@ func ParseMetadataFromReader(reader io.Reader) (*PackageMetadata, error) {
 
 // ToJSON converts the metadata to JSON bytes
 func (m *PackageMetadata) ToJSON() ([]byte, error) {
-	return json.MarshalIndent(m, "", "  ")
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal package metadata to JSON: %w", err)
+	}
+	return data, nil
 }
 
 // Validate validates the package metadata

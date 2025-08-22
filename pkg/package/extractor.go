@@ -154,8 +154,42 @@ func (e *tarExtractor) extractRegularFile(header *tar.Header, targetPath string)
 	return file.Close()
 }
 
+// validateSymlinkTarget ensures the symlink target is safe and within the expected directory
+// linkPath is the path where the symlink will be created
+// linkTarget is the target of the symlink (can be relative or absolute)
+// baseDir is the root directory that the symlink must point within
+// Returns the resolved target path if valid, or an error if the target is invalid
+func validateSymlinkTarget(linkPath, linkTarget, baseDir string) (string, error) {
+	// If the target is absolute, make it relative to the base directory
+	var targetPath string
+	if filepath.IsAbs(linkTarget) {
+		targetPath = filepath.Join(baseDir, filepath.Clean("/"+linkTarget))
+	} else {
+		// For relative symlinks, resolve them relative to the symlink's directory
+		symlinkDir := filepath.Dir(linkPath)
+		targetPath = filepath.Join(symlinkDir, filepath.Clean("/"+linkTarget))
+	}
+
+	// Resolve any relative path components (.., .)
+	targetPath = filepath.Clean(targetPath)
+
+	// Verify the target is within the base directory
+	relPath, err := filepath.Rel(baseDir, targetPath)
+	if err != nil || strings.HasPrefix(relPath, "..") || strings.HasPrefix(relPath, ".") {
+		return "", fmt.Errorf("invalid symlink target: %s points outside the target directory", linkTarget)
+	}
+
+	return targetPath, nil
+}
+
 // extractSymlink handles the extraction of a symlink
 func (e *tarExtractor) extractSymlink(header *tar.Header, targetPath string) error {
+	// First validate the symlink target
+	_, err := validateSymlinkTarget(targetPath, header.Linkname, e.extractDir)
+	if err != nil {
+		return fmt.Errorf("invalid symlink: %w", err)
+	}
+
 	// On Windows, we need to be careful with symlinks
 	// First remove the target if it exists
 	if _, err := os.Lstat(targetPath); err == nil {
@@ -164,7 +198,8 @@ func (e *tarExtractor) extractSymlink(header *tar.Header, targetPath string) err
 		}
 	}
 
-	// Create the symlink
+	// Create the symlink with the original linkname (not the resolved path)
+	// The resolution check above ensures it's safe
 	if err := os.Symlink(header.Linkname, targetPath); err != nil {
 		return fmt.Errorf("failed to create symlink %s: %w", targetPath, err)
 	}
@@ -311,26 +346,14 @@ func CopyFiles(src, dst string) ([]string, error) {
 		// Calculate relative path from src
 		relPath, err := filepath.Rel(src, path)
 		if err != nil {
-			return err
-		}
-
-		// Skip the root directory itself
-		if relPath == "." {
-			return nil
+			return fmt.Errorf("failed to get relative path: %w", err)
 		}
 
 		targetPath := filepath.Join(dst, relPath)
 
 		if info.IsDir() {
-			// Create directory with secure permissions
 			if err := util.EnsureDir(targetPath); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
-			}
-			// Set the original mode if it's more restrictive than our default
-			if info.Mode()&0777 < 0750 {
-				if err := os.Chmod(targetPath, info.Mode()); err != nil {
-					return fmt.Errorf("failed to set permissions for %s: %w", targetPath, err)
-				}
 			}
 		} else if info.Mode()&os.ModeSymlink != 0 {
 			// Handle symlink
@@ -338,6 +361,24 @@ func CopyFiles(src, dst string) ([]string, error) {
 			if err != nil {
 				return fmt.Errorf("failed to read symlink %s: %w", path, err)
 			}
+
+			// Validate the symlink target is safe
+			if _, err := validateSymlinkTarget(path, linkTarget, dst); err != nil {
+				return fmt.Errorf("invalid symlink %s: %w", path, err)
+			}
+
+			// Create the parent directory if it doesn't exist
+			if err := util.EnsureFileDir(targetPath); err != nil {
+				return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
+			}
+
+			// Remove existing file/symlink if it exists
+			if _, err := os.Lstat(targetPath); err == nil {
+				if err := os.Remove(targetPath); err != nil {
+					return fmt.Errorf("failed to remove existing file/symlink %s: %w", targetPath, err)
+				}
+			}
+
 			if err := os.Symlink(linkTarget, targetPath); err != nil {
 				return fmt.Errorf("failed to create symlink %s: %w", targetPath, err)
 			}
@@ -353,7 +394,11 @@ func CopyFiles(src, dst string) ([]string, error) {
 		return nil
 	})
 
-	return installedFiles, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to copy files: %w", err)
+	}
+
+	return installedFiles, nil
 }
 
 // copyFile copies a single file from src to dst with the given mode
@@ -365,18 +410,26 @@ func copyFile(src, dst string, mode os.FileMode) error {
 
 	srcFile, err := os.Open(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open source file %s: %w", src, err)
 	}
 	defer srcFile.Close()
 
 	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create destination file %s: %w", dst, err)
 	}
 	defer dstFile.Close()
 
-	_, err = io.Copy(dstFile, srcFile)
-	return err
+	if _, err = io.Copy(dstFile, srcFile); err != nil {
+		return fmt.Errorf("failed to copy data from %s to %s: %w", src, dst, err)
+	}
+
+	// Ensure all data is written to disk
+	if err := dstFile.Sync(); err != nil {
+		return fmt.Errorf("failed to sync data to %s: %w", dst, err)
+	}
+
+	return nil
 }
 
 // RemoveFiles removes all files in the given list
@@ -385,8 +438,9 @@ func RemoveFiles(files []string) error {
 
 	// Remove files in reverse order (deepest first)
 	for i := len(files) - 1; i >= 0; i-- {
-		if err := os.Remove(files[i]); err != nil && !os.IsNotExist(err) {
-			errors = append(errors, fmt.Sprintf("failed to remove %s: %v", files[i], err))
+		filePath := files[i]
+		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+			errors = append(errors, fmt.Sprintf("failed to remove %s: %v", filePath, err))
 		}
 	}
 

@@ -87,7 +87,7 @@ func runCacheClean(all, indexes, packages bool) error {
 	// Use the correct method signature for Clean
 	result, err := cacheOp.Clean(all || (indexes && packages), indexes, packages)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to clean cache: %w", err)
 	}
 
 	// Log the result message
@@ -109,7 +109,7 @@ func runCacheInfo(cmd *cobra.Command, args []string) error {
 	// Get cache info
 	info, err := cacheOp.GetInfo()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get cache info: %w", err)
 	}
 
 	// Print cache information (info is already a formatted string from GetInfo)

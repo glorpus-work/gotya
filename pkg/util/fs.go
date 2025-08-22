@@ -2,6 +2,7 @@
 package util
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -16,7 +17,10 @@ const (
 // EnsureDir creates a directory with secure permissions if it doesn't already exist.
 // It also creates any necessary parent directories with the same permissions.
 func EnsureDir(path string) error {
-	return os.MkdirAll(path, SecureDirPerm)
+	if err := os.MkdirAll(path, SecureDirPerm); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", path, err)
+	}
+	return nil
 }
 
 // EnsureFileDir ensures that the directory containing the specified file exists.

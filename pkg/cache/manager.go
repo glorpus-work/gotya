@@ -72,7 +72,7 @@ func (cm *CacheManager) GetInfo() (*Info, error) {
 	indexDir := filepath.Join(cm.directory, "indexes")
 	indexSize, indexFiles, err := getDirSizeAndFiles(indexDir)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("failed to get index cache info: %w", err)
+		return nil, fmt.Errorf("failed to get index cache info in directory %s: %w", indexDir, err)
 	}
 	info.IndexSize = indexSize
 	info.IndexFiles = indexFiles
@@ -81,7 +81,7 @@ func (cm *CacheManager) GetInfo() (*Info, error) {
 	packageDir := filepath.Join(cm.directory, "packages")
 	packageSize, packageFiles, err := getDirSizeAndFiles(packageDir)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("failed to get package cache info: %w", err)
+		return nil, fmt.Errorf("failed to get package cache info in directory %s: %w", packageDir, err)
 	}
 	info.PackageSize = packageSize
 	info.PackageFiles = packageFiles
@@ -172,5 +172,8 @@ func getDirSizeAndFiles(dir string) (int64, int, error) {
 		return nil
 	})
 
-	return totalSize, fileCount, err
+	if err != nil {
+		return 0, 0, fmt.Errorf("error walking directory %s: %w", dir, err)
+	}
+	return totalSize, fileCount, nil
 }
