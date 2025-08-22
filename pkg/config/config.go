@@ -9,6 +9,24 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/cperrin88/gotya/pkg/errors"
+	"github.com/cperrin88/gotya/pkg/fsutil"
+)
+
+// Default configuration values.
+const (
+	// DefaultCacheTTL is the default time-to-live for cached data.
+	DefaultCacheTTL = 24 * time.Hour
+
+	// DefaultHTTPTimeout is the default timeout for HTTP requests.
+	DefaultHTTPTimeout = 30 * time.Second
+
+	// DefaultMaxConcurrent is the default maximum number of concurrent operations.
+	DefaultMaxConcurrent = 5
+
+	// YAMLIndent is the number of spaces to use for YAML indentation.
+	YAMLIndent = 2
 )
 
 // Config represents the application configuration.
@@ -77,10 +95,10 @@ func DefaultConfig() *Config {
 	return &Config{
 		Repositories: []RepositoryConfig{},
 		Settings: Settings{
-			CacheTTL:      24 * time.Hour,
+			CacheTTL:      DefaultCacheTTL,
 			AutoSync:      false,
-			HTTPTimeout:   30 * time.Second,
-			MaxConcurrent: 3,
+			HTTPTimeout:   DefaultHTTPTimeout,
+			MaxConcurrent: DefaultMaxConcurrent,
 			InstallDir:    installDir,
 			Platform: PlatformConfig{
 				OS:   runtime.GOOS,
@@ -99,13 +117,13 @@ func DefaultConfig() *Config {
 func LoadConfig(path string) (*Config, error) {
 	// Validate the config file path
 	if path == "" {
-		return nil, fmt.Errorf("config file path cannot be empty")
+		return nil, errors.ErrEmptyConfigPath
 	}
 
 	// Ensure the path is clean and absolute
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, fmt.Errorf("invalid config file path: %w", err)
+		return nil, errors.Wrap(errors.ErrInvalidConfigPath, err.Error())
 	}
 
 	// Check if file exists and is accessible
@@ -114,7 +132,7 @@ func LoadConfig(path string) (*Config, error) {
 		if os.IsNotExist(err) {
 			return DefaultConfig(), nil
 		}
-		return nil, fmt.Errorf("failed to open config file: %w", err)
+		return nil, errors.Wrapf(err, "failed to open config file: %s", path)
 	}
 	defer file.Close()
 
@@ -125,12 +143,12 @@ func LoadConfig(path string) (*Config, error) {
 func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config data: %w", err)
+		return nil, errors.Wrap(err, "failed to read config data")
 	}
 
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
+		return nil, errors.Wrap(errors.ErrConfigParse, err.Error())
 	}
 
 	// Apply defaults and validate
@@ -138,7 +156,7 @@ func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 
 	// Validate configuration
 	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+		return nil, errors.Wrap(errors.ErrConfigValidation, err.Error())
 	}
 
 	return &config, nil
@@ -148,35 +166,35 @@ func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 func (c *Config) SaveConfig(path string) error {
 	// Validate the config file path
 	if path == "" {
-		return fmt.Errorf("config file path cannot be empty")
+		return errors.ErrEmptyConfigPath
 	}
 
 	// Ensure the path is clean and absolute
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return fmt.Errorf("invalid config file path: %w", err)
+		return errors.Wrap(errors.ErrInvalidConfigPath, err.Error())
 	}
 
-	// Ensure the directory exists with secure permissions (0700)
-	if err := os.MkdirAll(filepath.Dir(absPath), 0o700); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
+	// Ensure the directory exists with secure permissions (0755)
+	if err := os.MkdirAll(filepath.Dir(absPath), fsutil.DirModeDefault); err != nil {
+		return errors.Wrap(errors.ErrConfigDirectory, err.Error())
 	}
 
 	// Create temporary file with secure permissions (0600)
 	tempPath := absPath + ".tmp"
-	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fsutil.FileModeDefault)
 	if err != nil {
-		return fmt.Errorf("failed to create temp config file: %w", err)
+		return errors.Wrap(errors.ErrConfigFileCreate, err.Error())
 	}
 
 	// Write YAML data
 	encoder := yaml.NewEncoder(file)
-	encoder.SetIndent(2)
+	encoder.SetIndent(YAMLIndent)
 
 	if err := encoder.Encode(c); err != nil {
 		file.Close()
 		os.Remove(tempPath)
-		return fmt.Errorf("failed to encode config: %w", err)
+		return errors.Wrap(errors.ErrConfigEncode, err.Error())
 	}
 
 	encoder.Close()
@@ -189,8 +207,8 @@ func (c *Config) SaveConfig(path string) error {
 		return fmt.Errorf("failed to replace config file: %w", err)
 	}
 
-	// Ensure the final file has the correct permissions (0600)
-	if err := os.Chmod(absPath, 0o600); err != nil {
+	// Ensure the final file has the correct permissions (0644)
+	if err := os.Chmod(absPath, fsutil.FileModeDefault); err != nil {
 		// This is not fatal, but we should log it
 		return fmt.Errorf("warning: failed to set permissions on config file: %w", err)
 	}
@@ -294,7 +312,15 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid output_format '%s', must be one of: json, table, yaml", c.Settings.OutputFormat)
 	}
 
-	validLogLevels := map[string]bool{"panic": true, "fatal": true, "error": true, "warn": true, "info": true, "debug": true, "trace": true}
+	validLogLevels := map[string]bool{
+		"panic": true,
+		"fatal": true,
+		"error": true,
+		"warn":  true,
+		"info":  true,
+		"debug": true,
+		"trace": true,
+	}
 	if !validLogLevels[c.Settings.LogLevel] {
 		return fmt.Errorf("invalid log_level '%s', must be one of: panic, fatal, error, warn, info, debug, trace", c.Settings.LogLevel)
 	}

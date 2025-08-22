@@ -38,10 +38,10 @@ func ResolvePackage(pkgs []Package, targetOS, targetArch string) (*Package, erro
 
 	// Find all matching packages
 	var matches []packageMatch
-	for _, pkg := range pkgs {
-		match := getPlatformMatch(pkg, targetOS, targetArch)
+	for i := range pkgs {
+		match := getPlatformMatch(pkgs[i], targetOS, targetArch)
 		if match > NoMatch {
-			matches = append(matches, packageMatch{pkg: pkg, score: match})
+			matches = append(matches, packageMatch{pkg: pkgs[i], score: match})
 		}
 	}
 
@@ -90,9 +90,9 @@ func getPlatformMatch(pkg Package, targetOS, targetArch string) PlatformMatch {
 // FilterPackages returns only packages that match the target platform.
 func FilterPackages(pkgs []Package, targetOS, targetArch string) []Package {
 	var result []Package
-	for _, pkg := range pkgs {
-		if getPlatformMatch(pkg, targetOS, targetArch) > NoMatch {
-			result = append(result, pkg)
+	for i := range pkgs {
+		if getPlatformMatch(pkgs[i], targetOS, targetArch) > NoMatch {
+			result = append(result, pkgs[i])
 		}
 	}
 	return result

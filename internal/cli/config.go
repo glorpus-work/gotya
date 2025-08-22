@@ -95,7 +95,7 @@ func runConfigShow(*cobra.Command, []string) error {
 		return err
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, TabWidth, ' ', 0)
 	fmt.Fprintln(w, "SETTING\tVALUE")
 	fmt.Fprintln(w, "-------\t-----")
 

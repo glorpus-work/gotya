@@ -7,29 +7,39 @@ import (
 
 // Common package errors.
 var (
-	// Validation errors.
-	ErrSourceDirEmpty         = errors.New("source directory path cannot be empty")
-	ErrOutputDirEmpty         = errors.New("output directory path cannot be empty")
-	ErrPackageNameEmpty       = errors.New("package name cannot be empty")
-	ErrPackageVersionEmpty    = errors.New("package version cannot be empty")
-	ErrTargetOSEmpty          = errors.New("target OS cannot be empty")
-	ErrTargetArchEmpty        = errors.New("target architecture cannot be empty")
-	ErrSourceNotDir           = errors.New("source path is not a directory")
-	ErrNoFilesFound           = errors.New("no files found to package")
-	ErrInvalidPackageName     = errors.New("invalid package name: cannot contain path separators")
-	ErrInvalidVersionString   = errors.New("invalid version string: must contain only alphanumeric characters, dots, underscores, plus, and hyphens")
-	ErrOutputFileExists       = errors.New("output file already exists")
-	ErrPackageTooSmall        = errors.New("package file is too small to be valid")
-	ErrMetadataMissing        = errors.New("package is missing required metadata (pkg.json)")
-	ErrMetadataFileNotFound   = errors.New("package metadata file not found")
-	ErrNameRequired           = errors.New("package name is required")
-	ErrVersionRequired        = errors.New("package version is required")
-	ErrDescriptionRequired    = errors.New("package description is required")
-	ErrDirectoryNotWritable   = errors.New("directory is not writable")
-	ErrTarballWriteFailed     = errors.New("failed to write tarball")
+	// Package creation and validation errors
+	ErrSourceDirEmpty       = errors.New("source directory path cannot be empty")
+	ErrOutputDirEmpty       = errors.New("output directory path cannot be empty")
+	ErrPackageNameEmpty     = errors.New("package name cannot be empty")
+	ErrPackageVersionEmpty  = errors.New("package version cannot be empty")
+	ErrTargetOSEmpty        = errors.New("target OS cannot be empty")
+	ErrTargetArchEmpty      = errors.New("target architecture cannot be empty")
+	ErrNotADirectory        = errors.New("path is not a directory")
+	ErrNoFilesFound         = errors.New("no files found to package")
+	ErrInvalidPackageName   = errors.New("invalid package name: cannot contain path separators")
+	ErrInvalidVersionString = errors.New("invalid version string: must contain only alphanumeric characters, dots, underscores, plus, and hyphens")
+	ErrOutputFileExists     = errors.New("output file already exists")
+	ErrPackageTooSmall      = errors.New("package file is too small to be valid")
+	ErrDescriptionRequired  = errors.New("package description is required")
+
+	// File operation errors
 	ErrInvalidSourceDirectory = errors.New("invalid source directory")
 	ErrDirectoryStatFailed    = errors.New("failed to get directory info")
-	ErrNotADirectory          = errors.New("path is not a directory")
+	ErrDirectoryNotWritable   = errors.New("directory is not writable")
+
+	// Metadata related errors
+	ErrMetadataMissing      = errors.New("package is missing required metadata (pkg.json)")
+	ErrMetadataFileNotFound = errors.New("package metadata file not found")
+	ErrMetadataNotFound     = errors.New("metadata not found in package")
+	ErrNameRequired         = errors.New("package name is required")
+	ErrVersionRequired      = errors.New("package version is required")
+
+	// Archive and extraction errors
+	ErrUnsupportedArchiveFormat = errors.New("unsupported archive format (only .tar.gz and .tgz files are supported)")
+	ErrInvalidFilePath          = errors.New("invalid file path in archive")
+	ErrInvalidSymlinkTarget     = errors.New("invalid symlink target: points outside the target directory")
+	ErrInvalidLinkTarget        = errors.New("invalid link target in archive")
+	ErrUnsupportedFileType      = errors.New("unsupported file type in archive")
 )
 
 // Error types for specific error conditions.
@@ -122,4 +132,13 @@ func NewFileOperationError(op, path string, err error) error {
 		Path: path,
 		Err:  err,
 	}
+}
+
+// wrapError is a helper function that wraps an error with additional context.
+// If the error is nil, it returns nil.
+func wrapError(err error, format string, args ...interface{}) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), err)
 }

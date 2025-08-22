@@ -3,6 +3,7 @@ package pkg
 import (
 	"archive/tar"
 	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,14 +11,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cperrin88/gotya/pkg/util"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 )
+
+// Package pkg provides functionality for working with package files and metadata.
+// It handles package creation, extraction, and management with support for various
+// archive formats and package metadata.
 
 // PackageStructure represents the expected structure of a package.
 type PackageStructure struct {
-	FilesDir   string // Directory containing files to install
-	ScriptsDir string // Directory containing pre/post install scripts
-	Metadata   *PackageMetadata
+	FilesDir   string           // Directory containing files to install
+	ScriptsDir string           // Directory containing pre/post install scripts
+	Metadata   *PackageMetadata `json:"metadata"`
 }
 
 // ExtractPackage extracts an archive package and returns its structure.
@@ -36,39 +41,53 @@ func ExtractPackage(packagePath, extractDir string) (*PackageStructure, error) {
 	return structure, nil
 }
 
-// extractTarGz extracts a tar.gz file using stdlib gzip.
-func extractTarGz(packagePath, extractDir string) error {
-	// Open the .tar.gz file
-	file, err := os.Open(packagePath)
-	if err != nil {
-		return fmt.Errorf("failed to open package file: %w", err)
+// wrapExtractorError wraps an error with additional context about the extraction process.
+// It handles common system errors and adds file path context when available.
+func wrapExtractorError(err error, path string) error {
+	if err == nil {
+		return nil
 	}
-	defer file.Close()
 
-	// Create gzip reader
-	gzReader, err := gzip.NewReader(file)
-	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return fmt.Errorf("file not found: %w", err)
+	case errors.Is(err, os.ErrPermission):
+		return fmt.Errorf("permission denied: %w", err)
+	case errors.Is(err, os.ErrExist):
+		return fmt.Errorf("file already exists: %w", err)
+	default:
+		if path != "" {
+			return fmt.Errorf("error processing %s: %w", filepath.ToSlash(path), err)
+		}
+		return err
 	}
-	defer gzReader.Close()
+}
 
-	// Extract tar from decompressed stream
-	return extractTar(gzReader, extractDir)
+// extractTarGz extracts a tar.gz file to the specified directory.
+func extractTarGz(gzipStream io.Reader, extractDir string) error {
+	uncompressedStream, err := gzip.NewReader(gzipStream)
+	if err != nil {
+		return wrapExtractorError(err, "gzip reader")
+	}
+	defer uncompressedStream.Close()
+
+	return extractTar(uncompressedStream, extractDir)
 }
 
 // ExtractArchive extracts tar.gz archive files.
 func ExtractArchive(packagePath, extractDir string) error {
-	// Create extraction directory
-	if err := util.EnsureDir(extractDir); err != nil {
-		return fmt.Errorf("failed to create extraction directory: %w", err)
+	if !strings.HasSuffix(strings.ToLower(packagePath), ".tar.gz") &&
+		!strings.HasSuffix(strings.ToLower(packagePath), ".tgz") {
+		return fmt.Errorf("%w: %s", ErrUnsupportedArchiveFormat, filepath.Ext(packagePath))
 	}
 
-	// Check for supported file extension
-	if !strings.HasSuffix(packagePath, ".tar.gz") && !strings.HasSuffix(packagePath, ".tgz") {
-		return fmt.Errorf("unsupported archive format: %s (only .tar.gz and .tgz files are supported)", packagePath)
+	file, err := os.Open(packagePath)
+	if err != nil {
+		return wrapExtractorError(err, packagePath)
 	}
+	defer file.Close()
 
-	return extractTarGz(packagePath, extractDir)
+	return extractTarGz(file, extractDir)
 }
 
 // tarExtractor handles the extraction of tar archives.
@@ -86,19 +105,32 @@ func newTarExtractor(reader io.Reader, extractDir string) *tarExtractor {
 }
 
 // validatePath ensures the target path is safe and within the extraction directory.
-func (e *tarExtractor) validatePath(header *tar.Header) (string, error) {
-	// Sanitize the path to prevent directory traversal
-	targetPath := filepath.Join(e.extractDir, filepath.Clean("/"+header.Name))
-
-	// Security check: ensure target path is within extraction directory
-	relPath, err := filepath.Rel(e.extractDir, targetPath)
-	if err != nil || strings.HasPrefix(relPath, "..") || strings.HasPrefix(relPath, ".") {
-		return "", fmt.Errorf("invalid file path in archive: %s", header.Name)
+func (t *tarExtractor) validatePath(header *tar.Header) (string, error) {
+	// Clean the path to prevent directory traversal
+	cleanPath := filepath.Clean(header.Name)
+	if cleanPath == "." || cleanPath == ".." || strings.HasPrefix(cleanPath, "../") {
+		return "", fmt.Errorf("%w: %s", ErrInvalidFilePath, header.Name)
 	}
 
-	// Additional check for absolute paths or path traversal
-	if !filepath.IsAbs(e.extractDir) || filepath.IsAbs(header.Name) || strings.Contains(header.Name, "..") {
-		return "", fmt.Errorf("invalid file path in archive: %s", header.Name)
+	targetPath := filepath.Join(t.extractDir, cleanPath)
+
+	// Check for path traversal using filepath.Rel
+	relPath, err := filepath.Rel(t.extractDir, targetPath)
+	if err != nil || strings.HasPrefix(relPath, "..") || (relPath != "" && relPath[0] == '/') {
+		return "", fmt.Errorf("%w: %s", ErrInvalidFilePath, header.Name)
+	}
+
+	// Ensure the target is within the extraction directory
+	if !filepath.IsAbs(targetPath) {
+		absPath, err := filepath.Abs(targetPath)
+		if err != nil {
+			return "", fmt.Errorf("%w: %s", ErrInvalidFilePath, header.Name)
+		}
+		targetPath = absPath
+	}
+
+	if !strings.HasPrefix(targetPath, t.extractDir) {
+		return "", fmt.Errorf("%w: %s", ErrInvalidFilePath, header.Name)
 	}
 
 	return targetPath, nil
@@ -108,24 +140,37 @@ func (e *tarExtractor) validatePath(header *tar.Header) (string, error) {
 func safeFileMode(mode int64) os.FileMode {
 	// Use type assertion to ensure we handle the conversion safely
 	var perm os.FileMode
-	if mode >= 0 && mode <= 0o777 {
+	if mode >= 0 && mode <= int64(fsutil.FileModeMask) {
+		// Safe to convert directly since we've checked the bounds
 		perm = os.FileMode(mode)
 	} else {
 		// If mode is out of bounds, use a safe default (read/write for owner, read for others)
-		perm = 0o644
+		perm = fsutil.FileModeDefault
 	}
 	return perm
 }
 
+// ensureDir creates a directory and all necessary parent directories with default permissions if they don't exist.
+// Deprecated: Use fsutil.EnsureDir instead
+func ensureDir(dirPath string) error {
+	return fsutil.EnsureDir(dirPath)
+}
+
+// ensureFileDir creates the parent directory of a file path if it doesn't exist.
+// Deprecated: Use fsutil.EnsureFileDir instead
+func ensureFileDir(filePath string) error {
+	return fsutil.EnsureFileDir(filePath)
+}
+
 // extractDirectory handles the extraction of a directory entry.
-func (e *tarExtractor) extractDirectory(header *tar.Header, targetPath string) error {
-	// Ensure the directory exists with secure permissions
-	if err := util.EnsureDir(targetPath); err != nil {
+func (t *tarExtractor) extractDirectory(header *tar.Header, targetPath string) error {
+	// Create the directory with default permissions
+	if err := os.MkdirAll(targetPath, fsutil.DirModeDefault); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
 	}
 
 	// Set the original mode if it's more restrictive than our default
-	if header.Mode&0o777 < 0o750 {
+	if header.Mode&fsutil.FileModeMask < fsutil.DirModeDefault {
 		if err := os.Chmod(targetPath, safeFileMode(header.Mode)); err != nil {
 			return fmt.Errorf("failed to set permissions for %s: %w", targetPath, err)
 		}
@@ -134,20 +179,20 @@ func (e *tarExtractor) extractDirectory(header *tar.Header, targetPath string) e
 }
 
 // extractRegularFile handles the extraction of a regular file.
-func (e *tarExtractor) extractRegularFile(header *tar.Header, targetPath string) error {
+func (t *tarExtractor) extractRegularFile(header *tar.Header, targetPath string) error {
 	// Create directory if it doesn't exist
-	if err := util.EnsureFileDir(targetPath); err != nil {
+	if err := ensureFileDir(targetPath); err != nil {
 		return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
 	}
 
-	// Create the file with the specified mode (using safe conversion)
-	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, safeFileMode(header.Mode))
+	// Create the file with default permissions
+	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fsutil.FileModeDefault)
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", targetPath, err)
 	}
 
 	// Copy file content
-	if _, err := io.Copy(file, e.tarReader); err != nil {
+	if _, err := io.Copy(file, t.tarReader); err != nil {
 		file.Close()
 		return fmt.Errorf("failed to extract file %s: %w", targetPath, err)
 	}
@@ -155,64 +200,66 @@ func (e *tarExtractor) extractRegularFile(header *tar.Header, targetPath string)
 	return file.Close()
 }
 
-// Returns the resolved target path if valid, or an error if the target is invalid.
-func validateSymlinkTarget(linkPath, linkTarget, baseDir string) (string, error) {
-	// If the target is absolute, make it relative to the base directory
-	var targetPath string
-	if filepath.IsAbs(linkTarget) {
-		targetPath = filepath.Join(baseDir, filepath.Clean("/"+linkTarget))
-	} else {
-		// For relative symlinks, resolve them relative to the symlink's directory
-		symlinkDir := filepath.Dir(linkPath)
-		targetPath = filepath.Join(symlinkDir, filepath.Clean("/"+linkTarget))
-	}
-
-	// Resolve any relative path components (.., .)
+// validateSymlinkTarget checks if a symlink target is valid and within the base directory.
+// Returns an error if the target is invalid or points outside the base directory.
+func validateSymlinkTarget(linkPath, linkTarget, baseDir string) error {
+	// Resolve the target relative to the link's directory
+	targetPath := filepath.Join(filepath.Dir(linkPath), linkTarget)
 	targetPath = filepath.Clean(targetPath)
 
-	// Verify the target is within the base directory
-	relPath, err := filepath.Rel(baseDir, targetPath)
-	if err != nil || strings.HasPrefix(relPath, "..") || strings.HasPrefix(relPath, ".") {
-		return "", fmt.Errorf("invalid symlink target: %s points outside the target directory", linkTarget)
+	// Get absolute paths for both target and base directory
+	targetAbs, err := filepath.Abs(targetPath)
+	if err != nil {
+		return fmt.Errorf("invalid symlink target: %w", err)
 	}
 
-	return targetPath, nil
+	baseAbs, err := filepath.Abs(baseDir)
+	if err != nil {
+		return fmt.Errorf("invalid base directory: %w", err)
+	}
+
+	// Ensure the target is within the base directory
+	if !strings.HasPrefix(targetAbs, baseAbs+string(os.PathSeparator)) {
+		return fmt.Errorf("%w: %s", ErrInvalidSymlinkTarget, linkTarget)
+	}
+
+	return nil
 }
 
 // extractSymlink handles the extraction of a symlink.
-func (e *tarExtractor) extractSymlink(header *tar.Header, targetPath string) error {
-	// First validate the symlink target
-	_, err := validateSymlinkTarget(targetPath, header.Linkname, e.extractDir)
-	if err != nil {
-		return fmt.Errorf("invalid symlink: %w", err)
-	}
-
-	// On Windows, we need to be careful with symlinks
-	// First remove the target if it exists
-	if _, err := os.Lstat(targetPath); err == nil {
-		if err := os.Remove(targetPath); err != nil {
-			return fmt.Errorf("failed to remove existing symlink %s: %w", targetPath, err)
+func (t *tarExtractor) extractSymlink(header *tar.Header, targetPath string) error {
+	// Validate symlink target
+	if !filepath.IsAbs(header.Linkname) {
+		targetDir := filepath.Dir(targetPath)
+		if err := validateSymlinkTarget(targetPath, header.Linkname, t.extractDir); err != nil {
+			return err
 		}
-	}
 
-	// Create the symlink with the original linkname (not the resolved path)
-	// The resolution check above ensures it's safe
-	if err := os.Symlink(header.Linkname, targetPath); err != nil {
-		return fmt.Errorf("failed to create symlink %s: %w", targetPath, err)
+		// Create parent directories if they don't exist
+		if err := os.MkdirAll(targetDir, fsutil.DirModeDefault); err != nil {
+			return wrapExtractorError(err, targetDir)
+		}
+
+		// Create the symlink
+		if err := os.Symlink(header.Linkname, targetPath); err != nil {
+			return wrapExtractorError(err, targetPath)
+		}
+	} else {
+		return fmt.Errorf("%w: %s", ErrInvalidLinkTarget, header.Linkname)
 	}
 
 	return nil
 }
 
 // extractHardlink handles the extraction of a hard link.
-func (e *tarExtractor) extractHardlink(header *tar.Header, targetPath string) error {
+func (t *tarExtractor) extractHardlink(header *tar.Header, targetPath string) error {
 	// Sanitize link target path
-	linkTarget := filepath.Join(e.extractDir, filepath.Clean("/"+header.Linkname))
+	linkTarget := filepath.Join(t.extractDir, filepath.Clean("/"+header.Linkname))
 
 	// Verify link target is within extraction directory
-	relLinkPath, err := filepath.Rel(e.extractDir, linkTarget)
+	relLinkPath, err := filepath.Rel(t.extractDir, linkTarget)
 	if err != nil || strings.HasPrefix(relLinkPath, "..") || strings.HasPrefix(relLinkPath, ".") {
-		return fmt.Errorf("invalid link target in archive: %s", header.Linkname)
+		return fmt.Errorf("%w: %s", ErrInvalidLinkTarget, header.Linkname)
 	}
 
 	// On Windows, we need to be careful with hard links
@@ -237,99 +284,98 @@ func extractTar(reader io.Reader, extractDir string) error {
 
 	for {
 		header, err := extractor.tarReader.Next()
-		if errors.Is(err, io.EOF) {
+		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("failed to read tar header: %w", err)
+			return fmt.Errorf("error reading tar entry: %w", err)
 		}
 
 		targetPath, err := extractor.validatePath(header)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid path validation: %w", err)
 		}
 
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := extractor.extractDirectory(header, targetPath); err != nil {
-				return err
+				return fmt.Errorf("error extracting directory %s: %w", header.Name, err)
 			}
-
-		case tar.TypeReg:
+		case tar.TypeReg, tar.TypeGNUSparse:
 			if err := extractor.extractRegularFile(header, targetPath); err != nil {
-				return err
+				return fmt.Errorf("error extracting file %s: %w", header.Name, err)
 			}
-
 		case tar.TypeSymlink:
 			if err := extractor.extractSymlink(header, targetPath); err != nil {
-				return err
+				return fmt.Errorf("error extracting symlink %s: %w", header.Name, err)
 			}
-
 		case tar.TypeLink:
 			if err := extractor.extractHardlink(header, targetPath); err != nil {
-				return err
+				return fmt.Errorf("error extracting hardlink %s: %w", header.Name, err)
 			}
-
-		// Add support for other file types if needed
 		default:
-			return fmt.Errorf("unsupported file type %v in archive", header.Typeflag)
+			return fmt.Errorf("%w: %v", ErrUnsupportedFileType, header.Typeflag)
 		}
 	}
 
 	return nil
 }
 
+// LoadMetadata loads package metadata from a file.
+func LoadMetadata(metadataPath string) (*PackageMetadata, error) {
+	file, err := os.Open(metadataPath)
+	if err != nil {
+		return nil, fmt.Errorf("open metadata file: %w", err)
+	}
+	defer file.Close()
+
+	var metadata PackageMetadata
+	if err := json.NewDecoder(file).Decode(&metadata); err != nil {
+		return nil, fmt.Errorf("decode metadata: %w", err)
+	}
+
+	return &metadata, nil
+}
+
 // parsePackageStructure parses the extracted package directory structure.
 func parsePackageStructure(extractDir string) (*PackageStructure, error) {
-	structure := &PackageStructure{}
-
-	// Look for metadata.json file
-	metadataPath := filepath.Join(extractDir, "metadata.json")
-	if _, err := os.Stat(metadataPath); err == nil {
-		file, err := os.Open(metadataPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open metadata file: %w", err)
-		}
-		defer file.Close()
-
-		metadata, err := ParseMetadataFromReader(file)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse metadata: %w", err)
-		}
-		structure.Metadata = metadata
-	} else {
-		return nil, fmt.Errorf("metadata.json not found in package")
+	// Look for metadata file
+	metadataPath := filepath.Join(extractDir, "pkg.json")
+	if _, err := os.Stat(metadataPath); os.IsNotExist(err) {
+		return nil, ErrMetadataNotFound
+	} else if err != nil {
+		return nil, fmt.Errorf("error checking for metadata file: %w", err)
 	}
 
-	// Look for common directory structures
-	possibleFilesDirs := []string{"files", "data", "usr", "opt"}
-	for _, dir := range possibleFilesDirs {
-		dirPath := filepath.Join(extractDir, dir)
-		if stat, err := os.Stat(dirPath); err == nil && stat.IsDir() {
-			structure.FilesDir = dirPath
-			break
-		}
+	// Load metadata
+	metadata, err := LoadMetadata(metadataPath)
+	if err != nil {
+		return nil, fmt.Errorf("error loading package metadata: %w", err)
 	}
 
-	// Look for scripts directory
-	possibleScriptsDirs := []string{"scripts", "DEBIAN", "control"}
-	for _, dir := range possibleScriptsDirs {
-		dirPath := filepath.Join(extractDir, dir)
-		if stat, err := os.Stat(dirPath); err == nil && stat.IsDir() {
-			structure.ScriptsDir = dirPath
-			break
-		}
+	// Determine package structure
+	structure := &PackageStructure{
+		Metadata: metadata,
+	}
+
+	// Check for standard directory structure
+	filesDir := filepath.Join(extractDir, "files")
+	if _, err := os.Stat(filesDir); err == nil {
+		structure.FilesDir = filesDir
+	}
+
+	scriptsDir := filepath.Join(extractDir, "scripts")
+	if _, err := os.Stat(scriptsDir); err == nil {
+		structure.ScriptsDir = scriptsDir
+	}
+
+	// If no standard structure, assume the root is the files directory
+	if structure.FilesDir == "" {
+		structure.FilesDir = extractDir
 	}
 
 	return structure, nil
 }
-
-// TODO: Script execution would require external commands or Go script evaluation
-// For now, we'll focus on the file extraction and installation parts
-// Scripts could be handled by:
-// 1. Using a Go script engine like tengo or yaegi
-// 2. Having predefined hooks in Go code
-// 3. Using a sandboxed execution environment
 
 // CopyFiles recursively copies files from src to dst, tracking installed files.
 func CopyFiles(src, dst string) ([]string, error) {
@@ -350,7 +396,7 @@ func CopyFiles(src, dst string) ([]string, error) {
 
 		switch {
 		case info.IsDir():
-			if err := util.EnsureDir(targetPath); err != nil {
+			if err := ensureDir(targetPath); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
 			}
 
@@ -362,12 +408,12 @@ func CopyFiles(src, dst string) ([]string, error) {
 			}
 
 			// Validate the symlink target is safe
-			if _, err := validateSymlinkTarget(path, linkTarget, dst); err != nil {
+			if err := validateSymlinkTarget(path, linkTarget, dst); err != nil {
 				return fmt.Errorf("invalid symlink %s: %w", path, err)
 			}
 
 			// Create the parent directory if it doesn't exist
-			if err := util.EnsureFileDir(targetPath); err != nil {
+			if err := ensureFileDir(targetPath); err != nil {
 				return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
 			}
 
@@ -401,17 +447,24 @@ func CopyFiles(src, dst string) ([]string, error) {
 }
 
 // copyFile copies a single file from src to dst with the given mode.
+// If mode is 0, fsutil.FileModeDefault will be used.
 func copyFile(src, dst string, mode os.FileMode) error {
 	// Ensure destination directory exists
-	if err := util.EnsureFileDir(dst); err != nil {
+	if err := ensureFileDir(dst); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
+	// Open source file
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("failed to open source file %s: %w", src, err)
 	}
 	defer srcFile.Close()
+
+	// Use default file mode if none specified
+	if mode == 0 {
+		mode = fsutil.FileModeDefault
+	}
 
 	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
@@ -433,18 +486,16 @@ func copyFile(src, dst string, mode os.FileMode) error {
 
 // RemoveFiles removes all files in the given list.
 func RemoveFiles(files []string) error {
-	var errors []string
+	var errs []string
 
-	// Remove files in reverse order (deepest first)
-	for i := len(files) - 1; i >= 0; i-- {
-		filePath := files[i]
-		if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
-			errors = append(errors, fmt.Sprintf("failed to remove %s: %v", filePath, err))
+	for _, file := range files {
+		if err := os.RemoveAll(file); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", file, err))
 		}
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf("errors removing files: %s", strings.Join(errors, "; "))
+	if len(errs) > 0 {
+		return fmt.Errorf("errors removing files: %s", strings.Join(errs, "; "))
 	}
 
 	return nil

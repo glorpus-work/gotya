@@ -20,13 +20,15 @@ var (
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
 
 	rootCmd := newRootCmd()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		cancel()
 		os.Exit(1)
 	}
+
+	cancel()
 }
 
 func newRootCmd() *cobra.Command {

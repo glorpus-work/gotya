@@ -12,6 +12,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// TabWidth is the width of tabs in spaces for tabwriter.
+const TabWidth = 2
+
 // RepositoryOperation represents an operation that can be performed on a repository.
 type RepositoryOperation struct {
 	manager RepositoryManager
@@ -91,7 +94,7 @@ func (op *RepositoryOperation) List() (string, error) {
 	})
 
 	var buf strings.Builder
-	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
+	w := tabwriter.NewWriter(&buf, 0, 0, TabWidth, ' ', 0)
 
 	// Write header
 	if _, err := fmt.Fprintln(w, "NAME\tURL\tENABLED\tPRIORITY"); err != nil {

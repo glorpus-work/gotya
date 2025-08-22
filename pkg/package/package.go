@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 	"io"
 	"os"
 	"path/filepath"
@@ -61,7 +62,7 @@ func safePathJoin(baseDir string, elems ...string) (string, error) {
 	return cleanPath, nil
 }
 
-// validatePath checks if a path is safe and valid
+// validatePath checks if a path is safe and valid.
 func validatePath(path string) (string, error) {
 	// Clean the path first to handle any . or ..
 	cleanPath := filepath.Clean(path)
@@ -192,7 +193,6 @@ func processFiles(sourceDir string, meta *Metadata) error {
 
 			return nil
 		})
-
 		if err != nil {
 			return fmt.Errorf("error processing files directory: %w", err)
 		}
@@ -262,7 +262,6 @@ func processFiles(sourceDir string, meta *Metadata) error {
 
 		return nil
 	})
-
 	if err != nil {
 		return fmt.Errorf("error processing source directory: %w", err)
 	}
@@ -595,7 +594,7 @@ func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string)
 	}
 
 	// Ensure output directory exists and is writable
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+	if err := os.MkdirAll(outputDir, fsutil.DirModeDefault); err != nil {
 		return NewFileOperationError("create directory", outputDir, err)
 	}
 

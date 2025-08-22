@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/util"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 )
 
 // InstalledDatabase represents the database of installed packages.
@@ -18,12 +18,17 @@ type InstalledDatabase struct {
 	Packages      []*InstalledPackage `json:"packages"`
 }
 
+const (
+	// InitialPackageCapacity is the initial capacity for the installed packages slice.
+	InitialPackageCapacity = 100
+)
+
 // NewInstalledDatabase creates a new installed packages database.
 func NewInstalledDatabase() *InstalledDatabase {
 	return &InstalledDatabase{
 		FormatVersion: "1.0",
 		LastUpdate:    time.Now(),
-		Packages:      make([]*InstalledPackage, 0),
+		Packages:      make([]*InstalledPackage, 0, InitialPackageCapacity),
 	}
 }
 
@@ -112,7 +117,7 @@ func (db *InstalledDatabase) Save(dbPath string) (err error) {
 	}
 
 	// Ensure directory exists with secure permissions
-	if err := util.EnsureDir(filepath.Dir(cleanPath)); err != nil {
+	if err := fsutil.EnsureDir(filepath.Dir(cleanPath)); err != nil {
 		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 

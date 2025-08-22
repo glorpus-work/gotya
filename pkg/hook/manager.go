@@ -1,8 +1,9 @@
 package hook
 
 import (
-	"fmt"
 	"sync"
+
+	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 // DefaultHookManager is the default implementation of HookManager.
@@ -36,7 +37,7 @@ func (m *DefaultHookManager) Execute(hookType HookType, ctx HookContext) error {
 // AddHook adds a new hook.
 func (m *DefaultHookManager) AddHook(hook Hook) error {
 	if hook.Type == "" {
-		return fmt.Errorf("hook type cannot be empty")
+		return errors.ErrHookTypeEmpty
 	}
 
 	m.mutex.Lock()
@@ -49,7 +50,7 @@ func (m *DefaultHookManager) AddHook(hook Hook) error {
 // RemoveHook removes a hook of the specified type.
 func (m *DefaultHookManager) RemoveHook(hookType HookType) error {
 	if hookType == "" {
-		return fmt.Errorf("hook type cannot be empty")
+		return errors.ErrHookTypeEmpty
 	}
 
 	m.mutex.Lock()
@@ -82,7 +83,7 @@ func (m *DefaultHookManager) ExecuteAll(ctx HookContext) error {
 	for _, hookType := range hooks {
 		if m.HasHook(hookType) {
 			if err := m.Execute(hookType, ctx); err != nil {
-				return fmt.Errorf("error executing %s hook: %w", hookType, err)
+				return errors.Wrapf(errors.ErrHookExecution, "%s: %v", hookType, err)
 			}
 		}
 	}

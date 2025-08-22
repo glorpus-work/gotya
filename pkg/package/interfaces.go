@@ -8,7 +8,7 @@ type InstalledManager interface {
 	SaveDatabase(dbPath string) error
 	FindPackage(name string) *InstalledPackage
 	IsPackageInstalled(name string) bool
-	AddPackage(pkg InstalledPackage)
+	AddPackage(pkg *InstalledPackage)
 	RemovePackage(name string) bool
 	GetInstalledPackages() []InstalledPackage
 }

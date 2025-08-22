@@ -1,10 +1,11 @@
 package hook
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 // HookFileExtensions lists the supported hook file extensions.
@@ -19,7 +20,7 @@ func LoadHooksFromPackageDir(manager HookManager, packageDir string) error {
 	hooksDir := filepath.Join(packageDir, ".gotya", "hooks")
 	if _, err := os.Stat(hooksDir); err == nil {
 		if err := loadHooksFromDir(manager, hooksDir); err != nil {
-			return fmt.Errorf("error loading hooks from .gotya/hooks: %w", err)
+			return errors.Wrapf(err, "error loading hooks from %s", hooksDir)
 		}
 	}
 
@@ -27,7 +28,7 @@ func LoadHooksFromPackageDir(manager HookManager, packageDir string) error {
 	hooksDir = filepath.Join(packageDir, "hooks")
 	if _, err := os.Stat(hooksDir); err == nil {
 		if err := loadHooksFromDir(manager, hooksDir); err != nil {
-			return fmt.Errorf("error loading hooks from hooks/: %w", err)
+			return errors.Wrapf(err, "error loading hooks from %s", hooksDir)
 		}
 	}
 
@@ -38,7 +39,7 @@ func LoadHooksFromPackageDir(manager HookManager, packageDir string) error {
 func loadHooksFromDir(manager HookManager, dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("failed to read hooks directory %s: %w", dir, err)
+		return errors.Wrapf(err, "failed to read hooks directory %s", dir)
 	}
 
 	for _, entry := range entries {
@@ -63,9 +64,10 @@ func loadHooksFromDir(manager HookManager, dir string) error {
 		}
 
 		// Read hook content
-		content, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		hookPath := filepath.Join(dir, entry.Name())
+		content, err := os.ReadFile(hookPath)
 		if err != nil {
-			return fmt.Errorf("error reading hook file %s: %w", entry.Name(), err)
+			return errors.Wrapf(err, "error reading hook file %s", hookPath)
 		}
 
 		// Add the hook
@@ -73,7 +75,7 @@ func loadHooksFromDir(manager HookManager, dir string) error {
 			Type:    hookType,
 			Content: string(content),
 		}); err != nil {
-			return fmt.Errorf("error adding hook %s: %w", hookName, err)
+			return errors.Wrapf(err, "error adding hook %s", hookName)
 		}
 	}
 

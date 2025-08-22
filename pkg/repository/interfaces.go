@@ -13,7 +13,7 @@ type RepositoryManager interface {
 	RepositoryQuerier
 }
 
-// RepositoryLister defines operations for listing and managing repository metadata
+// RepositoryLister defines operations for listing and managing repository metadata.
 type RepositoryLister interface {
 	AddRepository(name, url string) error
 	RemoveRepository(name string) error
@@ -23,7 +23,7 @@ type RepositoryLister interface {
 	GetRepository(name string) *Info
 }
 
-// RepositorySynchronizer defines operations for synchronizing repository data
+// RepositorySynchronizer defines operations for synchronizing repository data.
 type RepositorySynchronizer interface {
 	SyncRepository(ctx context.Context, name string) error
 	SyncRepositories(ctx context.Context) error
@@ -32,7 +32,7 @@ type RepositorySynchronizer interface {
 	SyncIfStale(ctx context.Context, name string, maxAge time.Duration) error
 }
 
-// RepositoryQuerier defines operations for querying repository data
+// RepositoryQuerier defines operations for querying repository data.
 type RepositoryQuerier interface {
 	GetRepositoryIndex(name string) (*IndexImpl, error)
 	FindPackage(name string) (*Package, error)
@@ -52,7 +52,7 @@ type Index interface {
 	GetLastUpdate() string
 	GetPackages() []Package
 	FindPackage(name string) *Package
-	AddPackage(pkg Package)
+	AddPackage(pkg *Package)
 	RemovePackage(name string) bool
 }
 

@@ -19,7 +19,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.True(t, cfg.Settings.ColorOutput)
 	assert.False(t, cfg.Settings.AutoSync)
 	assert.Equal(t, 30*time.Second, cfg.Settings.HTTPTimeout)
-	assert.Equal(t, 3, cfg.Settings.MaxConcurrent)
+	assert.Equal(t, 5, cfg.Settings.MaxConcurrent)
 }
 
 func TestLoadConfig(t *testing.T) {

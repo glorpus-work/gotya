@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 	"github.com/cperrin88/gotya/pkg/hook"
 	"github.com/cperrin88/gotya/pkg/logger"
 	pkgpkg "github.com/cperrin88/gotya/pkg/package"
 	"github.com/cperrin88/gotya/pkg/repository"
-	"github.com/cperrin88/gotya/pkg/util"
 )
 
 // Installer handles package installation and updates.
@@ -154,7 +154,7 @@ func (i *Installer) installPackageFiles(pkg *repository.Package) error {
 	// Create target directories
 	targetDir := filepath.Join(i.config.Settings.InstallDir, pkg.Name)
 	logger.Debugf("Creating target directory: %s", targetDir)
-	if err := util.EnsureDir(targetDir); err != nil {
+	if err := fsutil.EnsureDir(targetDir); err != nil {
 		return fmt.Errorf("failed to create target directory: %w", err)
 	}
 

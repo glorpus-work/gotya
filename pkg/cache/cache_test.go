@@ -45,17 +45,17 @@ func TestSetDirectory(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			mgr := cache.NewManager(t.TempDir())
 
-			err := mgr.SetDirectory(tt.directory)
+			err := mgr.SetDirectory(testCase.directory)
 
-			if tt.expectError {
+			if testCase.expectError {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, tt.directory, mgr.GetDirectory())
+				assert.Equal(t, testCase.directory, mgr.GetDirectory())
 			}
 		})
 	}

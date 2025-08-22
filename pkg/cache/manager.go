@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/util"
+	"github.com/cperrin88/gotya/pkg/errors"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 )
 
 // CacheManager implements the Manager interface.
@@ -25,10 +26,14 @@ func NewManager(directory string) *CacheManager {
 func NewDefaultManager() (*CacheManager, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+		return nil, errors.Wrap(err, "failed to get user home directory")
 	}
 
 	cacheDir := filepath.Join(homeDir, ".cache", "gotya")
+	if err := os.MkdirAll(cacheDir, os.FileMode(CacheDirPerm)); err != nil {
+		return nil, errors.Wrap(err, "failed to create cache directory")
+	}
+
 	return NewManager(cacheDir), nil
 }
 
@@ -44,7 +49,7 @@ func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
 	if options.All || options.Indexes {
 		size, err := cm.cleanIndexCache()
 		if err != nil {
-			return nil, fmt.Errorf("failed to clean index cache: %w", err)
+			return nil, errors.Wrap(err, "failed to clean index cache")
 		}
 		result.IndexFreed = size
 	}
@@ -52,7 +57,7 @@ func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
 	if options.All || options.Packages {
 		size, err := cm.cleanPackageCache()
 		if err != nil {
-			return nil, fmt.Errorf("failed to clean package cache: %w", err)
+			return nil, errors.Wrap(err, "failed to clean package cache")
 		}
 		result.PackageFreed = size
 	}
@@ -72,7 +77,7 @@ func (cm *CacheManager) GetInfo() (*Info, error) {
 	indexDir := filepath.Join(cm.directory, "indexes")
 	indexSize, indexFiles, err := getDirSizeAndFiles(indexDir)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("failed to get index cache info in directory %s: %w", indexDir, err)
+		return nil, errors.Wrapf(err, "failed to get index cache info in directory %s", indexDir)
 	}
 	info.IndexSize = indexSize
 	info.IndexFiles = indexFiles
@@ -81,7 +86,7 @@ func (cm *CacheManager) GetInfo() (*Info, error) {
 	packageDir := filepath.Join(cm.directory, "packages")
 	packageSize, packageFiles, err := getDirSizeAndFiles(packageDir)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("failed to get package cache info in directory %s: %w", packageDir, err)
+		return nil, errors.Wrapf(err, "failed to get package cache info in directory %s", packageDir)
 	}
 	info.PackageSize = packageSize
 	info.PackageFiles = packageFiles
@@ -99,7 +104,7 @@ func (cm *CacheManager) GetDirectory() string {
 // SetDirectory sets the cache directory path.
 func (cm *CacheManager) SetDirectory(dir string) error {
 	if dir == "" {
-		return fmt.Errorf("cache directory cannot be empty")
+		return errors.ErrCacheDirectory
 	}
 	cm.directory = dir
 	return nil
@@ -135,17 +140,17 @@ func cleanDirectory(dir string) (int64, error) {
 		return nil
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to calculate directory size: %w", err)
+		return 0, errors.Wrapf(err, "error walking directory %s", dir)
 	}
 
 	// Remove the directory
 	if err := os.RemoveAll(dir); err != nil {
-		return 0, fmt.Errorf("failed to remove directory %s: %w", dir, err)
+		return 0, errors.Wrapf(err, "failed to remove directory %s", dir)
 	}
 
 	// Recreate empty directory
-	if err := util.EnsureDir(dir); err != nil {
-		return totalSize, fmt.Errorf("failed to recreate directory %s: %w", dir, err)
+	if err := fsutil.EnsureDir(dir); err != nil {
+		return totalSize, errors.Wrapf(err, "failed to recreate directory %s", dir)
 	}
 
 	return totalSize, nil

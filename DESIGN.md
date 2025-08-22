@@ -1,7 +1,7 @@
 # Gotya Package Manager - Design Document
 
 ## Overview
-Gotya is a lightweight, cross-platform package manager designed for managing software packages in a simple and efficient manner. It supports multiple repositories, platform-specific packages, and efficient dependency resolution.
+Gotya is a lightweight, cross-platform personal package manager designed for managing software packages in a simple and efficient manner. It supports multiple repositories, platform-specific packages, and efficient dependency resolution.
 
 ## Core Components
 
@@ -48,8 +48,6 @@ type Package struct {
 ```
 
 ## Package Management
-
-
 
 ### Configuration
 
@@ -112,11 +110,10 @@ Gotya packages are distributed as `.tar.gz` archives with a specific internal st
 ```
 <package-name>_<version>_<os>_<arch>/
 ├── meta/
-│   ├── package.json    # Package metadata
-│   ├── pre-install     # Optional pre-installation script
-│   └── post-install    # Optional post-installation script
-└── files/              # Package contents
-    └── ...             # Files to be installed
+│   ├── package.json        # Package metadata
+│   └── <hook_script>.tengo # Optional hook script (e.g. pre-install.tengo)
+└── files/                  # Package contents
+    └── ...                 # Files to be installed
 ```
 
 ### Package Metadata (package.json)
@@ -162,18 +159,6 @@ Packages are installed in the following locations by default:
 ## Package Creation Tool
 
 The `gotya package create` command is used to create packages from a source directory.
-
-### Package Source Directory Structure
-
-```
-package-src/
-├── meta/
-│   ├── package.json    # Package metadata
-│   ├── pre-install     # Optional pre-installation script
-│   └── post-install    # Optional post-installation script
-└── files/              # Files to include in the package
-    └── ...             # Package contents
-```
 
 ### Creating a Package
 

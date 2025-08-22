@@ -12,6 +12,11 @@ import (
 	"github.com/cperrin88/gotya/pkg/platform"
 )
 
+const (
+	// DefaultCacheTTL is the default time-to-live for cached repository data.
+	DefaultCacheTTL = 30 * time.Second
+)
+
 // repositoryManagerImpl implements the RepositoryManager interface.
 // It provides methods for managing, syncing, and querying repositories.
 type repositoryManagerImpl struct {
@@ -31,17 +36,17 @@ type repositoryEntry struct {
 }
 
 // NewManager creates a new repository manager.
-func NewManager() RepositoryManager {
+func NewManager() *repositoryManagerImpl {
 	return NewManagerWithCacheDir("")
 }
 
 // NewManagerWithCacheDir creates a new repository manager with a specific cache directory.
-func NewManagerWithCacheDir(cacheDir string) RepositoryManager {
+func NewManagerWithCacheDir(cacheDir string) *repositoryManagerImpl {
 	return NewManagerWithPlatform(cacheDir, "", "", true)
 }
 
 // NewManagerWithPlatform creates a new repository manager with platform settings.
-func NewManagerWithPlatform(cacheDir, os, arch string, preferNative bool) RepositoryManager {
+func NewManagerWithPlatform(cacheDir, os, arch string, preferNative bool) *repositoryManagerImpl {
 	if cacheDir == "" {
 		userCacheDir, err := goos.UserCacheDir()
 		if err != nil {
@@ -58,7 +63,7 @@ func NewManagerWithPlatform(cacheDir, os, arch string, preferNative bool) Reposi
 
 	return &repositoryManagerImpl{
 		repositories: make(map[string]*repositoryEntry),
-		syncer:       NewSyncer(cacheDir, 30*time.Second),
+		syncer:       NewSyncer(cacheDir, DefaultCacheTTL),
 		platformOS:   os,
 		platformArch: arch,
 		preferNative: preferNative,

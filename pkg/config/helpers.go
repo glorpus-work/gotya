@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // SetValue sets a configuration value by key
@@ -115,7 +114,7 @@ func (c *Config) ToMap() map[string]string {
 func NewDefaultConfig() *Config {
 	return &Config{
 		Settings: Settings{
-			CacheTTL:     24 * time.Hour,
+			CacheTTL:     DefaultCacheTTL,
 			ColorOutput:  true,
 			OutputFormat: "text",
 			LogLevel:     "info",

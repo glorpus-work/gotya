@@ -14,12 +14,17 @@ type IndexImpl struct {
 	Packages      []Package `json:"packages"`
 }
 
+const (
+	// InitialPackageCapacity is the initial capacity for the packages slice.
+	InitialPackageCapacity = 100
+)
+
 // NewIndex creates a new index with the current timestamp.
 func NewIndex(formatVersion string) *IndexImpl {
 	return &IndexImpl{
 		FormatVersion: formatVersion,
 		LastUpdate:    time.Now(),
-		Packages:      make([]Package, 0),
+		Packages:      make([]Package, 0, InitialPackageCapacity),
 	}
 }
 
@@ -83,25 +88,25 @@ func (idx *IndexImpl) FindPackage(name string) *Package {
 }
 
 // AddPackage adds a package to the index.
-func (idx *IndexImpl) AddPackage(pkg Package) {
+func (idx *IndexImpl) AddPackage(pkg *Package) {
 	// Remove existing package with same name if it exists
-	for i, existingPkg := range idx.Packages {
-		if existingPkg.Name == pkg.Name {
-			idx.Packages[i] = pkg
+	for i := range idx.Packages {
+		if idx.Packages[i].Name == pkg.Name {
+			idx.Packages[i] = *pkg
 			idx.LastUpdate = time.Now()
 			return
 		}
 	}
 
 	// Add new package
-	idx.Packages = append(idx.Packages, pkg)
+	idx.Packages = append(idx.Packages, *pkg)
 	idx.LastUpdate = time.Now()
 }
 
 // RemovePackage removes a package from the index.
 func (idx *IndexImpl) RemovePackage(name string) bool {
-	for i, pkg := range idx.Packages {
-		if pkg.Name == name {
+	for i := range idx.Packages {
+		if idx.Packages[i].Name == name {
 			idx.Packages = append(idx.Packages[:i], idx.Packages[i+1:]...)
 			idx.LastUpdate = time.Now()
 			return true

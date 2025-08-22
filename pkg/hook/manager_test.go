@@ -3,8 +3,10 @@ package hook_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/hook"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,15 +27,46 @@ func TestAddAndExecuteHook(t *testing.T) {
 		},
 	}
 
-	// Test adding a valid hook
-	err := manager.AddHook(hook.Hook{
-		Type:    hook.PreInstall,
-		Content: `// Simple hook that doesn't return anything`,
-	})
-	require.NoError(t, err, "AddHook should not return an error for valid hook")
+	tests := []struct {
+		name          string
+		hook          hook.Hook
+		expectedError string
+	}{
+		{
+			name: "valid hook",
+			hook: hook.Hook{
+				Type:    hook.PreInstall,
+				Content: `// Simple hook that doesn't return anything`,
+			},
+		},
+		{
+			name: "empty hook type",
+			hook: hook.Hook{
+				Type:    "",
+				Content: "test content",
+			},
+			expectedError: errors.ErrHookTypeEmpty.Error(),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := manager.AddHook(tc.hook)
+			if tc.expectedError != "" {
+				if err == nil {
+					t.Fatalf("expected error %q, got nil", tc.expectedError)
+				}
+				if !strings.Contains(err.Error(), tc.expectedError) {
+					t.Fatalf("expected error to contain %q, got %v", tc.expectedError, err)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
 
 	// Test executing the hook
-	err = manager.Execute(hook.PreInstall, ctx)
+	err := manager.Execute(hook.PreInstall, ctx)
 	require.NoError(t, err, "Execute should not return an error for valid hook")
 }
 

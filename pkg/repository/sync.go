@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/util"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 )
 
 // Syncer handles repository synchronization operations.
@@ -35,7 +35,7 @@ func (s *Syncer) SyncRepository(ctx context.Context, info Info) (*IndexImpl, err
 
 	// Create cache directory for this repository
 	repoCacheDir := filepath.Join(s.cacheDir, "repositories", info.Name)
-	if err := util.EnsureDir(repoCacheDir); err != nil {
+	if err := fsutil.EnsureDir(repoCacheDir); err != nil {
 		return nil, fmt.Errorf("failed to create repository cache directory: %w", err)
 	}
 
@@ -169,7 +169,8 @@ func (s *Syncer) validateIndex(index *IndexImpl) error {
 	}
 
 	// Validate each package has required fields
-	for i, pkg := range packages {
+	for i := range packages {
+		pkg := &packages[i]
 		if pkg.Name == "" {
 			return fmt.Errorf("package %d: missing name", i)
 		}
@@ -190,7 +191,7 @@ func (s *Syncer) validateIndex(index *IndexImpl) error {
 // saveIndexToCache saves the index to the cache directory.
 func (s *Syncer) saveIndexToCache(index *IndexImpl, indexPath string) (err error) {
 	// Ensure directory exists with secure permissions
-	if err := util.EnsureDir(filepath.Dir(indexPath)); err != nil {
+	if err := fsutil.EnsureDir(filepath.Dir(indexPath)); err != nil {
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
 

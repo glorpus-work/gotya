@@ -37,7 +37,7 @@ func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, lastMod
 		return nil, time.Time{}, fmt.Errorf("failed to build index URL: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, indexURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, indexURL, http.NoBody)
 	if err != nil {
 		return nil, time.Time{}, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -91,7 +91,7 @@ func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, lastMod
 
 // DownloadPackage downloads a package file from the repository.
 func (hc *HTTPClient) DownloadPackage(ctx context.Context, packageURL string, writer io.Writer) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, packageURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, packageURL, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -123,7 +123,7 @@ func (hc *HTTPClient) CheckRepositoryHealth(ctx context.Context, repoURL string)
 		return fmt.Errorf("failed to build index URL: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, indexURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, indexURL, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}

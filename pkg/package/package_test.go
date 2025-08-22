@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func setupTestEnvironment(t *testing.T) (string, func()) {
+func setupTestEnvironment(t *testing.T) (tempDir string, cleanup func()) {
 	tempDir, err := os.MkdirTemp("", "gotya-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)

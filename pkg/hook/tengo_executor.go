@@ -1,9 +1,9 @@
 package hook
 
 import (
-	"fmt"
 	"sync"
 
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/d5/tengo/v2"
 	"github.com/d5/tengo/v2/stdlib"
 )
@@ -52,7 +52,7 @@ func (e *TengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	// Run the script
 	compiled, err := scriptInstance.Run()
 	if err != nil {
-		return fmt.Errorf("failed to execute %s hook: %w", hookType, err)
+		return errors.Wrapf(errors.ErrHookExecution, "%s: %v", hookType, err)
 	}
 
 	// Check for any returned error
@@ -60,10 +60,10 @@ func (e *TengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	if errVar != nil {
 		switch v := errVar.Value().(type) {
 		case error:
-			return fmt.Errorf("hook script error: %w", v)
+			return errors.Wrap(errors.ErrHookScript, v.Error())
 		case string:
 			if v != "" {
-				return fmt.Errorf("hook script error: %s", v)
+				return errors.Wrap(errors.ErrHookScript, v)
 			}
 		}
 	}

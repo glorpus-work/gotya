@@ -32,7 +32,7 @@ Use --exact for exact name matching.`,
 	}
 
 	cmd.Flags().BoolVar(&exactMatch, "exact", false, "Exact name matching")
-	cmd.Flags().IntVar(&limit, "limit", 50, "Limit number of results")
+	cmd.Flags().IntVar(&limit, "limit", DefaultSearchLimit, "Limit number of results")
 
 	return cmd
 }
@@ -127,20 +127,23 @@ type SearchResult struct {
 }
 
 func searchInIndex(index repository.Index, repoName, query string, exactMatch bool) []SearchResult {
-	var results []SearchResult
+	var searchResults []SearchResult
 
-	packages := index.GetPackages()
-	for _, pkg := range packages {
-		var matches bool
+	availablePackages := index.GetPackages()
+	for packageIndex := range availablePackages {
+		pkg := &availablePackages[packageIndex]
+		var isMatch bool
+
 		if exactMatch {
-			matches = pkg.Name == query
+			isMatch = pkg.Name == query
 		} else {
-			matches = strings.Contains(strings.ToLower(pkg.Name), strings.ToLower(query)) ||
-				strings.Contains(strings.ToLower(pkg.Description), strings.ToLower(query))
+			lowerQuery := strings.ToLower(query)
+			isMatch = strings.Contains(strings.ToLower(pkg.Name), lowerQuery) ||
+				strings.Contains(strings.ToLower(pkg.Description), lowerQuery)
 		}
 
-		if matches {
-			results = append(results, SearchResult{
+		if isMatch {
+			searchResults = append(searchResults, SearchResult{
 				Name:        pkg.Name,
 				Version:     pkg.Version,
 				Description: pkg.Description,
@@ -149,23 +152,23 @@ func searchInIndex(index repository.Index, repoName, query string, exactMatch bo
 		}
 	}
 
-	return results
+	return searchResults
 }
 
 func displaySearchResults(results []SearchResult) {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tVERSION\tREPOSITORY\tDESCRIPTION")
-	fmt.Fprintln(w, "----\t-------\t----------\t-----------")
+	tabWriter := tabwriter.NewWriter(os.Stdout, 0, 0, TabWidth, ' ', 0)
+	fmt.Fprintln(tabWriter, "NAME\tVERSION\tREPOSITORY\tDESCRIPTION")
+	fmt.Fprintln(tabWriter, "----\t-------\t----------\t-----------")
 
 	for _, pkg := range results {
 		description := pkg.Description
-		if len(description) > 50 {
-			description = description[:47] + "..."
+		if len(description) > MaxDescriptionLength {
+			description = description[:MaxDescriptionLength-3] + "..."
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", pkg.Name, pkg.Version, pkg.Repository, description)
+		fmt.Fprintf(tabWriter, "%s\t%s\t%s\t%s\n", pkg.Name, pkg.Version, pkg.Repository, description)
 	}
 
-	w.Flush()
+	tabWriter.Flush()
 }
 
 func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
@@ -218,14 +221,15 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 			}
 
 			repoPackages := index.GetPackages()
-			for _, repoPkg := range repoPackages {
+			for i := range repoPackages {
+				repoPkg := &repoPackages[i]
 				// Check if package is already installed
 				var status string
 				if showInstalled {
 					// Check if we already have this package in our list (installed)
 					found := false
-					for _, existing := range packages {
-						if existing.Name == repoPkg.Name {
+					for j := range packages {
+						if packages[j].Name == repoPkg.Name {
 							found = true
 							break
 						}
@@ -239,10 +243,11 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 				}
 
 				// Use "any" if OS/Arch are empty
-				os := repoPkg.OS
-				if os == "" {
-					os = "any"
+				osName := repoPkg.OS
+				if osName == "" {
+					osName = "any"
 				}
+
 				arch := repoPkg.Arch
 				if arch == "" {
 					arch = "any"
@@ -254,7 +259,7 @@ func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
 					Description: repoPkg.Description,
 					Status:      status,
 					Repository:  repo.Name,
-					OS:          os,
+					OS:          osName,
 					Arch:        arch,
 				})
 			}
@@ -285,18 +290,18 @@ type PackageListItem struct {
 }
 
 func displayPackageList(packages []PackageListItem) {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tVERSION\tPLATFORM\tSTATUS\tREPOSITORY\tDESCRIPTION")
+	tabWriter := tabwriter.NewWriter(os.Stdout, 0, 0, TabWidth, ' ', 0)
+	fmt.Fprintln(tabWriter, "NAME\tVERSION\tPLATFORM\tSTATUS\tREPOSITORY\tDESCRIPTION")
 
 	for _, pkg := range packages {
-		desc := pkg.Description
-		if len(desc) > 40 {
-			desc = desc[:37] + "..."
+		description := pkg.Description
+		if len(description) > MaxSearchDescriptionLength {
+			description = description[:MaxSearchDescriptionLength-3] + "..."
 		}
 		platform := fmt.Sprintf("%s/%s", pkg.OS, pkg.Arch)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			pkg.Name, pkg.Version, platform, pkg.Status, pkg.Repository, desc)
+		fmt.Fprintf(tabWriter, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			pkg.Name, pkg.Version, platform, pkg.Status, pkg.Repository, description)
 	}
 
-	w.Flush()
+	tabWriter.Flush()
 }
