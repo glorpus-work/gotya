@@ -2,12 +2,11 @@ package pkg
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 // InstalledDatabase represents the database of installed packages.
@@ -36,7 +35,7 @@ func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
-		return nil, errors.Wrapf(errors.ErrInvalidPath, "database path must be absolute: %s", dbPath)
+		return nil, fmt.Errorf("database path must be absolute: %s: %w", dbPath, ErrInvalidPath)
 	}
 
 	// Check if file exists with cleaned path
@@ -48,7 +47,7 @@ func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
 	// Open the file with the cleaned path
 	file, err := os.Open(cleanPath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to open database")
+		return nil, fmt.Errorf("failed to open database file: %w", err)
 	}
 	defer file.Close()
 
@@ -66,13 +65,13 @@ type tempInstalledDatabase struct {
 func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to read database")
+		return nil, fmt.Errorf("failed to read database: %w", err)
 	}
 
 	// First unmarshal into a temporary struct
 	var tempDB tempInstalledDatabase
 	if err := json.Unmarshal(data, &tempDB); err != nil {
-		return nil, errors.Wrapf(err, "failed to parse database")
+		return nil, fmt.Errorf("failed to parse database: %w", err)
 	}
 
 	// Convert to our actual database structure with pointers
@@ -96,7 +95,7 @@ func (installedDB *InstalledDatabase) Save(dbPath string) (err error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
-		return errors.Wrapf(errors.ErrInvalidPath, "database path must be absolute: %s", dbPath)
+		return fmt.Errorf("database path must be absolute: %s: %w", dbPath, ErrInvalidPath)
 	}
 
 	// Get the directory of the database file
@@ -105,7 +104,7 @@ func (installedDB *InstalledDatabase) Save(dbPath string) (err error) {
 	// Create a temporary file for atomic write
 	tmpFile, err := os.CreateTemp(dbDir, "gotya-db-*.tmp")
 	if err != nil {
-		return errors.Wrapf(err, "failed to create temporary file in %s", dbDir)
+		return fmt.Errorf("failed to create temporary file in %s: %w", dbDir, err)
 	}
 	tmpPath := tmpFile.Name()
 	defer func() {
@@ -119,29 +118,29 @@ func (installedDB *InstalledDatabase) Save(dbPath string) (err error) {
 	data, err := json.MarshalIndent(installedDB, "", "  ")
 	if err != nil {
 		_ = tmpFile.Close()
-		return errors.Wrap(err, "failed to marshal database to JSON")
+		return fmt.Errorf("failed to marshal database to JSON: %w", err)
 	}
 
 	// Write to temporary file
 	if _, err := tmpFile.Write(data); err != nil {
 		_ = tmpFile.Close()
-		return errors.Wrap(err, "failed to write to temporary file")
+		return fmt.Errorf("failed to write to temporary file: %w", err)
 	}
 
 	// Ensure the data is written to disk
 	if err := tmpFile.Sync(); err != nil {
 		_ = tmpFile.Close()
-		return errors.Wrap(err, "failed to sync temporary file to disk")
+		return fmt.Errorf("failed to sync temporary file to disk: %w", err)
 	}
 
 	// Close the temporary file
 	if err := tmpFile.Close(); err != nil {
-		return errors.Wrap(err, "failed to close temporary file")
+		return fmt.Errorf("failed to close temporary file: %w", err)
 	}
 
 	// Atomically rename the temporary file to the target file
 	if err := os.Rename(tmpPath, cleanPath); err != nil {
-		return errors.Wrapf(err, "failed to rename temporary file to %s", cleanPath)
+		return fmt.Errorf("failed to rename temporary file to %s: %w", cleanPath, err)
 	}
 
 	return nil

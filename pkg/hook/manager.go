@@ -37,7 +37,7 @@ func (m *DefaultHookManager) Execute(hookType HookType, ctx HookContext) error {
 // AddHook adds a new hook.
 func (m *DefaultHookManager) AddHook(hook Hook) error {
 	if hook.Type == "" {
-		return errors.ErrHookTypeEmpty
+		return ErrHookTypeEmpty
 	}
 
 	m.mutex.Lock()
@@ -50,7 +50,7 @@ func (m *DefaultHookManager) AddHook(hook Hook) error {
 // RemoveHook removes a hook of the specified type.
 func (m *DefaultHookManager) RemoveHook(hookType HookType) error {
 	if hookType == "" {
-		return errors.ErrHookTypeEmpty
+		return ErrHookTypeEmpty
 	}
 
 	m.mutex.Lock()
@@ -83,7 +83,7 @@ func (m *DefaultHookManager) ExecuteAll(ctx HookContext) error {
 	for _, hookType := range hooks {
 		if m.HasHook(hookType) {
 			if err := m.Execute(hookType, ctx); err != nil {
-				return errors.Wrapf(errors.ErrHookExecution, "%s: %v", hookType, err)
+				return errors.Wrapf(err, "error executing hook %s", hookType)
 			}
 		}
 	}

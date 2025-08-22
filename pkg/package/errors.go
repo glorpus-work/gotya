@@ -7,7 +7,28 @@ import (
 
 // Common package errors.
 var (
-	// Package creation and validation errors.
+	// Path and file related errors
+	ErrInvalidPath            = errors.New("invalid path")
+	ErrFileNotFound           = errors.New("file not found")
+	ErrInvalidFile            = errors.New("invalid file")
+	ErrInvalidSourceDirectory = errors.New("invalid source directory")
+	ErrDirectoryStatFailed    = errors.New("failed to get directory info")
+	ErrDirectoryNotWritable   = errors.New("directory is not writable")
+
+	// Package validation errors
+	ErrInvalidVersion       = errors.New("invalid version")
+	ErrPackageAlreadyExists = errors.New("package already exists")
+	ErrNameRequired         = errors.New("package name is required")
+	ErrVersionRequired      = errors.New("package version is required")
+	ErrValidationFailed     = errors.New("validation failed")
+
+	// I/O and processing errors
+	ErrReadFailed      = errors.New("read failed")
+	ErrWriteFailed     = errors.New("write failed")
+	ErrInvalidMetadata = errors.New("invalid package metadata")
+
+	// Package installation errors
+	ErrPackageInvalid       = errors.New("package is invalid")
 	ErrSourceDirEmpty       = errors.New("source directory path cannot be empty")
 	ErrOutputDirEmpty       = errors.New("output directory path cannot be empty")
 	ErrPackageNameEmpty     = errors.New("package name cannot be empty")
@@ -22,24 +43,29 @@ var (
 	ErrPackageTooSmall      = errors.New("package file is too small to be valid")
 	ErrDescriptionRequired  = errors.New("package description is required")
 
-	// File operation errors.
-	ErrInvalidSourceDirectory = errors.New("invalid source directory")
-	ErrDirectoryStatFailed    = errors.New("failed to get directory info")
-	ErrDirectoryNotWritable   = errors.New("directory is not writable")
-
-	// Metadata related errors.
+	// Metadata related errors
 	ErrMetadataMissing      = errors.New("package is missing required metadata (pkg.json)")
 	ErrMetadataFileNotFound = errors.New("package metadata file not found")
 	ErrMetadataNotFound     = errors.New("metadata not found in package")
-	ErrNameRequired         = errors.New("package name is required")
-	ErrVersionRequired      = errors.New("package version is required")
 
-	// Archive and extraction errors.
+	// Archive and extraction errors
 	ErrUnsupportedArchiveFormat = errors.New("unsupported archive format (only .tar.gz and .tgz files are supported)")
 	ErrInvalidFilePath          = errors.New("invalid file path in archive")
 	ErrInvalidSymlinkTarget     = errors.New("invalid symlink target: points outside the target directory")
 	ErrInvalidLinkTarget        = errors.New("invalid link target in archive")
 	ErrUnsupportedFileType      = errors.New("unsupported file type in archive")
+)
+
+// Package installation error functions
+var (
+	// ErrPackageAlreadyInstalled returns an error for when a package is already installed
+	ErrPackageAlreadyInstalled = func(pkgName string) error {
+		return fmt.Errorf("package %s is already installed (use --force to reinstall)", pkgName)
+	}
+	// ErrPackageNotInstalled returns an error for when a package is not installed
+	ErrPackageNotInstalled = func(pkgName string) error {
+		return fmt.Errorf("package %s is not installed", pkgName)
+	}
 )
 
 // Error types for specific error conditions.

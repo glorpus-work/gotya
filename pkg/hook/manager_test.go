@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/hook"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +44,7 @@ func TestAddAndExecuteHook(t *testing.T) {
 				Type:    "",
 				Content: "test content",
 			},
-			expectedError: errors.ErrHookTypeEmpty.Error(),
+			expectedError: hook.ErrHookTypeEmpty.Error(),
 		},
 	}
 

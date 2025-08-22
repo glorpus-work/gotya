@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -26,12 +25,12 @@ func NewManager(directory string) *CacheManager {
 func NewDefaultManager() (*CacheManager, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get user home directory")
+		return nil, errors.Wrapf(err, "failed to get user home directory")
 	}
 
 	cacheDir := filepath.Join(homeDir, ".cache", "gotya")
-	if err := os.MkdirAll(cacheDir, os.FileMode(CacheDirPerm)); err != nil {
-		return nil, errors.Wrap(err, "failed to create cache directory")
+	if err := os.MkdirAll(cacheDir, os.FileMode(fsutil.DirModeDefault)); err != nil {
+		return nil, errors.Wrapf(err, "failed to create cache directory")
 	}
 
 	return NewManager(cacheDir), nil
@@ -49,20 +48,21 @@ func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
 	if options.All || options.Indexes {
 		size, err := cm.cleanIndexCache()
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to clean index cache")
+			return nil, errors.Wrapf(err, "failed to clean index cache")
 		}
 		result.IndexFreed = size
+		result.TotalFreed += size
 	}
 
 	if options.All || options.Packages {
 		size, err := cm.cleanPackageCache()
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to clean package cache")
+			return nil, errors.Wrapf(err, "failed to clean package cache")
 		}
 		result.PackageFreed = size
+		result.TotalFreed += size
 	}
 
-	result.TotalFreed = result.IndexFreed + result.PackageFreed
 	return result, nil
 }
 
@@ -70,27 +70,28 @@ func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
 func (cm *CacheManager) GetInfo() (*Info, error) {
 	info := &Info{
 		Directory:   cm.directory,
-		LastCleaned: time.Now(), // This would ideally be stored somewhere
+		LastCleaned: time.Now(), // Set current time as last cleaned time
 	}
 
-	// Calculate index cache size
+	// Get index cache info
 	indexDir := filepath.Join(cm.directory, "indexes")
 	indexSize, indexFiles, err := getDirSizeAndFiles(indexDir)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, errors.Wrapf(err, "failed to get index cache info in directory %s", indexDir)
+		return nil, errors.Wrapf(err, "failed to get index cache info")
 	}
 	info.IndexSize = indexSize
 	info.IndexFiles = indexFiles
 
-	// Calculate package cache size
-	packageDir := filepath.Join(cm.directory, "packages")
-	packageSize, packageFiles, err := getDirSizeAndFiles(packageDir)
+	// Get package cache info
+	pkgDir := filepath.Join(cm.directory, "packages")
+	pkgSize, pkgFiles, err := getDirSizeAndFiles(pkgDir)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, errors.Wrapf(err, "failed to get package cache info in directory %s", packageDir)
+		return nil, errors.Wrapf(err, "failed to get package cache info")
 	}
-	info.PackageSize = packageSize
-	info.PackageFiles = packageFiles
+	info.PackageSize = pkgSize
+	info.PackageFiles = pkgFiles
 
+	// Calculate total size
 	info.TotalSize = info.IndexSize + info.PackageSize
 
 	return info, nil
@@ -104,7 +105,7 @@ func (cm *CacheManager) GetDirectory() string {
 // SetDirectory sets the cache directory path.
 func (cm *CacheManager) SetDirectory(dir string) error {
 	if dir == "" {
-		return errors.ErrCacheDirectory
+		return ErrCacheDirectory
 	}
 	cm.directory = dir
 	return nil
@@ -177,7 +178,7 @@ func getDirSizeAndFiles(dir string) (size int64, count int, err error) {
 		return nil
 	})
 	if err != nil {
-		err = fmt.Errorf("error walking directory %s: %w", dir, err)
+		err = errors.Wrapf(err, "error walking directory %s", dir)
 	}
 	return
 }

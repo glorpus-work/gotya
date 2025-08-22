@@ -18,28 +18,8 @@ var (
 	ErrConfigFileCreate  = fmt.Errorf("failed to create config file")
 
 	// Cache errors.
-	ErrCacheClean        = fmt.Errorf("failed to clean cache")
-	ErrCacheInfo         = fmt.Errorf("failed to get cache info")
-	ErrCacheDirectory    = fmt.Errorf("cache directory cannot be empty")
 	ErrCacheCleanIndex   = fmt.Errorf("failed to clean index cache")
 	ErrCacheCleanPackage = fmt.Errorf("failed to clean package cache")
-
-	// Hook errors.
-	ErrHookTypeEmpty = fmt.Errorf("hook type cannot be empty")
-	ErrHookExecution = fmt.Errorf("error executing hook")
-	ErrHookScript    = fmt.Errorf("hook script error")
-	ErrHookLoad      = fmt.Errorf("failed to load hook")
-
-	// Installer errors.
-	ErrPackageAlreadyInstalled = func(pkgName string) error {
-		return fmt.Errorf("package %s is already installed (use --force to reinstall)", pkgName)
-	}
-	ErrPackageNotInstalled = func(pkgName string) error {
-		return fmt.Errorf("package %s is not installed", pkgName)
-	}
-	ErrUnsupportedHookEvent = func(event string) error {
-		return fmt.Errorf("unsupported hook event: %s", event)
-	}
 
 	// Config errors.
 	ErrInvalidOSValue = func(value string) error {
@@ -68,12 +48,19 @@ var (
 		return fmt.Errorf("repository '%s': duplicate repository name", name)
 	}
 
-	// Package errors
-	ErrFileNotFound   = fmt.Errorf("file not found")
-	ErrInvalidPath    = fmt.Errorf("invalid path")
-	ErrInvalidFile    = fmt.Errorf("invalid file")
-	ErrValidation     = fmt.Errorf("validation error")
-	ErrPackageInvalid = fmt.Errorf("invalid package")
+	// Package errors.
+	ErrFileNotFound         = fmt.Errorf("file not found")
+	ErrInvalidPath          = fmt.Errorf("invalid path")
+	ErrInvalidFile          = fmt.Errorf("invalid file")
+	ErrPackageInvalid       = fmt.Errorf("invalid package")
+	ErrValidation           = fmt.Errorf("validation failed")
+	ErrValidationFailed     = fmt.Errorf("validation failed") // Alias for backward compatibility
+	ErrNameRequired         = fmt.Errorf("name is required")
+	ErrInvalidPackageName   = fmt.Errorf("invalid package name")
+	ErrVersionRequired      = fmt.Errorf("version is required")
+	ErrInvalidVersionString = fmt.Errorf("invalid version string")
+	ErrTargetOSEmpty        = fmt.Errorf("target OS cannot be empty")
+	ErrTargetArchEmpty      = fmt.Errorf("target architecture cannot be empty")
 
 	// Validation errors.
 	ErrInvalidOS = func(os string) error {
