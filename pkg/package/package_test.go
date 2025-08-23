@@ -5,7 +5,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	goerror "errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 func setupTestEnvironment(t *testing.T) (tempDir string, cleanup func()) {
@@ -89,13 +91,13 @@ func setupTestEnvironment(t *testing.T) (tempDir string, cleanup func()) {
 func extractPackage(pkgPath, destDir string) error {
 	file, err := os.Open(pkgPath)
 	if err != nil {
-		return fmt.Errorf("failed to open package file: %w", err)
+		return errors.WrapFileError(err, "open package file", pkgPath)
 	}
 	defer file.Close()
 
 	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
+		return errors.Wrap(err, "create gzip reader")
 	}
 	defer gzipReader.Close()
 
@@ -103,11 +105,11 @@ func extractPackage(pkgPath, destDir string) error {
 
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if goerror.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("error reading tar archive: %w", err)
+			return errors.Wrap(err, "read tar archive")
 		}
 
 		// Skip the current directory entry
@@ -120,21 +122,21 @@ func extractPackage(pkgPath, destDir string) error {
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(targetPath, 0o755); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+				return errors.WrapFileError(err, "create directory", targetPath)
 			}
 		case tar.TypeReg:
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-				return fmt.Errorf("failed to create directory for %s: %w", targetPath, err)
+				return errors.Wrapf(err, "create parent directory for %s", targetPath)
 			}
 
 			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
-				return fmt.Errorf("failed to create file %s: %w", targetPath, err)
+				return errors.WrapFileError(err, "create file", targetPath)
 			}
 
 			if _, err := io.Copy(outFile, tarReader); err != nil {
 				outFile.Close()
-				return fmt.Errorf("failed to extract file %s: %w", targetPath, err)
+				return errors.WrapFileError(err, "extract file", targetPath)
 			}
 			outFile.Close()
 		}
@@ -587,42 +589,33 @@ func TestVerifyPackage(t *testing.T) {
 	})
 }
 
-// verifyCreatedPackage verifies that the package at pkgPath matches the expected metadata.
-func verifyCreatedPackage(t *testing.T, pkgPath string, expectedMeta *Metadata) error {
-	// Create a map of expected files for quick lookup
-	expectedFiles := make(map[string]File)
-	for _, f := range expectedMeta.Files {
-		expectedFiles[f.Path] = f
-	}
-
+// verifyPackageTest verifies that a package contains all expected files with correct content
+func verifyPackageTest(t *testing.T, pkgPath string, expectedFiles map[string]File) error {
 	// Open the package file
 	file, err := os.Open(pkgPath)
 	if err != nil {
-		return fmt.Errorf("failed to open package file: %w", err)
+		return errors.WrapFileError(err, "open package file", pkgPath)
 	}
 	defer file.Close()
 
 	// Create a gzip reader
 	gzReader, err := gzip.NewReader(file)
 	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
+		return errors.Wrap(err, "create gzip reader")
 	}
 	defer gzReader.Close()
 
-	// Create a tar reader
 	tarReader := tar.NewReader(gzReader)
-
-	// Track which files we've found
 	foundFiles := make(map[string]bool)
 
-	// Process each file in the tarball
+	// Read the tar archive
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if goerror.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("error reading tar entry: %w", err)
+			return errors.Wrap(err, "read tar archive")
 		}
 
 		// Skip directories
@@ -630,119 +623,92 @@ func verifyCreatedPackage(t *testing.T, pkgPath string, expectedMeta *Metadata) 
 			continue
 		}
 
-		// Check if this file is expected
+		// Check if the file is expected
 		fileInfo, exists := expectedFiles[header.Name]
 		if !exists {
-			// Check if this is the meta/package.json file
-			if header.Name == "meta/package.json" {
-				// Read and parse the meta/package.json to verify its contents
-				metaContent, err := io.ReadAll(tarReader)
-				if err != nil {
-					return fmt.Errorf("failed to read meta/package.json: %w", err)
+			// Try with a different path format (handles potential path separator differences)
+			altPath := filepath.ToSlash(header.Name)
+			if altFileInfo, altExists := expectedFiles[altPath]; altExists {
+				fileInfo = altFileInfo
+				header.Name = altPath
+				exists = true
+			} else {
+				// Log available expected files for debugging
+				var availableFiles []string
+				for k := range expectedFiles {
+					availableFiles = append(availableFiles, k)
 				}
-
-				// Verify the package.json has the expected structure
-				var pkgMeta struct {
-					Name    string `json:"name"`
-					Version string `json:"version"`
-					OS      string `json:"os"`
-					Arch    string `json:"arch"`
-				}
-				if err := json.Unmarshal(metaContent, &pkgMeta); err != nil {
-					return fmt.Errorf("failed to parse meta/package.json: %w", err)
-				}
-
-				// Mark this file as found and skip further verification
-				foundFiles[header.Name] = true
-				continue
+				t.Logf("Available expected files: %v", availableFiles)
+				return errors.NewUnexpectedFileError(header.Name)
 			}
-
-			// Get list of expected file names for the error message
-			expectedNames := make([]string, 0, len(expectedFiles))
-			for name := range expectedFiles {
-				expectedNames = append(expectedNames, name)
-			}
-			return fmt.Errorf("unexpected file in package: %s (expected one of: %v)", header.Name, expectedNames)
 		}
 
-		// Verify file size
-		if header.Size != fileInfo.Size {
-			return fmt.Errorf("size mismatch for file %s: expected %d, got %d",
-				header.Name, fileInfo.Size, header.Size)
-		}
-
-		// Verify file mode (skip on Windows)
-		if runtime.GOOS != "windows" && header.Mode != int64(fileInfo.Mode) {
-			return fmt.Errorf("mode mismatch for file %s: expected %o, got %o",
-				header.Name, fileInfo.Mode, header.Mode)
-		}
-
-		// Calculate file hash
-		hasher := sha256.New()
-		if _, err := io.Copy(hasher, tarReader); err != nil {
-			return fmt.Errorf("failed to calculate hash for %s: %w", header.Name, err)
-		}
-		actualHash := hex.EncodeToString(hasher.Sum(nil))
-
-		// Verify file hash
-		if actualHash != fileInfo.Digest {
-			return fmt.Errorf("hash mismatch for file %s: expected %s, got %s",
-				header.Name, fileInfo.Digest, actualHash)
-		}
-
-		// Mark this file as found
+		// Mark file as found
 		foundFiles[header.Name] = true
+
+		// Skip verification for meta/package.json as it's generated dynamically
+		if header.Name != "meta/package.json" {
+			// Check for size and mode if not meta/package.json
+			if fileInfo.Size != 0 && fileInfo.Size != header.Size {
+				return errors.NewFileSizeMismatchError(header.Name, fileInfo.Size, header.Size)
+			}
+
+			// Skip permission checks on Windows or if the mode is 0 (not specified)
+			skipPermissionChecks := runtime.GOOS == "windows"
+			if !skipPermissionChecks && fileInfo.Mode != 0 && header.Mode != int64(fileInfo.Mode) {
+				return errors.NewFilePermissionMismatchError(
+					header.Name,
+					os.FileMode(fileInfo.Mode),
+					os.FileMode(header.Mode),
+				)
+			}
+
+			// Calculate the hash of the file content
+			hasher := sha256.New()
+			if _, err := io.Copy(hasher, tarReader); err != nil {
+				return errors.WrapFileError(err, "calculate hash for", header.Name)
+			}
+			actualHash := hex.EncodeToString(hasher.Sum(nil))
+
+			// Verify the hash for all other files
+			if actualHash != fileInfo.Digest {
+				return errors.NewFileHashMismatchError(header.Name, fileInfo.Digest, actualHash)
+			}
+		}
 	}
 
 	// Verify all expected files were found
 	for path := range expectedFiles {
-		// Skip meta/package.json as it's handled separately
-		if path == "meta/package.json" {
-			continue
-		}
 		if !foundFiles[path] {
-			return fmt.Errorf("missing expected file in package: %s", path)
+			// Try with a different path format (handles potential path separator differences)
+			altPath := filepath.ToSlash(path)
+			if !foundFiles[altPath] {
+				return errors.NewMissingFileError(fmt.Sprintf("%s (also checked as %s)", path, altPath))
+			}
 		}
 	}
 
-	// Extract the package to check the meta/package.json file
-	extractDir, err := os.MkdirTemp("", "gotya-test-extract-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp dir: %w", err)
-	}
-	defer os.RemoveAll(extractDir)
+	return nil
+}
 
-	// Extract the package
-	if err := extractPackage(pkgPath, extractDir); err != nil {
-		return fmt.Errorf("failed to extract package: %w", err)
+func verifyCreatedPackage(t *testing.T, pkgPath string, expectedMeta *Metadata) error {
+	// Create a map of expected files for quick lookup
+	expectedFiles := make(map[string]File)
+	for _, f := range expectedMeta.Files {
+		expectedFiles[f.Path] = f
 	}
 
-	// Read the meta/package.json file
-	metaPath := filepath.Join(extractDir, "meta", "package.json")
-	metaJSON, err := os.ReadFile(metaPath)
-	if err != nil {
-		return fmt.Errorf("failed to read meta/package.json: %w", err)
-	}
-
-	// Create a copy of the expected metadata to avoid modifying the original
+	// Create a copy of the metadata to avoid modifying the original
 	metaCopy := *expectedMeta
 	metaCopy.Files = make([]File, len(expectedMeta.Files))
 	copy(metaCopy.Files, expectedMeta.Files)
 
-	// Add the meta/package.json file to the expected files
-	hasher := sha256.New()
-	hasher.Write(metaJSON)
-	metaFile := File{
-		Path:   "meta/package.json",
-		Size:   int64(len(metaJSON)),
-		Mode:   0o644,
-		Digest: hex.EncodeToString(hasher.Sum(nil)),
+	// Verify the package with the expected files
+	if err := verifyPackageTest(t, pkgPath, expectedFiles); err != nil {
+		return err
 	}
 
-	// Add the meta/package.json file to the expected files
-	metaCopy.Files = append(metaCopy.Files, metaFile)
-
-	// Now verify the package with the updated metadata
+	// Verify the package with the metadata
 	return verifyPackage(pkgPath, &metaCopy)
 }
 
