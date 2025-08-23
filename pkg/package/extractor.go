@@ -186,7 +186,7 @@ func (t *tarExtractor) extractDirectory(header *tar.Header, targetPath string) e
 }
 
 // extractRegularFile handles the extraction of a regular file.
-func (t *tarExtractor) extractRegularFile(header *tar.Header, targetPath string) error {
+func (t *tarExtractor) extractRegularFile(_ *tar.Header, targetPath string) error {
 	// Create directory if it doesn't exist
 	if err := ensureFileDir(targetPath); err != nil {
 		return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)

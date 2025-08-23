@@ -95,7 +95,7 @@ func runCacheClean(all, indexes, packages bool) error {
 	return nil
 }
 
-func runCacheInfo(cmd *cobra.Command, args []string) error {
+func runCacheInfo(_ *cobra.Command, _ []string) error {
 	config, _, err := loadConfigAndManager()
 	if err != nil {
 		return err
@@ -118,7 +118,7 @@ func runCacheInfo(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runCacheDir(cmd *cobra.Command, args []string) error {
+func runCacheDir(_ *cobra.Command, _ []string) error {
 	config, _, err := loadConfigAndManager()
 	if err != nil {
 		return err

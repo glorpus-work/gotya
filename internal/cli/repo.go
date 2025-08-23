@@ -36,7 +36,7 @@ func newRepoAddCmd() *cobra.Command {
 		Short: "Add a new repository",
 		Long:  "Add a new package repository by URL",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return runRepoAdd(args[0], name)
 		},
 	}
@@ -53,7 +53,7 @@ func newRepoRemoveCmd() *cobra.Command {
 		Short: "Remove a repository",
 		Long:  "Remove a repository by name",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return runRepoRemove(args[0])
 		},
 	}
@@ -106,7 +106,7 @@ func runRepoRemove(name string) error {
 	return nil
 }
 
-func runRepoList(cmd *cobra.Command, args []string) error {
+func runRepoList(_ *cobra.Command, _ []string) error {
 	_, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err
@@ -122,7 +122,7 @@ func runRepoList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runRepoUpdate(cmd *cobra.Command, args []string) error {
+func runRepoUpdate(_ *cobra.Command, args []string) error {
 	_, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err

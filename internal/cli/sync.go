@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/cperrin88/gotya/pkg/logger"
@@ -20,7 +21,7 @@ package lists from configured repositories.`,
 	return cmd
 }
 
-func runSync(cmd *cobra.Command, args []string) error {
+func runSync(_ *cobra.Command, _ []string) error {
 	_, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err
@@ -28,7 +29,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	logger.Debug("Synchronizing repository indexes...")
 
-	if err := manager.SyncRepositories(cmd.Context()); err != nil {
+	if err := manager.SyncRepositories(context.Background()); err != nil {
 		return fmt.Errorf("failed to sync repositories: %w", err)
 	}
 

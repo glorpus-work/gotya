@@ -25,7 +25,7 @@ func NewUninstallCmd() *cobra.Command {
 		Long: `Uninstall one or more installed packages.
 By default, pre-remove and post-remove hooks will be executed.`,
 		Args: cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			// Get default config path
 			configPath, err := config.GetDefaultConfigPath()
 			if err != nil {

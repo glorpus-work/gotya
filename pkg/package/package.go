@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"archive/tar"
-	"bufio"
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
@@ -56,28 +55,6 @@ type File struct {
 	Size   int64  `json:"size"`
 	Mode   uint32 `json:"mode"`
 	Digest string `json:"digest"`
-}
-
-// safePathJoin joins path elements and ensures the result is within the base directory.
-func safePathJoin(baseDir string, elems ...string) (string, error) {
-	// Join path elements
-	pathElems := append([]string{baseDir}, elems...)
-	fullPath := filepath.Join(pathElems...)
-
-	// Clean the path to remove any '..' or '.'
-	cleanPath := filepath.Clean(fullPath)
-
-	// Verify the final path is still within the base directory
-	rel, err := filepath.Rel(baseDir, cleanPath)
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to get relative path for %s", cleanPath)
-	}
-
-	if strings.HasPrefix(rel, "..") || (len(rel) >= 1 && rel[0] == '.') {
-		return "", errors.Wrapf(errors.ErrInvalidPath, "path %s is outside base directory %s", cleanPath, baseDir)
-	}
-
-	return cleanPath, nil
 }
 
 // validatePath validates that a path is absolute and exists.
@@ -261,14 +238,6 @@ func processFiles(sourceDir string, meta *Metadata) error {
 	}
 
 	return nil
-}
-
-// tarballWriter wraps the writers needed for creating a tarball.
-type tarballWriter struct {
-	file      *os.File
-	bufWriter *bufio.Writer
-	gzip      *gzip.Writer
-	tar       *tar.Writer
 }
 
 // CreatePackage creates a new package from the source directory.

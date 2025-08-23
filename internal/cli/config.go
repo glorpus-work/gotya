@@ -56,7 +56,7 @@ func newConfigSetCmd() *cobra.Command {
 		Short: "Set a configuration value",
 		Long:  "Set a configuration key to a specific value",
 		Args:  cobra.ExactArgs(setCommandArgs),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return runConfigSet(args[0], args[1])
 		},
 	}
@@ -70,7 +70,7 @@ func newConfigGetCmd() *cobra.Command {
 		Short: "Get a configuration value",
 		Long:  "Get the value of a specific configuration key",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return runConfigGet(args[0])
 		},
 	}
@@ -85,7 +85,7 @@ func newConfigInitCmd() *cobra.Command {
 		Use:   "init",
 		Short: "Initialize configuration file",
 		Long:  "Create a default configuration file",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return runConfigInit(force)
 		},
 	}

@@ -37,7 +37,7 @@ func newPackageCreateCommand() *cobra.Command {
 		Short: "Create a new package",
 		Long: `Create a new gotya package from a source directory.
 The source directory should contain a 'meta/package.json' file and a 'files/' directory.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			// Delegate to the package implementation
 			err := pkgpkg.CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch)
 			if err != nil {

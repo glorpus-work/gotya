@@ -22,7 +22,7 @@ func NewInstallCmd() *cobra.Command {
 		Long: `Install one or more packages from the configured repositories.
 Dependencies will be automatically resolved and installed unless --skip-deps is used.`,
 		Args: cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return runInstall(args, force, skipDeps)
 		},
 	}
@@ -42,7 +42,7 @@ func NewUpdateCmd() *cobra.Command {
 		Short: "Update packages",
 		Long: `Update one or more installed packages to their latest versions.
 Use --all to update all installed packages.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			return runUpdate(args, all)
 		},
 	}

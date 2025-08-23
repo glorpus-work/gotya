@@ -59,7 +59,7 @@ func NewListCmd() *cobra.Command {
 	return cmd
 }
 
-func runSearch(cmd *cobra.Command, query string, exactMatch bool, limit int) error {
+func runSearch(_ *cobra.Command, query string, exactMatch bool, limit int) error {
 	_, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err

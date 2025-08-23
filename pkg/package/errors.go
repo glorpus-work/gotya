@@ -49,11 +49,11 @@ var (
 var (
 	// ErrPackageAlreadyInstalled returns an error for when a package is already installed.
 	ErrPackageAlreadyInstalled = func(pkgName string) error {
-		return fmt.Errorf("package %s is already installed (use --force to reinstall).", pkgName)
+		return fmt.Errorf("package %s is already installed (use --force to reinstall)", pkgName)
 	}
 	// ErrPackageNotInstalled returns an error for when a package is not installed.
 	ErrPackageNotInstalled = func(pkgName string) error {
-		return fmt.Errorf("package %s is not installed.", pkgName)
+		return fmt.Errorf("package %s is not installed", pkgName)
 	}
 )
 
@@ -147,13 +147,4 @@ func NewFileOperationError(op, path string, err error) error {
 		Path: path,
 		Err:  err,
 	}
-}
-
-// wrapError is a helper function that wraps an error with additional context.
-// If the error is nil, it returns nil.
-func wrapError(err error, format string, args ...interface{}) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), err)
 }
