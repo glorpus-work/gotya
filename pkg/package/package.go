@@ -304,6 +304,26 @@ func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string)
 		Description: fmt.Sprintf("Package %s version %s", pkgName, pkgVer),
 	}
 
+	// Check if files/ directory exists and is not empty
+	filesDir := filepath.Join(cleanSourceDir, "files")
+	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
+		return errors.Wrapf(errors.ErrPackageInvalid, "package must contain a 'files' directory")
+	}
+
+	// Check if files directory is empty
+	dir, err := os.Open(filesDir)
+	if err != nil {
+		return errors.Wrapf(err, "failed to open files directory %s", filesDir)
+	}
+	defer dir.Close()
+
+	_, err = dir.Readdirnames(1)
+	if err == io.EOF {
+		return errors.Wrapf(errors.ErrPackageInvalid, "package 'files' directory must not be empty")
+	} else if err != nil {
+		return errors.Wrapf(err, "failed to read files directory %s", filesDir)
+	}
+
 	// Process files and update metadata
 	if err := processFiles(sourceDir, meta); err != nil {
 		return errors.Wrapf(err, "failed to process files in %s", sourceDir)
