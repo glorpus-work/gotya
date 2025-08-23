@@ -48,8 +48,8 @@ func NewListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List packages",
 		Long:  "List installed or available packages",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runList(cmd, installed, available)
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return runList(installed, available)
 		},
 	}
 
@@ -171,7 +171,7 @@ func displaySearchResults(results []SearchResult) {
 	tabWriter.Flush()
 }
 
-func runList(cmd *cobra.Command, showInstalled, showAvailable bool) error {
+func runList(showInstalled, showAvailable bool) error {
 	cfg, manager, err := loadConfigAndManager()
 	if err != nil {
 		return err

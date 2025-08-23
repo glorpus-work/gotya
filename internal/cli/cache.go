@@ -38,7 +38,7 @@ func newCacheCleanCmd() *cobra.Command {
 		Use:   "clean",
 		Short: "Clean package cache",
 		Long:  "Remove cached files to free up disk space",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return runCacheClean(all, indexes, packages)
 		},
 	}

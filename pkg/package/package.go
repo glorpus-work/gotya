@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	goerror "errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,17 +17,15 @@ import (
 	"strings"
 	"time"
 
-	goerror "errors"
-
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/logger"
 )
 
-// File permission constants
+// File permission constants.
 const (
-	// DefaultFileMode is the default file mode for regular files (0o644)
+	// DefaultFileMode is the default file mode for regular files (0o644).
 	DefaultFileMode = 0o644
-	// DefaultDirMode is the default directory mode (0o755)
+	// DefaultDirMode is the default directory mode (0o755).
 	DefaultDirMode = 0o755
 )
 
@@ -570,7 +569,6 @@ func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
 			if altFileInfo, altExists := expectedFiles[altPath]; altExists {
 				fileInfo = altFileInfo
 				exists = true
-				normalizedPath = altPath
 			} else {
 				// Log available expected files for debugging
 				var availableFiles []string
