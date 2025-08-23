@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	goerror "errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,11 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
+)
+
+const (
+	// DefaultDirPerms are the default directory permissions used when creating directories.
+	DefaultDirPerms = 0o755
 )
 
 // Syncer handles repository synchronization operations.
@@ -48,7 +54,7 @@ func (s *Syncer) SyncRepository(ctx context.Context, info Info) (*IndexImpl, err
 	// Download the repository index
 	index, modifiedTime, err := s.httpClient.DownloadIndex(ctx, info.URL, lastModified)
 	if err != nil {
-		if err == ErrNotModified {
+		if goerror.Is(err, ErrNotModified) {
 			// Index not modified, load from cache
 			return s.LoadCachedIndex(info.Name)
 		}
@@ -87,7 +93,7 @@ func safePathJoin(baseDir string, elems ...string) (string, error) {
 	// Verify the final path is still within the base directory
 	relPath, err := filepath.Rel(baseDir, cleanPath)
 	if err != nil || strings.HasPrefix(relPath, "..") || strings.HasPrefix(relPath, ".") {
-		return "", fmt.Errorf("invalid path: path traversal detected")
+		return "", Wrap(ErrPathTraversal, "")
 	}
 
 	return cleanPath, nil
@@ -151,36 +157,48 @@ func (s *Syncer) IsCacheStale(repoName string, maxAge time.Duration) bool {
 	return age > maxAge
 }
 
+// Validation errors.
+var (
+	ErrIndexNil               = fmt.Errorf("index is nil")
+	ErrIndexMissingVersion    = fmt.Errorf("index missing format version")
+	ErrIndexEmpty             = fmt.Errorf("index contains no packages")
+	ErrPackageMissingName     = fmt.Errorf("package name is required")
+	ErrPackageMissingVersion  = fmt.Errorf("package version is required")
+	ErrPackageMissingURL      = fmt.Errorf("package URL is required")
+	ErrPackageMissingChecksum = fmt.Errorf("package checksum is required")
+	ErrPathTraversal          = fmt.Errorf("invalid path: path traversal detected")
+)
+
 // validateIndex performs basic validation on the downloaded index.
 func (s *Syncer) validateIndex(index *IndexImpl) error {
 	if index == nil {
-		return fmt.Errorf("index is nil")
+		return Wrap(ErrIndexNil, "")
 	}
 
 	if index.FormatVersion == "" {
-		return fmt.Errorf("index missing format version")
+		return Wrap(ErrIndexMissingVersion, "")
 	}
 
 	// Basic validation - ensure we have some packages
 	packages := index.GetPackages()
 	if len(packages) == 0 {
-		return fmt.Errorf("index contains no packages")
+		return Wrap(ErrIndexEmpty, "")
 	}
 
 	// Validate each package has required fields
 	for i := range packages {
 		pkg := &packages[i]
 		if pkg.Name == "" {
-			return fmt.Errorf("package %d: missing name", i)
+			return Wrapf(ErrPackageMissingName, "package at index %d", i)
 		}
 		if pkg.Version == "" {
-			return fmt.Errorf("package '%s': missing version", pkg.Name)
+			return Wrapf(ErrPackageMissingVersion, "package '%s'", pkg.Name)
 		}
 		if pkg.URL == "" {
-			return fmt.Errorf("package '%s': missing URL", pkg.Name)
+			return Wrapf(ErrPackageMissingURL, "package '%s'", pkg.Name)
 		}
 		if pkg.Checksum == "" {
-			return fmt.Errorf("package '%s': missing checksum", pkg.Name)
+			return Wrapf(ErrPackageMissingChecksum, "package '%s'", pkg.Name)
 		}
 	}
 
@@ -190,7 +208,7 @@ func (s *Syncer) validateIndex(index *IndexImpl) error {
 // saveIndexToCache saves the index to the cache directory.
 func (s *Syncer) saveIndexToCache(index *IndexImpl, indexPath string) (err error) {
 	// Ensure directory exists with secure permissions
-	if err := os.MkdirAll(filepath.Dir(indexPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(indexPath), DefaultDirPerms); err != nil {
 		return errors.Wrapf(err, "failed to create cache directory: %s", filepath.Dir(indexPath))
 	}
 

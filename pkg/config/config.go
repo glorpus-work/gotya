@@ -269,13 +269,13 @@ func (c *Config) Validate() error {
 	repoNames := make(map[string]bool)
 	for i, repo := range c.Repositories {
 		if repo.Name == "" {
-			return errors.ErrEmptyRepositoryName(i)
+			return errors.ErrEmptyRepositoryNameWithIndex(i)
 		}
 		if repo.URL == "" {
-			return errors.ErrRepositoryURLEmpty(repo.Name)
+			return errors.ErrRepositoryURLEmptyWithName(repo.Name)
 		}
 		if repoNames[repo.Name] {
-			return errors.ErrDuplicateRepository(repo.Name)
+			return errors.ErrRepositoryExistsWithName(repo.Name)
 		}
 		repoNames[repo.Name] = true
 	}
@@ -287,7 +287,7 @@ func (c *Config) Validate() error {
 			platform.OSFreeBSD, platform.OSOpenBSD, platform.OSNetBSD:
 			// Valid OS
 		default:
-			return errors.ErrInvalidOSValue(c.Settings.Platform.OS)
+			return errors.ErrInvalidOSValueWithDetails(c.Settings.Platform.OS, platform.GetValidOS())
 		}
 	}
 
@@ -296,7 +296,7 @@ func (c *Config) Validate() error {
 		case "amd64", "386", "arm", "arm64":
 			// Valid architecture
 		default:
-			return errors.ErrInvalidArchValue(c.Settings.Platform.Arch)
+			return errors.ErrInvalidArchValueWithDetails(c.Settings.Platform.Arch, platform.GetValidArch())
 		}
 	}
 
@@ -318,7 +318,7 @@ func (c *Config) Validate() error {
 		"yaml":  true,
 	}
 	if !validFormats[c.Settings.OutputFormat] {
-		return errors.ErrInvalidOutputFormat(c.Settings.OutputFormat)
+		return errors.ErrInvalidOutputFormatWithDetails(c.Settings.OutputFormat)
 	}
 
 	// Validate log level
@@ -332,7 +332,7 @@ func (c *Config) Validate() error {
 		"trace": true,
 	}
 	if !validLevels[strings.ToLower(c.Settings.LogLevel)] {
-		return errors.ErrInvalidLogLevel(c.Settings.LogLevel)
+		return errors.ErrInvalidLogLevelWithDetails(c.Settings.LogLevel)
 	}
 
 	return nil
@@ -356,7 +356,7 @@ func (c *Config) AddRepository(name, url string, enabled bool) error {
 	// Check if repository already exists
 	for _, repo := range c.Repositories {
 		if repo.Name == name {
-			return errors.ErrRepositoryExists(name)
+			return errors.ErrRepositoryExistsWithName(name)
 		}
 	}
 

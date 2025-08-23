@@ -2,8 +2,7 @@ package errors
 
 import (
 	"fmt"
-
-	"github.com/cperrin88/gotya/pkg/platform"
+	"os"
 )
 
 // Common error types used throughout the application.
@@ -44,9 +43,8 @@ var (
 
 	// ErrConfigFileExists is returned when attempting to create a configuration file that already exists.
 	// The error includes the path to the existing file and suggests using --force to overwrite.
-	ErrConfigFileExists = func(configPath string) error {
-		return fmt.Errorf("configuration file already exists at %s (use --force to overwrite)", configPath)
-	}
+	// Use ErrConfigFileExistsWithPath to include the actual path in the error message.
+	ErrConfigFileExists = fmt.Errorf("configuration file already exists (use --force to overwrite)")
 
 	// ErrConfigFileRename is returned when renaming the temporary config file fails.
 	ErrConfigFileRename = fmt.Errorf("failed to rename temporary config file")
@@ -69,16 +67,10 @@ var (
 	// These errors are used to validate system-specific configuration values.
 
 	// ErrInvalidOSValue is returned when an invalid operating system value is provided.
-	// The error includes the invalid value and a list of valid OS values.
-	ErrInvalidOSValue = func(value string) error {
-		return fmt.Errorf("invalid OS value: %s. Valid values are: %v", value, platform.GetValidOS())
-	}
+	ErrInvalidOSValue = fmt.Errorf("invalid OS value")
 
 	// ErrInvalidArchValue is returned when an invalid architecture value is provided.
-	// The error includes the invalid value and a list of valid architecture values.
-	ErrInvalidArchValue = func(value string) error {
-		return fmt.Errorf("invalid architecture value: %s. Valid values are: %v", value, platform.GetValidArch())
-	}
+	ErrInvalidArchValue = fmt.Errorf("invalid architecture value")
 
 	// CLI errors are returned during command-line interface operations.
 	// These errors help users understand and correct their command usage.
@@ -98,16 +90,10 @@ var (
 	// Repository errors are related to repository management operations.
 
 	// ErrEmptyRepositoryName is returned when a repository configuration is missing a name.
-	// The parameter 'i' is the index of the repository in the configuration.
-	ErrEmptyRepositoryName = func(i int) error {
-		return fmt.Errorf("repository %d: name cannot be empty", i)
-	}
+	ErrEmptyRepositoryName = fmt.Errorf("repository name cannot be empty")
 
 	// ErrRepositoryURLEmpty is returned when a repository configuration is missing a URL.
-	// The parameter 'name' is the name of the repository.
-	ErrRepositoryURLEmpty = func(name string) error {
-		return fmt.Errorf("repository '%s': URL cannot be empty", name)
-	}
+	ErrRepositoryURLEmpty = fmt.Errorf("repository URL cannot be empty")
 
 	// ErrEmptyRepositoryURL is an alias for ErrRepositoryURLEmpty for backward compatibility.
 	// Use ErrRepositoryURLEmpty instead.
@@ -123,10 +109,7 @@ var (
 	ErrUnsupportedOS = fmt.Errorf("unsupported operating system")
 
 	// ErrRepositoryExists is returned when attempting to add a repository that already exists.
-	// The error includes the name of the existing repository.
-	ErrRepositoryExists = func(name string) error {
-		return fmt.Errorf("repository '%s' already exists", name)
-	}
+	ErrRepositoryExists = fmt.Errorf("repository already exists")
 
 	// ErrDuplicateRepository is returned when a repository with the same name already exists.
 	// The parameter 'name' is the duplicate repository name.
@@ -177,16 +160,10 @@ var (
 	ErrMaxConcurrentInvalid = fmt.Errorf("max_concurrent_syncs must be at least 1")
 
 	// ErrInvalidOutputFormat is returned when an invalid output format is specified.
-	// The error includes the invalid format and a list of valid formats.
-	ErrInvalidOutputFormat = func(format string) error {
-		return fmt.Errorf("invalid output format '%s', must be one of: json, table, yaml", format)
-	}
+	ErrInvalidOutputFormat = fmt.Errorf("invalid output format")
 
 	// ErrInvalidLogLevel is returned when an invalid log level is specified.
-	// The error includes the invalid level and a list of valid log levels.
-	ErrInvalidLogLevel = func(level string) error {
-		return fmt.Errorf("invalid log level '%s', must be one of: panic, fatal, error, warn, info, debug, trace", level)
-	}
+	ErrInvalidLogLevel = fmt.Errorf("invalid log level")
 
 	// ErrTargetOSEmpty is returned when a target operating system is required but not provided.
 	ErrTargetOSEmpty = fmt.Errorf("target OS cannot be empty")
@@ -197,16 +174,10 @@ var (
 	// Validation errors are used to validate various configuration values and inputs.
 
 	// ErrInvalidOS is returned when an invalid operating system is specified.
-	// The error includes the invalid value and a list of valid OS values.
-	ErrInvalidOS = func(os string) error {
-		return fmt.Errorf("invalid OS: %s, must be one of: windows, linux, darwin, freebsd, openbsd, netbsd", os)
-	}
+	ErrInvalidOS = fmt.Errorf("invalid OS")
 
 	// ErrInvalidArch is returned when an invalid architecture is specified.
-	// The error includes the invalid value and a list of valid architecture values.
-	ErrInvalidArch = func(arch string) error {
-		return fmt.Errorf("invalid architecture: %s, must be one of: amd64, 386, arm, arm64", arch)
-	}
+	ErrInvalidArch = fmt.Errorf("invalid architecture")
 
 	// ErrNegativeHTTPTimeout is returned when a negative HTTP timeout value is provided.
 	// This is an alias for ErrHTTPTimeoutNegative for backward compatibility.
@@ -224,16 +195,10 @@ var (
 	// Configuration errors are related to configuration value validation and processing.
 
 	// ErrInvalidBoolValue is returned when an invalid boolean value is provided in the configuration.
-	// The error includes the configuration key and the invalid value.
-	ErrInvalidBoolValue = func(key, value string) error {
-		return fmt.Errorf("invalid boolean value for %s: %s", key, value)
-	}
+	ErrInvalidBoolValue = fmt.Errorf("invalid boolean value")
 
 	// ErrUnknownConfigKey is returned when an unknown configuration key is encountered.
-	// The error includes the unknown key to help with debugging.
-	ErrUnknownConfigKey = func(key string) error {
-		return fmt.Errorf("unknown configuration key: %s", key)
-	}
+	ErrUnknownConfigKey = fmt.Errorf("unknown configuration key")
 )
 
 // Wrap wraps an error with additional context.
@@ -266,4 +231,131 @@ func Wrapf(err error, format string, args ...interface{}) error {
 		return nil
 	}
 	return fmt.Errorf("%s: %w", fmt.Sprintf(format, args...), err)
+}
+
+// ErrConfigFileExistsWithPath is a helper to create a wrapped error with the config path.
+func ErrConfigFileExistsWithPath(configPath string) error {
+	return fmt.Errorf("%w: %s", ErrConfigFileExists, configPath)
+}
+
+// ErrEmptyRepositoryNameWithIndex is a helper to create a wrapped error with the repository index.
+func ErrEmptyRepositoryNameWithIndex(i int) error {
+	return fmt.Errorf("repository %d: %w", i, ErrEmptyRepositoryName)
+}
+
+// ErrRepositoryURLEmptyWithName is a helper to create a wrapped error with the repository name.
+func ErrRepositoryURLEmptyWithName(name string) error {
+	return fmt.Errorf("repository '%s': %w", name, ErrRepositoryURLEmpty)
+}
+
+// ErrRepositoryExistsWithName is a helper to create a wrapped error with the repository name.
+func ErrRepositoryExistsWithName(name string) error {
+	return fmt.Errorf("repository '%s': %w", name, ErrRepositoryExists)
+}
+
+// ErrInvalidOSValueWithDetails is a helper to create a wrapped error with the invalid value and valid options.
+func ErrInvalidOSValueWithDetails(value string, validOS []string) error {
+	return fmt.Errorf("%w: %s. Valid values are: %v", ErrInvalidOSValue, value, validOS)
+}
+
+// ErrInvalidArchValueWithDetails is a helper to create a wrapped error with the invalid value and valid options.
+func ErrInvalidArchValueWithDetails(value string, validArch []string) error {
+	return fmt.Errorf("%w: %s. Valid values are: %v", ErrInvalidArchValue, value, validArch)
+}
+
+// ErrInvalidOutputFormatWithDetails is a helper to create a wrapped error with the invalid format and valid options.
+func ErrInvalidOutputFormatWithDetails(format string) error {
+	return fmt.Errorf("%w: '%s', must be one of: json, table, yaml", ErrInvalidOutputFormat, format)
+}
+
+// ErrInvalidLogLevelWithDetails is a helper to create a wrapped error with the invalid level and valid options.
+func ErrInvalidLogLevelWithDetails(level string) error {
+	return fmt.Errorf("%w: '%s', must be one of: panic, fatal, error, warn, info, debug, trace", ErrInvalidLogLevel, level)
+}
+
+// ErrInvalidOSWithDetails is a helper to create a wrapped error with the invalid OS and valid options.
+func ErrInvalidOSWithDetails(os string) error {
+	return fmt.Errorf("%w: %s, must be one of: windows, linux, darwin, freebsd, openbsd, netbsd", ErrInvalidOS, os)
+}
+
+// ErrInvalidArchWithDetails is a helper to create a wrapped error with the invalid architecture and valid options.
+func ErrInvalidArchWithDetails(arch string) error {
+	return fmt.Errorf("%w: %s, must be one of: amd64, 386, arm, arm64", ErrInvalidArch, arch)
+}
+
+// ErrInvalidBoolValueWithDetails is a helper to create a wrapped error with the key and invalid value.
+func ErrInvalidBoolValueWithDetails(key, value string) error {
+	return fmt.Errorf("%w for %s: %s", ErrInvalidBoolValue, key, value)
+}
+
+// ErrUnknownConfigKeyWithName is a helper to create a wrapped error with the unknown key.
+func ErrUnknownConfigKeyWithName(key string) error {
+	return fmt.Errorf("%w: %s", ErrUnknownConfigKey, key)
+}
+
+// ErrFileOperationFailed is returned when a file operation fails.
+var ErrFileOperationFailed = fmt.Errorf("file operation failed")
+
+// ErrJSONOperationFailed is returned when a JSON operation fails.
+var ErrJSONOperationFailed = fmt.Errorf("JSON operation failed")
+
+// ErrFileHashMismatch is returned when a file's hash doesn't match the expected value.
+var ErrFileHashMismatch = fmt.Errorf("file hash mismatch")
+
+// ErrFileSizeMismatch is returned when a file's size doesn't match the expected value.
+var ErrFileSizeMismatch = fmt.Errorf("file size mismatch")
+
+// ErrFilePermissionMismatch is returned when a file's permissions don't match the expected value.
+var ErrFilePermissionMismatch = fmt.Errorf("file permission mismatch")
+
+// ErrUnexpectedFile is returned when an unexpected file is found.
+var ErrUnexpectedFile = fmt.Errorf("unexpected file")
+
+// ErrMissingFile is returned when an expected file is missing.
+var ErrMissingFile = fmt.Errorf("missing file")
+
+// Helper functions for package errors
+
+// WrapFileError wraps a file-related error with additional context.
+func WrapFileError(err error, operation, path string) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s %s: %w: %w", operation, path, ErrFileOperationFailed, err)
+}
+
+// WrapJSONError wraps a JSON-related error with additional context.
+func WrapJSONError(err error, operation string) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w: %w", operation, ErrJSONOperationFailed, err)
+}
+
+// NewFileHashMismatchError creates a new error for file hash mismatches.
+func NewFileHashMismatchError(filename, expected, actual string) error {
+	return fmt.Errorf("%w: %s (expected: %s, got: %s)",
+		ErrFileHashMismatch, filename, expected, actual)
+}
+
+// NewFileSizeMismatchError creates a new error for file size mismatches.
+func NewFileSizeMismatchError(filename string, expected, actual int64) error {
+	return fmt.Errorf("%w: %s (expected: %d, got: %d)",
+		ErrFileSizeMismatch, filename, expected, actual)
+}
+
+// NewFilePermissionMismatchError creates a new error for permission mismatches.
+func NewFilePermissionMismatchError(filename string, expected, actual os.FileMode) error {
+	return fmt.Errorf("%w: %s (expected: %o, got: %o)",
+		ErrFilePermissionMismatch, filename, expected, actual)
+}
+
+// NewUnexpectedFileError creates a new error for unexpected files.
+func NewUnexpectedFileError(filename string) error {
+	return fmt.Errorf("%w: %s", ErrUnexpectedFile, filename)
+}
+
+// NewMissingFileError creates a new error for missing files.
+func NewMissingFileError(filename string) error {
+	return fmt.Errorf("%w: %s", ErrMissingFile, filename)
 }

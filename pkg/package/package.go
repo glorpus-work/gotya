@@ -17,8 +17,18 @@ import (
 	"strings"
 	"time"
 
+	goerror "errors"
+
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/logger"
+)
+
+// File permission constants
+const (
+	// DefaultFileMode is the default file mode for regular files (0o644)
+	DefaultFileMode = 0o644
+	// DefaultDirMode is the default directory mode (0o755)
+	DefaultDirMode = 0o755
 )
 
 // Common validation patterns.
@@ -268,7 +278,12 @@ func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string)
 		return errors.Wrapf(errors.ErrNameRequired, "package name cannot be empty")
 	}
 	if !packageNameRegex.MatchString(pkgName) {
-		return errors.Wrapf(errors.ErrInvalidPackageName, "invalid package name: %s - must match %s", pkgName, packageNameRegex.String())
+		return errors.Wrapf(
+			errors.ErrInvalidPackageName,
+			"invalid package name: %s - must match %s",
+			pkgName,
+			packageNameRegex.String(),
+		)
 	}
 
 	// Validate package version
@@ -276,7 +291,12 @@ func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string)
 		return errors.Wrapf(errors.ErrVersionRequired, "package version cannot be empty")
 	}
 	if !versionRegex.MatchString(pkgVer) {
-		return errors.Wrapf(errors.ErrInvalidVersionString, "invalid package version: %s - must match %s", pkgVer, versionRegex.String())
+		return errors.Wrapf(
+			errors.ErrInvalidVersionString,
+			"invalid package version: %s - must match %s",
+			pkgVer,
+			versionRegex.String(),
+		)
 	}
 
 	// Validate OS and architecture
@@ -442,7 +462,7 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 	header := &tar.Header{
 		Name:    "meta/package.json",
 		Size:    int64(len(metaJSON)),
-		Mode:    0o644,
+		Mode:    DefaultFileMode,
 		ModTime: time.Now(),
 	}
 
@@ -461,13 +481,13 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 func readPackageMetadata(metadataPath string) (*Metadata, error) {
 	file, err := os.Open(metadataPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open metadata file: %w", err)
+		return nil, errors.WrapFileError(err, "open", metadataPath)
 	}
 	defer file.Close()
 
 	var meta Metadata
 	if err := json.NewDecoder(file).Decode(&meta); err != nil {
-		return nil, fmt.Errorf("failed to decode metadata: %w", err)
+		return nil, errors.WrapJSONError(err, "decode metadata")
 	}
 
 	return &meta, nil
@@ -480,14 +500,14 @@ func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
 	// Open the package file
 	file, err := os.Open(pkgPath)
 	if err != nil {
-		return fmt.Errorf("failed to open package file: %w", err)
+		return errors.WrapFileError(err, "open package file", pkgPath)
 	}
 	defer file.Close()
 
 	// Create a gzip reader
 	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
+		return errors.Wrap(err, "create gzip reader")
 	}
 	defer gzipReader.Close()
 
@@ -502,44 +522,46 @@ func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
 
 	// Add meta/package.json to expected files if it's not already there
 	// This is a special file that's always included in the package
-	metaJSONPath := "meta/package.json"
-	if _, exists := expectedFiles[metaJSONPath]; !exists {
+	// If we have expected metadata, create a temporary file with the expected metadata for comparison
+	if expectedMeta != nil {
 		// Create a temporary file to store the metadata
 		tmpFile, err := os.CreateTemp("", "package-meta-*.json")
 		if err != nil {
-			return fmt.Errorf("failed to create temp file for metadata: %w", err)
+			return errors.Wrap(err, "create temporary file for metadata")
 		}
-		defer os.Remove(tmpFile.Name())
+		tmpPath := tmpFile.Name()
+		defer os.Remove(tmpPath)
 
 		// Write the metadata to the temp file
 		metaJSON, err := json.MarshalIndent(expectedMeta, "", "  ")
 		if err != nil {
-			return fmt.Errorf("failed to marshal metadata: %w", err)
+			tmpFile.Close()
+			return errors.WrapJSONError(err, "marshal metadata to JSON")
 		}
 
 		if _, err := tmpFile.Write(metaJSON); err != nil {
 			tmpFile.Close()
-			return fmt.Errorf("failed to write metadata to temp file: %w", err)
+			return errors.WrapFileError(err, "write metadata to", tmpPath)
 		}
 		tmpFile.Close()
 
 		// Calculate the hash of the metadata file
-		hash, err := calculateFileHash(tmpFile.Name())
+		hash, err := calculateFileHash(tmpPath)
 		if err != nil {
-			return fmt.Errorf("failed to calculate metadata hash: %w", err)
+			return errors.Wrap(err, "calculate metadata hash")
 		}
 
 		// Get file info for size and mode
-		fileInfo, err := os.Stat(tmpFile.Name())
+		fileInfo, err := os.Stat(tmpPath)
 		if err != nil {
-			return fmt.Errorf("failed to get metadata file info: %w", err)
+			return errors.WrapFileError(err, "stat metadata file", tmpPath)
 		}
 
 		// Add to expected files
-		expectedFiles[metaJSONPath] = File{
-			Path:   metaJSONPath,
+		expectedFiles["meta/package.json"] = File{
+			Path:   "meta/package.json",
 			Size:   fileInfo.Size(),
-			Mode:   uint32(0o644),
+			Mode:   uint32(DefaultFileMode),
 			Digest: hash,
 		}
 	}
@@ -553,14 +575,14 @@ func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
 	// Skip permission checks on Windows as they behave differently
 	skipPermissionChecks := runtime.GOOS == "windows"
 
-	// Verify each file in the tarball
+	// Read the tar archive
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if goerror.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("error reading tar archive: %w", err)
+			return errors.Wrap(err, "read tar archive")
 		}
 
 		// Skip directories and the current directory entry
@@ -569,73 +591,53 @@ func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
 		}
 
 		// Normalize the path for comparison
-		normalizedPath := strings.TrimPrefix(header.Name, "./")
-		if normalizedPath == "" {
-			continue
-		}
-		logger.Debugf("Processing file in tarball: %s", normalizedPath)
+		normalizedPath := filepath.ToSlash(header.Name)
 
-		// Check if the file exists in the metadata (with or without files/ prefix)
-		var fileInfo File
-		exists := false
-
-		// First try exact match
-		if f, ok := expectedFiles[normalizedPath]; ok {
-			fileInfo = f
-			exists = true
-		} else {
-			// Try with/without files/ prefix
-			var altPath string
-			if strings.HasPrefix(normalizedPath, "files/") {
-				altPath = strings.TrimPrefix(normalizedPath, "files/")
-			} else {
-				altPath = "files/" + normalizedPath
-			}
-
-			if f, ok := expectedFiles[altPath]; ok {
-				fileInfo = f
-				exists = true
-			}
-		}
-
+		// Check if the file is expected
+		fileInfo, exists := expectedFiles[normalizedPath]
 		if !exists {
-			availableFiles := make([]string, 0, len(expectedFiles))
-			for k := range expectedFiles {
-				availableFiles = append(availableFiles, k)
+			// Try with a different path format (handles potential path separator differences)
+			altPath := filepath.ToSlash(filepath.Join(filepath.Dir(normalizedPath), filepath.Base(normalizedPath)))
+			if altFileInfo, altExists := expectedFiles[altPath]; altExists {
+				fileInfo = altFileInfo
+				exists = true
+				normalizedPath = altPath
+			} else {
+				// Log available expected files for debugging
+				var availableFiles []string
+				for k := range expectedFiles {
+					availableFiles = append(availableFiles, k)
+				}
+				logger.Debugf("Available expected files: %v", availableFiles)
+				return errors.NewUnexpectedFileError(normalizedPath)
 			}
-			logger.Debugf("Available expected files: %v", availableFiles)
-			return fmt.Errorf("unexpected file in package: %s", normalizedPath)
 		}
 
 		// Mark file as found
 		foundFiles[normalizedPath] = true
 
-		// Skip size and mode checks for meta/package.json as it's generated dynamically
+		// Skip verification for meta/package.json as it's generated dynamically
 		if normalizedPath != "meta/package.json" {
 			// Check for size and mode if not meta/package.json
 			if fileInfo.Size != 0 && fileInfo.Size != header.Size {
-				return fmt.Errorf("size mismatch for file %s: expected %d, got %d", header.Name, fileInfo.Size, header.Size)
+				return errors.NewFileSizeMismatchError(header.Name, fileInfo.Size, header.Size)
 			}
-		}
 
-		// Skip permission checks on Windows or if the mode is 0 (not specified)
-		if !skipPermissionChecks && fileInfo.Mode != 0 && header.Mode != int64(fileInfo.Mode) {
-			return fmt.Errorf("permission mismatch for file %s: expected %o, got %o", normalizedPath, fileInfo.Mode, header.Mode)
-		}
+			// Skip permission checks on Windows or if the mode is 0 (not specified)
+			if !skipPermissionChecks && fileInfo.Mode != 0 && header.Mode != int64(fileInfo.Mode) {
+				return errors.NewFilePermissionMismatchError(normalizedPath, os.FileMode(fileInfo.Mode), os.FileMode(header.Mode))
+			}
 
-		// Calculate the hash of the file content
-		hasher := sha256.New()
-		if _, err := io.Copy(hasher, tarReader); err != nil {
-			return fmt.Errorf("failed to calculate hash for %s: %w", header.Name, err)
-		}
+			// Calculate the hash of the file content
+			hasher := sha256.New()
+			if _, err := io.Copy(hasher, tarReader); err != nil {
+				return errors.WrapFileError(err, "calculate hash for", header.Name)
+			}
 
-		// Skip hash verification for meta/package.json as it's generated dynamically
-		if normalizedPath != "meta/package.json" {
 			// Verify the hash for all other files
 			actualHash := hex.EncodeToString(hasher.Sum(nil))
 			if actualHash != fileInfo.Digest {
-				return fmt.Errorf("hash mismatch for file %s: expected %s, got %s",
-					header.Name, fileInfo.Digest, actualHash)
+				return errors.NewFileHashMismatchError(header.Name, fileInfo.Digest, actualHash)
 			}
 		}
 	}
@@ -648,11 +650,15 @@ func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
 			if strings.HasPrefix(path, "files/") {
 				altPath = strings.TrimPrefix(path, "files/")
 			} else {
-				altPath = "files/" + path
+				altPath = filepath.Join("files", path)
 			}
 
 			if !foundFiles[altPath] {
-				return fmt.Errorf("missing expected file in package: %s (also checked as %s)", path, altPath)
+				// Try one more time with a different path format
+				altPath2 := filepath.ToSlash(altPath)
+				if !foundFiles[altPath2] {
+					return errors.NewMissingFileError(fmt.Sprintf("%s (also checked as %s and %s)", path, altPath, altPath2))
+				}
 			}
 		}
 	}
