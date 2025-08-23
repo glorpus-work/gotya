@@ -85,7 +85,7 @@ func setupTestEnvironment(t *testing.T) (tempDir string, cleanup func()) {
 	}
 }
 
-// extractPackage extracts a tarball to the specified directory
+// extractPackage extracts a tarball to the specified directory.
 func extractPackage(pkgPath, destDir string) error {
 	file, err := os.Open(pkgPath)
 	if err != nil {
@@ -587,7 +587,7 @@ func TestVerifyPackage(t *testing.T) {
 	})
 }
 
-// verifyCreatedPackage verifies that the package at pkgPath matches the expected metadata
+// verifyCreatedPackage verifies that the package at pkgPath matches the expected metadata.
 func verifyCreatedPackage(t *testing.T, pkgPath string, expectedMeta *Metadata) error {
 	// Create a map of expected files for quick lookup
 	expectedFiles := make(map[string]File)
@@ -777,7 +777,7 @@ func TestCreatePackage(t *testing.T) {
 
 		// Extract the package to get the dynamic meta/package.json
 		extractDir := filepath.Join(tempDir, "extracted-pkg")
-		if err := os.MkdirAll(extractDir, 0755); err != nil {
+		if err := os.MkdirAll(extractDir, 0o755); err != nil {
 			t.Fatalf("Failed to create extract directory: %v", err)
 		}
 
@@ -811,7 +811,7 @@ func TestCreatePackage(t *testing.T) {
 
 			// Create the target directory if it doesn't exist
 			targetPath := filepath.Join(extractDir, header.Name)
-			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 				t.Fatalf("Failed to create directory for %s: %v", targetPath, err)
 			}
 

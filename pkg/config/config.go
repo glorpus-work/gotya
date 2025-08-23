@@ -9,11 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
 	"github.com/cperrin88/gotya/pkg/platform"
+	"gopkg.in/yaml.v3"
 )
 
 // Default configuration values.
@@ -207,13 +206,13 @@ func (c *Config) SaveConfig(path string) error {
 	if err := os.Rename(tempPath, absPath); err != nil {
 		// Clean up temp file if rename fails
 		os.Remove(tempPath)
-		return fmt.Errorf("failed to replace config file: %w", err)
+		return errors.Wrap(errors.ErrConfigFileRename, err.Error())
 	}
 
 	// Ensure the final file has the correct permissions (0644)
 	if err := os.Chmod(absPath, fsutil.FileModeDefault); err != nil {
 		// This is not fatal, but we should log it
-		return fmt.Errorf("warning: failed to set permissions on config file: %w", err)
+		return errors.Wrap(errors.ErrConfigFileChmod, err.Error())
 	}
 
 	return nil
@@ -223,7 +222,7 @@ func (c *Config) SaveConfig(path string) error {
 func (c *Config) ToYAML() ([]byte, error) {
 	data, err := yaml.Marshal(c)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal config to YAML: %w", err)
+		return nil, errors.Wrap(errors.ErrConfigMarshal, err.Error())
 	}
 	return data, nil
 }
@@ -263,14 +262,17 @@ func (c *Config) applyDefaults() {
 
 // Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
-	// Validate repositories
+	if c == nil {
+		return errors.ErrConfigValidation
+	}
+
 	repoNames := make(map[string]bool)
 	for i, repo := range c.Repositories {
 		if repo.Name == "" {
 			return errors.ErrEmptyRepositoryName(i)
 		}
 		if repo.URL == "" {
-			return errors.ErrEmptyRepositoryURL(repo.Name)
+			return errors.ErrRepositoryURLEmpty(repo.Name)
 		}
 		if repoNames[repo.Name] {
 			return errors.ErrDuplicateRepository(repo.Name)
@@ -281,7 +283,8 @@ func (c *Config) Validate() error {
 	// Validate platform settings
 	if c.Settings.Platform.OS != "" {
 		switch c.Settings.Platform.OS {
-		case platform.OSWindows, platform.OSLinux, platform.OSDarwin, platform.OSFreeBSD, platform.OSOpenBSD, platform.OSNetBSD:
+		case platform.OSWindows, platform.OSLinux, platform.OSDarwin,
+			platform.OSFreeBSD, platform.OSOpenBSD, platform.OSNetBSD:
 			// Valid OS
 		default:
 			return errors.ErrInvalidOSValue(c.Settings.Platform.OS)
@@ -353,7 +356,7 @@ func (c *Config) AddRepository(name, url string, enabled bool) error {
 	// Check if repository already exists
 	for _, repo := range c.Repositories {
 		if repo.Name == name {
-			return fmt.Errorf("repository '%s' already exists", name)
+			return errors.ErrRepositoryExists(name)
 		}
 	}
 

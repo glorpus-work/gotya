@@ -48,6 +48,15 @@ var (
 		return fmt.Errorf("configuration file already exists at %s (use --force to overwrite)", configPath)
 	}
 
+	// ErrConfigFileRename is returned when renaming the temporary config file fails.
+	ErrConfigFileRename = fmt.Errorf("failed to rename temporary config file")
+
+	// ErrConfigFileChmod is returned when changing file permissions for the config file fails.
+	ErrConfigFileChmod = fmt.Errorf("failed to set config file permissions")
+
+	// ErrConfigMarshal is returned when marshaling the config to YAML fails.
+	ErrConfigMarshal = fmt.Errorf("failed to marshal config to YAML")
+
 	// Cache errors are related to cache management operations.
 	// These errors occur during cache cleanup or access operations.
 	ErrCacheCleanIndex = fmt.Errorf(
@@ -94,17 +103,35 @@ var (
 		return fmt.Errorf("repository %d: name cannot be empty", i)
 	}
 
-	// ErrEmptyRepositoryURL is returned when a repository configuration is missing a URL.
+	// ErrRepositoryURLEmpty is returned when a repository configuration is missing a URL.
 	// The parameter 'name' is the name of the repository.
-	ErrEmptyRepositoryURL = func(name string) error {
+	ErrRepositoryURLEmpty = func(name string) error {
 		return fmt.Errorf("repository '%s': URL cannot be empty", name)
+	}
+
+	// ErrEmptyRepositoryURL is an alias for ErrRepositoryURLEmpty for backward compatibility.
+	// Use ErrRepositoryURLEmpty instead.
+	ErrEmptyRepositoryURL = ErrRepositoryURLEmpty
+
+	// ErrConfigFileClose is returned when closing the config file fails.
+	ErrConfigFileClose = fmt.Errorf("failed to close config file")
+
+	// ErrConfigFileRead is returned when reading the config file fails.
+	ErrConfigFileRead = fmt.Errorf("failed to read config file")
+
+	// ErrUnsupportedOS is returned when an unsupported operating system is detected.
+	ErrUnsupportedOS = fmt.Errorf("unsupported operating system")
+
+	// ErrRepositoryExists is returned when attempting to add a repository that already exists.
+	// The error includes the name of the existing repository.
+	ErrRepositoryExists = func(name string) error {
+		return fmt.Errorf("repository '%s' already exists", name)
 	}
 
 	// ErrDuplicateRepository is returned when a repository with the same name already exists.
 	// The parameter 'name' is the duplicate repository name.
-	ErrDuplicateRepository = func(name string) error {
-		return fmt.Errorf("repository '%s': duplicate repository name", name)
-	}
+	// This is an alias for ErrRepositoryExists for backward compatibility.
+	ErrDuplicateRepository = ErrRepositoryExists
 
 	// Package errors are related to package management operations.
 
@@ -128,9 +155,7 @@ var (
 	// ErrNameRequired is returned when a package name is required but not provided.
 	ErrNameRequired = fmt.Errorf("name is required")
 
-	// ErrInvalidPackageName is returned when a package name contains invalid characters.
-	// The format string is used to include the package name and regex pattern.
-	// Example: fmt.Errorf("invalid package name: %s - must match %s", name, pattern)
+	// Example: fmt.Errorf("invalid package name: %s - must match %s", name, pattern).
 	ErrInvalidPackageName = fmt.Errorf("invalid package name: %%s - must match %%s")
 
 	// ErrVersionRequired is returned when a package version is required but not provided.
@@ -195,12 +220,6 @@ var (
 	// The value must be at least 1.
 	// This is an alias for ErrMaxConcurrentInvalid for backward compatibility.
 	ErrInvalidConcurrency = ErrMaxConcurrentInvalid
-
-	// ErrRepositoryExists is returned when attempting to add a repository that already exists.
-	// The error includes the name of the existing repository.
-	ErrRepositoryExists = func(name string) error {
-		return fmt.Errorf("repository '%s' already exists", name)
-	}
 
 	// Configuration errors are related to configuration value validation and processing.
 

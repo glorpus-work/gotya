@@ -3,12 +3,13 @@ package repository
 import (
 	"context"
 	"fmt"
-	goos "os"
+	"os"
 	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/platform"
 )
 
@@ -46,25 +47,25 @@ func NewManagerWithCacheDir(cacheDir string) *repositoryManagerImpl {
 }
 
 // NewManagerWithPlatform creates a new repository manager with platform settings.
-func NewManagerWithPlatform(cacheDir, os, arch string, preferNative bool) *repositoryManagerImpl {
+func NewManagerWithPlatform(cacheDir, osName, arch string, preferNative bool) *repositoryManagerImpl {
 	if cacheDir == "" {
-		userCacheDir, err := goos.UserCacheDir()
+		userCacheDir, err := os.UserCacheDir()
 		if err != nil {
-			cacheDir = "/tmp/gotya-cache"
+			cacheDir = filepath.Join(os.TempDir(), "gotya-cache")
 		} else {
 			cacheDir = filepath.Join(userCacheDir, "gotya")
 		}
 	}
 
 	// If OS/arch are empty, use the current platform
-	if os == "" || arch == "" {
-		os, arch = platform.Detect()
+	if osName == "" || arch == "" {
+		osName, arch = platform.Detect()
 	}
 
 	return &repositoryManagerImpl{
 		repositories: make(map[string]*repositoryEntry),
 		syncer:       NewSyncer(cacheDir, DefaultCacheTTL),
-		platformOS:   os,
+		platformOS:   osName,
 		platformArch: arch,
 		preferNative: preferNative,
 	}
@@ -76,10 +77,10 @@ func (rm *repositoryManagerImpl) AddRepository(name, url string) error {
 	defer rm.mu.Unlock()
 
 	if name == "" {
-		return fmt.Errorf("repository name cannot be empty")
+		return errors.Wrap(ErrRepositoryNameEmpty, "repository name cannot be empty")
 	}
 	if url == "" {
-		return fmt.Errorf("repository URL cannot be empty")
+		return errors.Wrap(ErrRepositoryURLMissing, "repository URL cannot be empty")
 	}
 
 	rm.repositories[name] = &repositoryEntry{
@@ -100,7 +101,7 @@ func (rm *repositoryManagerImpl) RemoveRepository(name string) error {
 	defer rm.mu.Unlock()
 
 	if _, exists := rm.repositories[name]; !exists {
-		return fmt.Errorf("repository '%s' not found", name)
+		return errors.Wrapf(ErrRepositoryNotFound, "repository '%s' not found", name)
 	}
 
 	delete(rm.repositories, name)
@@ -146,7 +147,7 @@ func (rm *repositoryManagerImpl) getRawRepositoryIndex(name string) (*IndexImpl,
 	rm.mu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("repository '%s' not found", name)
+		return nil, errors.Wrapf(ErrRepositoryNotFound, "repository '%s' not found", name)
 	}
 
 	// If we have a cached index, return it
@@ -157,7 +158,7 @@ func (rm *repositoryManagerImpl) getRawRepositoryIndex(name string) (*IndexImpl,
 	// Try to load from cache
 	index, err := rm.syncer.LoadCachedIndex(name)
 	if err != nil {
-		return nil, fmt.Errorf("no cached index available for repository '%s': %w", name, err)
+		return nil, errors.Wrapf(err, "no cached index available for repository '%s'", name)
 	}
 
 	// Cache the loaded index
@@ -239,17 +240,17 @@ func (rm *repositoryManagerImpl) SyncRepository(ctx context.Context, name string
 	rm.mu.RUnlock()
 
 	if !exists {
-		return fmt.Errorf("repository '%s' not found", name)
+		return errors.Wrapf(ErrRepositoryNotFound, "repository '%s' not found", name)
 	}
 
 	if !repo.info.Enabled {
-		return fmt.Errorf("repository '%s' is disabled", name)
+		return errors.Wrapf(ErrRepositoryDisabled, "repository '%s' is disabled", name)
 	}
 
 	// Sync the repository and get the updated index
 	index, err := rm.syncer.SyncRepository(ctx, repo.info)
 	if err != nil {
-		return fmt.Errorf("failed to sync repository: %w", err)
+		return errors.Wrapf(err, "failed to sync repository '%s'", name)
 	}
 
 	// Update the repository entry with the new index
@@ -268,7 +269,7 @@ func (rm *repositoryManagerImpl) SyncRepositories(ctx context.Context) error {
 	for _, repo := range repos {
 		if repo.Enabled {
 			if err := rm.SyncRepository(ctx, repo.Name); err != nil {
-				return fmt.Errorf("failed to sync repository '%s': %w", repo.Name, err)
+				return errors.Wrapf(err, "failed to sync repository '%s'", repo.Name)
 			}
 		}
 	}
@@ -279,12 +280,12 @@ func (rm *repositoryManagerImpl) SyncRepositories(ctx context.Context) error {
 // Returns the first matching package found and any error encountered.
 func (rm *repositoryManagerImpl) FindPackage(name string) (*Package, error) {
 	if name == "" {
-		return nil, fmt.Errorf("package name cannot be empty")
+		return nil, errors.Wrap(ErrPackageNameEmpty, "package name cannot be empty")
 	}
 
 	repos := rm.ListRepositories()
 	if len(repos) == 0 {
-		return nil, fmt.Errorf("no repositories configured")
+		return nil, errors.Wrap(ErrNoRepositories, "no repositories configured")
 	}
 
 	// Search through repositories in order of priority (highest first)
@@ -308,5 +309,5 @@ func (rm *repositoryManagerImpl) FindPackage(name string) (*Package, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("package '%s' not found in any repository", name)
+	return nil, errors.Wrapf(ErrPackageNotFound, "package '%s' not found in any repository", name)
 }

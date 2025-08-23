@@ -2,14 +2,13 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
 )
 
@@ -30,13 +29,13 @@ func NewSyncer(cacheDir string, httpTimeout time.Duration) *Syncer {
 // SyncRepository synchronizes a single repository.
 func (s *Syncer) SyncRepository(ctx context.Context, info Info) (*IndexImpl, error) {
 	if !info.Enabled {
-		return nil, fmt.Errorf("repository '%s' is disabled", info.Name)
+		return nil, errors.Wrapf(ErrRepositoryDisabled, "repository '%s' is disabled", info.Name)
 	}
 
 	// Create cache directory for this repository
 	repoCacheDir := filepath.Join(s.cacheDir, "repositories", info.Name)
 	if err := fsutil.EnsureDir(repoCacheDir); err != nil {
-		return nil, fmt.Errorf("failed to create repository cache directory: %w", err)
+		return nil, errors.Wrapf(err, "failed to create repository cache directory: %s", repoCacheDir)
 	}
 
 	// Get the last modified time of the cached index if it exists
@@ -49,28 +48,28 @@ func (s *Syncer) SyncRepository(ctx context.Context, info Info) (*IndexImpl, err
 	// Download the repository index
 	index, modifiedTime, err := s.httpClient.DownloadIndex(ctx, info.URL, lastModified)
 	if err != nil {
-		if errors.Is(err, ErrNotModified) {
+		if err == ErrNotModified {
 			// Index not modified, load from cache
 			return s.LoadCachedIndex(info.Name)
 		}
-		return nil, fmt.Errorf("failed to download repository index: %w", err)
+		return nil, errors.Wrap(err, "failed to download repository index")
 	}
 
 	// Validate the downloaded index
 	if err := s.validateIndex(index); err != nil {
-		return nil, fmt.Errorf("invalid repository index: %w", err)
+		return nil, errors.Wrap(err, "invalid repository index")
 	}
 
 	// Save the index to cache
 	if err := s.saveIndexToCache(index, indexPath); err != nil {
-		return nil, fmt.Errorf("failed to save index to cache: %w", err)
+		return nil, errors.Wrapf(err, "failed to save index to cache: %s", indexPath)
 	}
 
 	// Update the last modified time of the cached file to match the server
 	if !modifiedTime.IsZero() {
 		if err := os.Chtimes(indexPath, modifiedTime, modifiedTime); err != nil {
-			// Non-fatal error, just log it
-			log.Printf("warning: failed to update index modification time: %v", err)
+			// Non-fatal error, just print it
+			_ = fmt.Sprintf("warning: failed to update index modification time: %v", err)
 		}
 	}
 
@@ -88,7 +87,7 @@ func safePathJoin(baseDir string, elems ...string) (string, error) {
 	// Verify the final path is still within the base directory
 	relPath, err := filepath.Rel(baseDir, cleanPath)
 	if err != nil || strings.HasPrefix(relPath, "..") || strings.HasPrefix(relPath, ".") {
-		return "", errors.New("invalid path: path traversal detected")
+		return "", fmt.Errorf("invalid path: path traversal detected")
 	}
 
 	return cleanPath, nil
@@ -99,15 +98,15 @@ func (s *Syncer) LoadCachedIndex(repoName string) (*IndexImpl, error) {
 	// Use safe path construction
 	indexPath, err := safePathJoin(s.cacheDir, "repositories", repoName, "index.json")
 	if err != nil {
-		return nil, fmt.Errorf("invalid repository path: %w", err)
+		return nil, errors.Wrap(err, "invalid repository path")
 	}
 
 	file, err := os.Open(filepath.Clean(indexPath))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("no cached index for repository '%s'", repoName)
+			return nil, errors.Wrapf(ErrRepositoryIndexMissing, "no cached index for repository '%s'", repoName)
 		}
-		return nil, fmt.Errorf("failed to open cached index: %w", err)
+		return nil, errors.Wrapf(err, "failed to open cached index: %s", indexPath)
 	}
 	defer file.Close()
 
@@ -120,7 +119,7 @@ func (s *Syncer) LoadCachedIndex(repoName string) (*IndexImpl, error) {
 	// Parse the index
 	index, err := ParseIndexFromReader(file)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse cached index: %w", err)
+		return nil, errors.Wrap(err, "failed to parse cached index")
 	}
 
 	// Update the LastUpdate field from the file's modification time if not set
@@ -191,20 +190,20 @@ func (s *Syncer) validateIndex(index *IndexImpl) error {
 // saveIndexToCache saves the index to the cache directory.
 func (s *Syncer) saveIndexToCache(index *IndexImpl, indexPath string) (err error) {
 	// Ensure directory exists with secure permissions
-	if err := fsutil.EnsureDir(filepath.Dir(indexPath)); err != nil {
-		return fmt.Errorf("failed to create cache directory: %w", err)
+	if err := os.MkdirAll(filepath.Dir(indexPath), 0755); err != nil {
+		return errors.Wrapf(err, "failed to create cache directory: %s", filepath.Dir(indexPath))
 	}
 
 	// Create temporary file with safe path
 	tempPath, err := safePathJoin(filepath.Dir(indexPath), filepath.Base(indexPath)+".tmp")
 	if err != nil {
-		return fmt.Errorf("invalid temp file path: %w", err)
+		return errors.Wrapf(err, "invalid temp file path: %s", tempPath)
 	}
 
 	// Use filepath.Clean to ensure path is clean before opening
 	file, err := os.Create(filepath.Clean(tempPath))
 	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
+		return errors.Wrapf(err, "failed to create cache file: %s", tempPath)
 	}
 
 	// Ensure cleanup on error
@@ -218,16 +217,16 @@ func (s *Syncer) saveIndexToCache(index *IndexImpl, indexPath string) (err error
 	// Write index data
 	data, err := index.ToJSON()
 	if err != nil {
-		return fmt.Errorf("failed to serialize index: %w", err)
+		return errors.Wrap(err, "failed to marshal index to JSON")
 	}
 
-	if _, err = file.Write(data); err != nil {
-		return fmt.Errorf("failed to write index: %w", err)
+	if _, err := file.Write(data); err != nil {
+		return errors.Wrapf(err, "failed to write index to file: %s", tempPath)
 	}
 
 	// Ensure the file is synced to disk
 	if err = file.Sync(); err != nil {
-		return fmt.Errorf("failed to sync index to disk: %w", err)
+		return fmt.Errorf("failed to sync index to disk: %s: %w", tempPath, err)
 	}
 
 	// Close the file before renaming

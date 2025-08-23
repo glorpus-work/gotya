@@ -1,6 +1,10 @@
 package hook
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/cperrin88/gotya/pkg/errors"
+)
 
 // Common hook errors.
 var (
@@ -19,5 +23,5 @@ var (
 
 // ErrUnsupportedHookEvent is returned when an unsupported hook event is used.
 func ErrUnsupportedHookEvent(event string) error {
-	return fmt.Errorf("unsupported hook event: %s", event)
+	return errors.Wrapf(ErrHookExecution, "unsupported hook event: %s", event)
 }

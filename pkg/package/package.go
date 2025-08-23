@@ -539,7 +539,7 @@ func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
 		expectedFiles[metaJSONPath] = File{
 			Path:   metaJSONPath,
 			Size:   fileInfo.Size(),
-			Mode:   uint32(0644),
+			Mode:   uint32(0o644),
 			Digest: hash,
 		}
 	}

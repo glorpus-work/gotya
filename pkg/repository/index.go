@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"time"
+
+	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 // IndexImpl implements the Index interface.
@@ -47,7 +49,7 @@ func (idx *IndexImpl) GetPackages() []Package {
 func ParseIndex(data []byte) (*IndexImpl, error) {
 	var index IndexImpl
 	if err := json.Unmarshal(data, &index); err != nil {
-		return nil, fmt.Errorf("failed to parse index: %w", err)
+		return nil, errors.Wrap(err, "failed to parse index")
 	}
 
 	// Validate format version
@@ -62,7 +64,7 @@ func ParseIndex(data []byte) (*IndexImpl, error) {
 func ParseIndexFromReader(reader io.Reader) (*IndexImpl, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read index data: %w", err)
+		return nil, errors.Wrap(err, "failed to read index data")
 	}
 
 	return ParseIndex(data)
@@ -72,7 +74,7 @@ func ParseIndexFromReader(reader io.Reader) (*IndexImpl, error) {
 func (idx *IndexImpl) ToJSON() ([]byte, error) {
 	data, err := json.MarshalIndent(idx, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal index to JSON: %w", err)
+		return nil, errors.Wrap(err, "failed to marshal index to JSON")
 	}
 	return data, nil
 }

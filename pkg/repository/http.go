@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 // HTTPClient handles HTTP operations for repositories.
@@ -34,12 +36,12 @@ var ErrNotModified = fmt.Errorf("index not modified")
 func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, lastModified time.Time) (*IndexImpl, time.Time, error) {
 	indexURL, err := hc.buildIndexURL(repoURL)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("failed to build index URL: %w", err)
+		return nil, time.Time{}, errors.Wrapf(err, "failed to build index URL")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, indexURL, http.NoBody)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("failed to create request: %w", err)
+		return nil, time.Time{}, errors.Wrapf(err, "failed to create request")
 	}
 
 	req.Header.Set("User-Agent", hc.userAgent)
@@ -52,7 +54,7 @@ func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, lastMod
 
 	resp, err := hc.client.Do(req)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("failed to download index: %w", err)
+		return nil, time.Time{}, errors.Wrap(err, "failed to download index")
 	}
 	defer resp.Body.Close()
 
@@ -62,12 +64,12 @@ func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, lastMod
 	case http.StatusOK:
 		// Continue processing
 	default:
-		return nil, time.Time{}, fmt.Errorf("failed to download index: HTTP %d", resp.StatusCode)
+		return nil, time.Time{}, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("failed to read response body: %w", err)
+		return nil, time.Time{}, errors.Wrap(err, "failed to read response body")
 	}
 
 	// Get the Last-Modified header if available
@@ -93,24 +95,24 @@ func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, lastMod
 func (hc *HTTPClient) DownloadPackage(ctx context.Context, packageURL string, writer io.Writer) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, packageURL, http.NoBody)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return errors.Wrap(err, "failed to create request")
 	}
 
 	req.Header.Set("User-Agent", hc.userAgent)
 
 	resp, err := hc.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to download package: %w", err)
+		return errors.Wrap(err, "failed to download package")
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to download package: HTTP %d", resp.StatusCode)
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	_, err = io.Copy(writer, resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to write package data: %w", err)
+		return errors.Wrap(err, "failed to write package data")
 	}
 
 	return nil
@@ -120,12 +122,12 @@ func (hc *HTTPClient) DownloadPackage(ctx context.Context, packageURL string, wr
 func (hc *HTTPClient) CheckRepositoryHealth(ctx context.Context, repoURL string) error {
 	indexURL, err := hc.buildIndexURL(repoURL)
 	if err != nil {
-		return fmt.Errorf("failed to build index URL: %w", err)
+		return errors.Wrap(err, "failed to build index URL")
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, indexURL, http.NoBody)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return errors.Wrap(err, "failed to create request")
 	}
 
 	req.Header.Set("User-Agent", hc.userAgent)
@@ -147,13 +149,13 @@ func (hc *HTTPClient) CheckRepositoryHealth(ctx context.Context, repoURL string)
 func (hc *HTTPClient) buildIndexURL(repoURL string) (string, error) {
 	parsedURL, err := url.Parse(repoURL)
 	if err != nil {
-		return "", fmt.Errorf("invalid repository URL: %w", err)
+		return "", errors.Wrap(ErrRepositoryURLInvalid, "invalid repository URL")
 	}
 
 	// Use path.Join for URL paths (always uses forward slashes)
 	parsedURL.Path, err = url.JoinPath(parsedURL.Path, "index.json")
 	if err != nil {
-		return "", fmt.Errorf("failed to build index URL: %w", err)
+		return "", errors.Wrap(err, "failed to build index URL")
 	}
 
 	return parsedURL.String(), nil

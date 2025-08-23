@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/logger"
 	"github.com/sirupsen/logrus"
 )
@@ -42,7 +43,7 @@ func (op *CacheOperation) Clean(all, indexes, packages bool) (string, error) {
 
 	result, err := op.manager.Clean(options)
 	if err != nil {
-		return "", fmt.Errorf("failed to clean cache: %w", err)
+		return "", errors.Wrap(err, "failed to clean cache")
 	}
 
 	// Generate a human-readable result message
@@ -66,7 +67,7 @@ func (op *CacheOperation) Clean(all, indexes, packages bool) (string, error) {
 func (op *CacheOperation) GetInfo() (string, error) {
 	info, err := op.manager.GetInfo()
 	if err != nil {
-		return "", fmt.Errorf("failed to get cache info: %w", err)
+		return "", errors.Wrap(err, "failed to get cache info")
 	}
 
 	lastCleaned := "never"
@@ -98,7 +99,7 @@ func (op *CacheOperation) GetDirectory() string {
 // SetDirectory sets a new cache directory.
 func (op *CacheOperation) SetDirectory(dir string) error {
 	if dir == "" {
-		return fmt.Errorf("cache directory cannot be empty")
+		return errors.Wrap(errors.ErrInvalidConfigPath, "cache directory cannot be empty")
 	}
 
 	logger.Debug("Setting cache directory", logrus.Fields{"directory": dir})

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
 	"github.com/cperrin88/gotya/pkg/hook"
 	"github.com/cperrin88/gotya/pkg/logger"
@@ -34,13 +35,13 @@ func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) err
 	// Find the package in repositories
 	pkg, err := i.repoManager.FindPackage(packageName)
 	if err != nil {
-		return fmt.Errorf("failed to find package %s: %w", packageName, err)
+		return errors.Wrapf(err, "failed to find package %s", packageName)
 	}
 
 	// Check if already installed
 	installedDB, err := pkgpkg.LoadInstalledDatabase(i.config.GetDatabasePath())
 	if err != nil {
-		return fmt.Errorf("failed to load installed packages database: %w", err)
+		return errors.Wrap(err, "failed to load installed packages database")
 	}
 
 	if installedPkg := installedDB.FindPackage(packageName); installedPkg != nil && !force {
@@ -55,7 +56,7 @@ func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) err
 			if installedDB.FindPackage(dep) == nil {
 				logger.Debugf("Installing dependency: %s", dep)
 				if err := i.InstallPackage(dep, false, false); err != nil {
-					return fmt.Errorf("failed to install dependency %s: %w", dep, err)
+					return fmt.Errorf("failed to install dependency: %w", err)
 				}
 			}
 		}
@@ -63,12 +64,12 @@ func (i *Installer) InstallPackage(packageName string, force, skipDeps bool) err
 
 	// Run pre-install hooks
 	if err := i.runHooks("pre-install", packageName, pkg); err != nil {
-		return fmt.Errorf("pre-install hook failed: %w", err)
+		return errors.Wrap(err, "pre-install hook failed")
 	}
 
 	// Install package files
 	if err := i.installPackageFiles(pkg); err != nil {
-		return fmt.Errorf("failed to install package files: %w", err)
+		return errors.Wrap(err, "failed to install package files")
 	}
 
 	// Update installed packages database
@@ -96,13 +97,13 @@ func (i *Installer) UpdatePackage(packageName string) (bool, error) {
 	// Find the latest version of the package
 	pkg, err := i.repoManager.FindPackage(packageName)
 	if err != nil {
-		return false, fmt.Errorf("failed to find package %s: %w", packageName, err)
+		return false, errors.Wrap(err, "failed to find package")
 	}
 
 	// Check if the package is installed
 	installedDB, err := pkgpkg.LoadInstalledDatabase(i.config.GetDatabasePath())
 	if err != nil {
-		return false, fmt.Errorf("failed to load installed packages database: %w", err)
+		return false, errors.Wrap(err, "failed to load installed packages database")
 	}
 
 	// Check if package is installed and get its version
@@ -114,19 +115,19 @@ func (i *Installer) UpdatePackage(packageName string) (bool, error) {
 
 	// Compare versions
 	if pkg.Version == installedVersion {
-		return false, nil // Already up to date
+		return false, fmt.Errorf("package %s is already up to date", packageName)
 	}
 
 	logger.Debugf("Updating package %s from version %s to %s", packageName, installedVersion, pkg.Version)
 
 	// Run pre-update hooks (using pre-install for now)
 	if err := i.runHooks("pre-install", packageName, pkg); err != nil {
-		return false, fmt.Errorf("pre-update hook failed: %w", err)
+		return false, errors.Wrap(err, "pre-update hook failed")
 	}
 
 	// Install the new version
 	if err := i.installPackageFiles(pkg); err != nil {
-		return false, fmt.Errorf("failed to install package files: %w", err)
+		return false, errors.Wrap(err, "failed to install package files")
 	}
 
 	// Update the installed packages database
@@ -155,7 +156,7 @@ func (i *Installer) installPackageFiles(pkg *repository.Package) error {
 	targetDir := filepath.Join(i.config.Settings.InstallDir, pkg.Name)
 	logger.Debugf("Creating target directory: %s", targetDir)
 	if err := fsutil.EnsureDir(targetDir); err != nil {
-		return fmt.Errorf("failed to create target directory: %w", err)
+		return errors.Wrapf(err, "failed to create target directory: %s", targetDir)
 	}
 
 	// Download and extract package
@@ -195,12 +196,12 @@ func (i *Installer) runHooks(event, packageName string, pkg *repository.Package)
 	case "post-install", "post-update":
 		hookType = hook.PostInstall
 	default:
-		return fmt.Errorf("unsupported hook event: %s", event)
+		return hook.ErrUnsupportedHookEvent(event)
 	}
 
 	// Execute the hook
 	if err := i.hookManager.Execute(hookType, hookCtx); err != nil {
-		return fmt.Errorf("failed to execute %s hook: %w", event, err)
+		return errors.Wrapf(err, "failed to execute %s hook", event)
 	}
 	return nil
 }

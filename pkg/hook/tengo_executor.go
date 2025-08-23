@@ -39,14 +39,24 @@ func (e *TengoExecutor) Execute(hookType HookType, ctx HookContext) error {
 	scriptInstance.SetImports(modules)
 
 	// Add context variables
-	_ = scriptInstance.Add("packageName", ctx.PackageName)
-	_ = scriptInstance.Add("packageVersion", ctx.PackageVersion)
-	_ = scriptInstance.Add("packagePath", ctx.PackagePath)
-	_ = scriptInstance.Add("installPath", ctx.InstallPath)
+	if err := scriptInstance.Add("packageName", ctx.PackageName); err != nil {
+		return fmt.Errorf("failed to add packageName to script: %w", err)
+	}
+	if err := scriptInstance.Add("packageVersion", ctx.PackageVersion); err != nil {
+		return fmt.Errorf("failed to add packageVersion to script: %w", err)
+	}
+	if err := scriptInstance.Add("packagePath", ctx.PackagePath); err != nil {
+		return fmt.Errorf("failed to add packagePath to script: %w", err)
+	}
+	if err := scriptInstance.Add("installPath", ctx.InstallPath); err != nil {
+		return fmt.Errorf("failed to add installPath to script: %w", err)
+	}
 
 	// Add custom variables
 	for k, v := range ctx.Vars {
-		_ = scriptInstance.Add(k, v)
+		if err := scriptInstance.Add(k, v); err != nil {
+			return fmt.Errorf("failed to add variable '%s' to script: %w", k, err)
+		}
 	}
 
 	// Run the script
