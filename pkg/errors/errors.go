@@ -308,6 +308,9 @@ var ErrFileSizeMismatch = fmt.Errorf("file size mismatch")
 // ErrFilePermissionMismatch is returned when a file's permissions don't match the expected value.
 var ErrFilePermissionMismatch = fmt.Errorf("file permission mismatch")
 
+// ErrFileModeMismatch is returned when a file's mode doesn't match the expected value.
+var ErrFileModeMismatch = fmt.Errorf("file mode mismatch")
+
 // ErrUnexpectedFile is returned when an unexpected file is found.
 var ErrUnexpectedFile = fmt.Errorf("unexpected file")
 
@@ -348,6 +351,12 @@ func NewFileSizeMismatchError(filename string, expected, actual int64) error {
 func NewFilePermissionMismatchError(filename string, expected, actual os.FileMode) error {
 	return fmt.Errorf("%w: %s (expected: %o, got: %o)",
 		ErrFilePermissionMismatch, filename, expected, actual)
+}
+
+// NewFileModeMismatchError creates a new error for file mode mismatches.
+func NewFileModeMismatchError(filename string, expected, actual uint32) error {
+	return fmt.Errorf("%w: %s (expected: %o, got: %o)",
+		ErrFileModeMismatch, filename, expected, actual)
 }
 
 // NewUnexpectedFileError creates a new error for unexpected files.

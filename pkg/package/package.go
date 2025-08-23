@@ -6,13 +6,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	goerror "errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -461,171 +459,251 @@ func readPackageMetadata(metadataPath string) (*Metadata, error) {
 	return &meta, nil
 }
 
+// openPackageFile opens the package file and returns a reader.
+func openPackageFile(pkgPath string) (*os.File, error) {
+	file, err := os.Open(pkgPath)
+	if err != nil {
+		return nil, errors.WrapFileError(err, "open package file", pkgPath)
+	}
+	return file, nil
+}
+
+// createGzipReader creates a gzip reader from a file.
+func createGzipReader(file *os.File) (*gzip.Reader, error) {
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		return nil, errors.Wrap(err, "create gzip reader")
+	}
+	return gzipReader, nil
+}
+
 // verifyPackage verifies the integrity of a package file.
 func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
+	if expectedMeta == nil {
+		return errors.Wrap(errors.ErrValidationFailed, "metadata cannot be nil")
+	}
+
 	logger.Debugf("Starting verification of package: %s", pkgPath)
 
 	// Open the package file
-	file, err := os.Open(pkgPath)
+	file, err := openPackageFile(pkgPath)
 	if err != nil {
-		return errors.WrapFileError(err, "open package file", pkgPath)
+		return err
 	}
 	defer file.Close()
 
 	// Create a gzip reader
-	gzipReader, err := gzip.NewReader(file)
+	gzipReader, err := createGzipReader(file)
 	if err != nil {
-		return errors.Wrap(err, "create gzip reader")
+		return err
 	}
 	defer gzipReader.Close()
 
-	// Create a tar reader
-	tarReader := tar.NewReader(gzipReader)
-
-	// Create a map of expected files for quick lookup
-	expectedFiles := make(map[string]File)
-	for _, f := range expectedMeta.Files {
-		expectedFiles[f.Path] = f
-	}
-
-	// Add meta/package.json to expected files if it's not already there
-	// This is a special file that's always included in the package
-	// If we have expected metadata, create a temporary file with the expected metadata for comparison
-	if expectedMeta != nil {
-		// Create a temporary file to store the metadata
-		tmpFile, err := os.CreateTemp("", "package-meta-*.json")
-		if err != nil {
-			return errors.Wrap(err, "create temporary file for metadata")
-		}
-		tmpPath := tmpFile.Name()
-		defer os.Remove(tmpPath)
-
-		// Write the metadata to the temp file
-		metaJSON, err := json.MarshalIndent(expectedMeta, "", "  ")
-		if err != nil {
-			tmpFile.Close()
-			return errors.WrapJSONError(err, "marshal metadata to JSON")
-		}
-
-		if _, err := tmpFile.Write(metaJSON); err != nil {
-			tmpFile.Close()
-			return errors.WrapFileError(err, "write metadata to", tmpPath)
-		}
-		tmpFile.Close()
-
-		// Calculate the hash of the metadata file
-		hash, err := calculateFileHash(tmpPath)
-		if err != nil {
-			return errors.Wrap(err, "calculate metadata hash")
-		}
-
-		// Get file info for size and mode
-		fileInfo, err := os.Stat(tmpPath)
-		if err != nil {
-			return errors.WrapFileError(err, "stat metadata file", tmpPath)
-		}
-
-		// Add to expected files
-		expectedFiles["meta/package.json"] = File{
-			Path:   "meta/package.json",
-			Size:   fileInfo.Size(),
-			Mode:   uint32(DefaultFileMode),
-			Digest: hash,
-		}
-	}
-
-	// Log expected files at debug level
-	logger.Debugf("Expected files in verification (including meta/package.json): %d files", len(expectedFiles))
-
-	// Track which files we've found
-	foundFiles := make(map[string]bool)
-
-	// Skip permission checks on Windows as they behave differently
-	skipPermissionChecks := runtime.GOOS == "windows"
-
-	// Read the tar archive
-	for {
-		header, err := tarReader.Next()
-		if goerror.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return errors.Wrap(err, "read tar archive")
-		}
-
-		// Skip directories and the current directory entry
-		if header.Typeflag == tar.TypeDir || header.Name == "." {
-			continue
-		}
-
-		// Normalize the path for comparison
-		normalizedPath := filepath.ToSlash(header.Name)
-
-		// Check if the file is expected
-		fileInfo, exists := expectedFiles[normalizedPath]
-		if !exists {
-			// Try with a different path format (handles potential path separator differences)
-			altPath := filepath.ToSlash(filepath.Join(filepath.Dir(normalizedPath), filepath.Base(normalizedPath)))
-			if altFileInfo, altExists := expectedFiles[altPath]; altExists {
-				fileInfo = altFileInfo
-				exists = true
-			} else {
-				// Log available expected files for debugging
-				var availableFiles []string
-				for k := range expectedFiles {
-					availableFiles = append(availableFiles, k)
-				}
-				logger.Debugf("Available expected files: %v", availableFiles)
-				return errors.NewUnexpectedFileError(normalizedPath)
-			}
-		}
-
-		// Mark file as found
-		foundFiles[normalizedPath] = true
-
-		// Skip verification for meta/package.json as it's generated dynamically
-		if normalizedPath != "meta/package.json" {
-			// Check for size and mode if not meta/package.json
-			if fileInfo.Size != 0 && fileInfo.Size != header.Size {
-				return errors.NewFileSizeMismatchError(header.Name, fileInfo.Size, header.Size)
-			}
-
-			// Skip permission checks on Windows or if the mode is 0 (not specified)
-			if !skipPermissionChecks && fileInfo.Mode != 0 && header.Mode != int64(fileInfo.Mode) {
-				return errors.NewFilePermissionMismatchError(normalizedPath, os.FileMode(fileInfo.Mode), os.FileMode(header.Mode))
-			}
-
-			// Calculate the hash of the file content
-			hasher := sha256.New()
-			if _, err := io.Copy(hasher, tarReader); err != nil {
-				return errors.WrapFileError(err, "calculate hash for", header.Name)
-			}
-
-			// Verify the hash for all other files
-			actualHash := hex.EncodeToString(hasher.Sum(nil))
-			if actualHash != fileInfo.Digest {
-				return errors.NewFileHashMismatchError(header.Name, fileInfo.Digest, actualHash)
-			}
-		}
+	// Process the package contents
+	foundFiles, err := processPackageContents(gzipReader, expectedMeta)
+	if err != nil {
+		return errors.Wrap(err, "failed to process package contents")
 	}
 
 	// Verify all expected files were found
-	for path := range expectedFiles {
-		if !foundFiles[path] {
+	if err := verifyExpectedFiles(foundFiles, expectedMeta.Files); err != nil {
+		return errors.Wrap(err, "package verification failed")
+	}
+
+	return nil
+}
+
+// processPackageContents processes the contents of a package file and verifies each file.
+func processPackageContents(reader io.Reader, expectedMeta *Metadata) (map[string]bool, error) {
+	tarReader := tar.NewReader(reader)
+	foundFiles := make(map[string]bool)
+	expectedFiles, err := createExpectedFilesMap(expectedMeta)
+	if err != nil {
+		return nil, err
+	}
+
+	// Process each file in the tarball
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, errors.Wrap(err, "read tar header")
+		}
+
+		// Skip non-regular files
+		if !isRegularFile(header.Typeflag) {
+			continue
+		}
+
+		// Process and verify the file
+		if err := processFile(header, tarReader, expectedFiles, foundFiles); err != nil {
+			return nil, err
+		}
+	}
+
+	return foundFiles, nil
+}
+
+// isRegularFile checks if the tar header represents a regular file.
+func isRegularFile(flag byte) bool {
+	return flag == tar.TypeReg || flag == tar.TypeRegA
+}
+
+// processFile processes and verifies a single file from the package.
+func processFile(header *tar.Header, reader io.Reader, expectedFiles map[string]File, foundFiles map[string]bool) error {
+	// Normalize the path for comparison
+	normalizedPath := filepath.ToSlash(header.Name)
+
+	// Find the file in expected files
+	fileInfo, exists := findExpectedFile(normalizedPath, expectedFiles)
+	if !exists {
+		// Log available expected files for debugging
+		logAvailableFiles(expectedFiles)
+		return errors.NewUnexpectedFileError(normalizedPath)
+	}
+
+	// Mark file as found
+	foundFiles[normalizedPath] = true
+
+	// Verify file metadata
+	if err := verifyFileMetadata(header, fileInfo); err != nil {
+		return err
+	}
+
+	// Verify file content hash if we have a digest
+	if fileInfo.Digest != "" {
+		hasher := sha256.New()
+		if _, err := io.Copy(hasher, reader); err != nil {
+			return errors.WrapFileError(err, "calculate hash for", header.Name)
+		}
+
+		// Verify the hash for all other files
+		actualHash := hex.EncodeToString(hasher.Sum(nil))
+		if actualHash != fileInfo.Digest {
+			return errors.NewFileHashMismatchError(header.Name, fileInfo.Digest, actualHash)
+		}
+	}
+
+	return nil
+}
+
+// findExpectedFile finds a file in the expected files map, trying alternative paths if necessary.
+func findExpectedFile(path string, expectedFiles map[string]File) (File, bool) {
+	// Try exact match first
+	if fileInfo, exists := expectedFiles[path]; exists {
+		return fileInfo, true
+	}
+
+	// Try with a different path format (handles potential path separator differences)
+	altPath := filepath.ToSlash(filepath.Join(filepath.Dir(path), filepath.Base(path)))
+	if altFileInfo, altExists := expectedFiles[altPath]; altExists {
+		return altFileInfo, true
+	}
+
+	return File{}, false
+}
+
+// logAvailableFiles logs the list of available expected files for debugging.
+func logAvailableFiles(expectedFiles map[string]File) {
+	var availableFiles []string
+	for k := range expectedFiles {
+		availableFiles = append(availableFiles, k)
+	}
+	logger.Debugf("Available expected files: %v", availableFiles)
+}
+
+// verifyFileMetadata verifies the file metadata (size and mode).
+func verifyFileMetadata(header *tar.Header, fileInfo File) error {
+	// Verify file size
+	if header.Size != fileInfo.Size {
+		return errors.NewFileSizeMismatchError(header.Name, fileInfo.Size, header.Size)
+	}
+
+	// Verify file mode - convert both to the same type for comparison
+	if uint32(header.Mode) != fileInfo.Mode {
+		return errors.NewFileModeMismatchError(header.Name, uint32(header.Mode), fileInfo.Mode)
+	}
+
+	return nil
+}
+
+// createExpectedFilesMap creates a map of expected files from the metadata.
+func createExpectedFilesMap(meta *Metadata) (map[string]File, error) {
+	expectedFiles := make(map[string]File)
+
+	// Add regular files
+	for _, f := range meta.Files {
+		expectedFiles[f.Path] = f
+	}
+
+	// Add metadata file if needed
+	if meta != nil {
+		if err := addMetadataFile(expectedFiles, meta); err != nil {
+			return nil, err
+		}
+	}
+
+	return expectedFiles, nil
+}
+
+// addMetadataFile adds the package metadata file to the expected files map.
+func addMetadataFile(expectedFiles map[string]File, meta *Metadata) error {
+	// Create a temporary file to store the metadata
+	tmpFile, err := os.CreateTemp("", "package-meta-*.json")
+	if err != nil {
+		return errors.Wrap(err, "create temporary file for metadata")
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	// Write the expected metadata to the temporary file
+	encoder := json.NewEncoder(tmpFile)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(meta); err != nil {
+		tmpFile.Close()
+		return errors.Wrap(err, "encode expected metadata")
+	}
+	if err := tmpFile.Close(); err != nil {
+		return errors.Wrap(err, "close temporary metadata file")
+	}
+
+	// Add the metadata file to expected files
+	hash, err := calculateFileHash(tmpPath)
+	if err != nil {
+		return errors.Wrap(err, "calculate hash for expected metadata")
+	}
+
+	fileInfo, err := os.Stat(tmpPath)
+	if err != nil {
+		return errors.Wrap(err, "get file info for expected metadata")
+	}
+
+	expectedFiles["meta/package.json"] = File{
+		Path:   "meta/package.json",
+		Size:   fileInfo.Size(),
+		Mode:   uint32(fileInfo.Mode()),
+		Digest: hash,
+	}
+
+	return nil
+}
+
+// verifyExpectedFiles verifies that all expected files were found in the package.
+func verifyExpectedFiles(foundFiles map[string]bool, expectedFiles []File) error {
+	for _, file := range expectedFiles {
+		if !foundFiles[file.Path] {
 			// Check if the file exists with a different path prefix
 			var altPath string
-			if strings.HasPrefix(path, "files/") {
-				altPath = strings.TrimPrefix(path, "files/")
+			if strings.HasPrefix(file.Path, "files/") {
+				altPath = strings.TrimPrefix(file.Path, "files/")
 			} else {
-				altPath = filepath.Join("files", path)
+				altPath = filepath.Join("files", file.Path)
 			}
 
 			if !foundFiles[altPath] {
-				// Try one more time with a different path format
-				altPath2 := filepath.ToSlash(altPath)
-				if !foundFiles[altPath2] {
-					return errors.NewMissingFileError(fmt.Sprintf("%s (also checked as %s and %s)", path, altPath, altPath2))
-				}
+				return errors.NewMissingFileError(file.Path)
 			}
 		}
 	}
