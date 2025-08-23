@@ -589,7 +589,8 @@ func TestVerifyPackage(t *testing.T) {
 	})
 }
 
-// verifyPackageTest verifies that a package contains all expected files with correct content
+// verifyPackageTest verifies that a package contains all expected files with correct content.
+// nolint:gocyclo,funlen // This function needs to handle multiple validation cases.
 func verifyPackageTest(t *testing.T, pkgPath string, expectedFiles map[string]File) error {
 	// Open the package file
 	file, err := os.Open(pkgPath)
@@ -618,20 +619,20 @@ func verifyPackageTest(t *testing.T, pkgPath string, expectedFiles map[string]Fi
 			return errors.Wrap(err, "read tar archive")
 		}
 
-		// Skip directories
-		if header.Typeflag == tar.TypeDir {
+		// Skip directories and other non-regular files
+		if header.Typeflag != tar.TypeReg {
 			continue
 		}
 
 		// Check if the file is expected
-		fileInfo, exists := expectedFiles[header.Name]
-		if !exists {
+		fileInfo, existsInExpected := expectedFiles[header.Name]
+		if !existsInExpected {
 			// Try with a different path format (handles potential path separator differences)
 			altPath := filepath.ToSlash(header.Name)
 			if altFileInfo, altExists := expectedFiles[altPath]; altExists {
 				fileInfo = altFileInfo
 				header.Name = altPath
-				exists = true
+				_ = altExists // explicitly ignore as we don't need it
 			} else {
 				// Log available expected files for debugging
 				var availableFiles []string
@@ -763,7 +764,7 @@ func TestCreatePackage(t *testing.T) {
 		tarReader := tar.NewReader(gzipReader)
 		for {
 			header, err := tarReader.Next()
-			if err == io.EOF {
+			if goerror.Is(err, io.EOF) {
 				break
 			}
 			if err != nil {
