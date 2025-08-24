@@ -238,13 +238,22 @@ func processFiles(sourceDir string, meta *Metadata) error {
 }
 
 // CreatePackage creates a new package from the source directory.
-func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string) error {
+// It automatically generates the package metadata based on the source directory contents.
+// The package will be created in the output directory with the specified name, version, OS, and architecture.
+// Additional metadata like maintainer, description, and dependencies can be provided.
+func CreatePackage(
+	sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string,
+	maintainer string,
+	description string,
+	dependencies []string,
+	hooks map[string]string,
+) (string, error) {
 	// Validate package name
 	if pkgName == "" {
-		return errors.Wrapf(errors.ErrNameRequired, "package name cannot be empty")
+		return "", errors.Wrapf(errors.ErrNameRequired, "package name cannot be empty")
 	}
 	if !packageNameRegex.MatchString(pkgName) {
-		return errors.Wrapf(
+		return "", errors.Wrapf(
 			errors.ErrInvalidPackageName,
 			"invalid package name: %s - must match %s",
 			pkgName,
@@ -254,10 +263,10 @@ func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string)
 
 	// Validate package version
 	if pkgVer == "" {
-		return errors.Wrapf(errors.ErrVersionRequired, "package version cannot be empty")
+		return "", errors.Wrapf(errors.ErrVersionRequired, "package version cannot be empty")
 	}
 	if !versionRegex.MatchString(pkgVer) {
-		return errors.Wrapf(
+		return "", errors.Wrapf(
 			errors.ErrInvalidVersionString,
 			"invalid package version: %s - must match %s",
 			pkgVer,
@@ -267,66 +276,74 @@ func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string)
 
 	// Validate OS and architecture
 	if pkgOS == "" {
-		return errors.Wrapf(errors.ErrTargetOSEmpty, "OS cannot be empty")
+		return "", errors.Wrapf(errors.ErrTargetOSEmpty, "OS cannot be empty")
 	}
 	if pkgArch == "" {
-		return errors.Wrapf(errors.ErrTargetArchEmpty, "architecture cannot be empty")
+		return "", errors.Wrapf(errors.ErrTargetArchEmpty, "architecture cannot be empty")
 	}
 
 	// Clean and validate source directory path
 	cleanSourceDir, err := validatePath(sourceDir)
 	if err != nil {
-		return errors.Wrapf(err, "invalid source directory %s", sourceDir)
+		return "", errors.Wrapf(err, "invalid source directory %s", sourceDir)
 	}
 
 	// Ensure source directory exists and is readable
 	if _, err := os.Stat(cleanSourceDir); os.IsNotExist(err) {
-		return errors.Wrapf(err, "source directory does not exist: %s", cleanSourceDir)
+		return "", errors.Wrapf(err, "source directory does not exist: %s", cleanSourceDir)
 	} else if err != nil {
-		return errors.Wrapf(err, "failed to access source directory %s", sourceDir)
+		return "", errors.Wrapf(err, "failed to access source directory %s", sourceDir)
 	}
 
 	// Clean and validate output directory path
 	outputDir, err = validatePath(outputDir)
 	if err != nil {
-		return errors.Wrapf(err, "invalid output directory")
+		return "", errors.Wrapf(err, "invalid output directory")
 	}
 
 	// Ensure output directory exists and is writable
 	if err := verifyDirectoryWritable(outputDir); err != nil {
-		return errors.Wrapf(err, "output directory %s is not writable", outputDir)
+		return "", errors.Wrapf(err, "output directory %s is not writable", outputDir)
+	}
+
+	// Set default description if not provided
+	if description == "" {
+		description = fmt.Sprintf("Package %s version %s", pkgName, pkgVer)
 	}
 
 	// Create package metadata
 	meta := &Metadata{
-		Name:        pkgName,
-		Version:     pkgVer,
-		Description: fmt.Sprintf("Package %s version %s", pkgName, pkgVer),
+		Name:         pkgName,
+		Version:      pkgVer,
+		Maintainer:   maintainer,
+		Description:  description,
+		Dependencies: dependencies,
+		Hooks:        hooks,
+		Files:        []File{},
 	}
 
-	// Check if files/ directory exists and is not empty
-	filesDir := filepath.Join(cleanSourceDir, "files")
-	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
-		return errors.Wrapf(errors.ErrPackageInvalid, "package must contain a 'files' directory")
-	}
-
-	// Check if files directory is empty
-	dir, err := os.Open(filesDir)
+	// Ensure source directory is not empty
+	dir, err := os.Open(cleanSourceDir)
 	if err != nil {
-		return errors.Wrapf(err, "failed to open files directory %s", filesDir)
+		return "", errors.Wrapf(err, "failed to open source directory %s", cleanSourceDir)
 	}
 	defer dir.Close()
 
 	_, err = dir.Readdirnames(1)
 	if err == io.EOF {
-		return errors.Wrapf(errors.ErrPackageInvalid, "package 'files' directory must not be empty")
+		return "", errors.Wrapf(errors.ErrPackageInvalid, "source directory %s must not be empty", cleanSourceDir)
 	} else if err != nil {
-		return errors.Wrapf(err, "failed to read files directory %s", filesDir)
+		return "", errors.Wrapf(err, "failed to read source directory %s", cleanSourceDir)
 	}
 
 	// Process files and update metadata
 	if err := processFiles(sourceDir, meta); err != nil {
-		return errors.Wrapf(err, "failed to process files in %s", sourceDir)
+		return "", errors.Wrapf(err, "failed to process files in %s", sourceDir)
+	}
+
+	// Check if we have any files to package
+	if len(meta.Files) == 0 {
+		return "", errors.Wrapf(errors.ErrPackageInvalid, "no files found to package in %s", sourceDir)
 	}
 
 	// Create the output filename
@@ -336,21 +353,21 @@ func CreatePackage(sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string)
 	if err := createTarball(sourceDir, outputFile, meta); err != nil {
 		// Clean up the output file if it was partially created
 		if removeErr := os.Remove(outputFile); removeErr != nil && !os.IsNotExist(removeErr) {
-			return errors.Wrapf(removeErr, "failed to clean up partially created package file %s", outputFile)
+			return "", errors.Wrapf(removeErr, "failed to clean up partially created package file %s", outputFile)
 		}
-		return errors.Wrapf(err, "failed to create package %s", outputFile)
+		return "", errors.Wrapf(err, "failed to create package %s", outputFile)
 	}
 
 	// Verify the created package
 	if err := verifyPackage(outputFile, meta); err != nil {
 		// Clean up the output file if verification failed
 		if removeErr := os.Remove(outputFile); removeErr != nil && !os.IsNotExist(removeErr) {
-			return errors.Wrapf(removeErr, "failed to clean up package file after verification failure %s", outputFile)
+			return "", errors.Wrapf(removeErr, "failed to clean up package file after verification failure %s", outputFile)
 		}
-		return errors.Wrapf(err, "package verification failed for %s", outputFile)
+		return "", errors.Wrapf(err, "package verification failed for %s", outputFile)
 	}
 
-	return nil
+	return outputFile, nil
 }
 
 func verifyDirectoryWritable(dirPath string) error {
@@ -659,10 +676,9 @@ func createExpectedFilesMap(meta *Metadata) (map[string]File, error) {
 	}
 
 	// Add metadata file if needed
-	if meta != nil {
-		if err := addMetadataFile(expectedFiles, meta); err != nil {
-			return nil, err
-		}
+
+	if err := addMetadataFile(expectedFiles, meta); err != nil {
+		return nil, err
 	}
 
 	return expectedFiles, nil

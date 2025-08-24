@@ -44,13 +44,17 @@ func prepareTestPackage(t *testing.T, packageName string, files []*testFile) str
 
 func TestCreatePackage(t *testing.T) {
 	tests := []struct {
-		name        string
-		packageName string
-		setup       func(t *testing.T, packageName string) (string, string, string) // sourceDir, outputDir, pkgName, cleanup
-		wantErr     bool
-		errContains string
+		name         string
+		packageName  string
+		setup        func(t *testing.T, packageName string) (string, string, string) // sourceDir, outputDir, pkgName, cleanup
+		maintainer   string
+		description  string
+		dependencies []string
+		hooks        map[string]string
+		wantErr      bool
+		errContains  string
 	}{{
-		name:        "successful package creation",
+		name:        "successful package creation with all metadata",
 		packageName: "test01",
 		setup: func(t *testing.T, packageName string) (string, string, string) {
 			tempDir := prepareTestPackage(t, packageName, []*testFile{
@@ -60,7 +64,38 @@ func TestCreatePackage(t *testing.T) {
 			require.NoError(t, os.Mkdir(outputDir, 0755))
 			return tempDir, outputDir, "test-pkg"
 		},
+		maintainer:   "test@example.com",
+		description:  "Test package description",
+		dependencies: []string{"dep1", "dep2"},
+		hooks:        map[string]string{"post-install": "post-install.tengo"},
+		wantErr:      false,
+	}, {
+		name:        "successful package creation with minimal metadata",
+		packageName: "test02",
+		setup: func(t *testing.T, packageName string) (string, string, string) {
+			tempDir := prepareTestPackage(t, packageName, []*testFile{
+				{path: "files/foo/bar.txt", content: "test content"},
+				{path: "meta/post-install.tengo", content: "test content"},
+			})
+			outputDir := filepath.Join(tempDir, "output")
+			require.NoError(t, os.Mkdir(outputDir, 0755))
+			return tempDir, outputDir, "test-pkg-minimal"
+		},
 		wantErr: false,
+	}, {
+		name:        "error on empty source directory",
+		packageName: "test03",
+		setup: func(t *testing.T, packageName string) (string, string, string) {
+			tempDir := t.TempDir()
+			// Create an empty directory
+			sourceDir := filepath.Join(tempDir, packageName)
+			require.NoError(t, os.MkdirAll(sourceDir, 0755))
+			outputDir := filepath.Join(tempDir, "output")
+			require.NoError(t, os.Mkdir(outputDir, 0755))
+			return tempDir, outputDir, "test-empty"
+		},
+		wantErr:     true,
+		errContains: "source directory must not be empty",
 	}}
 
 	for _, tt := range tests {
@@ -69,7 +104,18 @@ func TestCreatePackage(t *testing.T) {
 
 			sourceDir := filepath.Join(tempDir, tt.packageName)
 
-			packagePath, err := CreatePackage(sourceDir, outputDir, pkgName, "1.0.0", "linux", "amd64")
+			packagePath, err := CreatePackage(
+				sourceDir,
+				outputDir,
+				pkgName,
+				"1.0.0",
+				"linux",
+				"amd64",
+				tt.maintainer,
+				tt.description,
+				tt.dependencies,
+				tt.hooks,
+			)
 
 			if tt.wantErr {
 				require.Error(t, err)
