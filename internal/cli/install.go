@@ -1,10 +1,10 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/cperrin88/gotya/pkg/logger"
-	pkgpkg "github.com/cperrin88/gotya/pkg/pkg"
+	"github.com/cperrin88/gotya/pkg/pkg"
 	"github.com/spf13/cobra"
 )
 
@@ -32,37 +32,41 @@ Dependencies will be automatically resolved and installed unless --skip-deps is 
 	return cmd
 }
 
+/*
 // NewUpdateCmd creates the update command.
-func NewUpdateCmd() *cobra.Command {
-	var all bool
 
-	cmd := &cobra.Command{
-		Use:   "update [PACKAGE...]",
-		Short: "Update packages",
-		Long: `Update one or more installed packages to their latest versions.
+	func NewUpdateCmd() *cobra.Command {
+		var all bool
+
+		cmd := &cobra.Command{
+			Use:   "update [PACKAGE...]",
+			Short: "Update packages",
+			Long: `Update one or more installed packages to their latest versions.
+
 Use --all to update all installed packages.`,
-		RunE: func(_ *cobra.Command, args []string) error {
-			return runUpdate(args, all)
-		},
+
+			RunE: func(_ *cobra.Command, args []string) error {
+				return runUpdate(args, all)
+			},
+		}
+
+		cmd.Flags().BoolVar(&all, "all", false, "Update all installed packages")
+
+		return cmd
 	}
-
-	cmd.Flags().BoolVar(&all, "all", false, "Update all installed packages")
-
-	return cmd
-}
-
+*/
 func runInstall(packages []string, force, skipDeps bool) error {
-	cfg, repoManager, err := loadConfigAndManager()
+	cfg, indexManager, err := loadConfigAndManager()
 	if err != nil {
 		return err
 	}
 
 	// Create installer with nil hooks manager for now
-	pkgInstaller := installer.New(cfg, repoManager, nil)
+	pkgInstaller := pkg.NewManager(indexManager, cfg)
 
 	// Process each pkg
 	for _, pkgName := range packages {
-		if err := pkgInstaller.InstallPackage(pkgName, force, skipDeps); err != nil {
+		if err := pkgInstaller.InstallPackage(context.Background(), pkgName, ">= 0.0.0", cfg.Settings.Platform.OS, cfg.Settings.Platform.Arch, force); err != nil {
 			return fmt.Errorf("failed to install %s: %w", pkgName, err)
 		}
 	}
@@ -70,6 +74,7 @@ func runInstall(packages []string, force, skipDeps bool) error {
 	return nil
 }
 
+/*
 func runUpdate(packages []string, all bool) error {
 	cfg, repoManager, err := loadConfigAndManager()
 	if err != nil {
@@ -115,3 +120,4 @@ func runUpdate(packages []string, all bool) error {
 
 	return nil
 }
+*/

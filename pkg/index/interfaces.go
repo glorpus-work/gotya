@@ -1,6 +1,10 @@
+//go:generate mockgen -destination=./mocks/index.go . Manager
 package index
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type Index struct {
 	FormatVersion string     `json:"format_version"`
@@ -16,16 +20,26 @@ type Info struct {
 	Priority int    `json:"priority"`
 }
 
-// Package represents a pkg in a index.
-type Package struct {
-	Name         string            `json:"name"`
-	Version      string            `json:"version"`
-	Description  string            `json:"description"`
-	URL          string            `json:"url"`
-	Checksum     string            `json:"checksum"`
-	Size         int64             `json:"size"`
-	OS           string            `json:"os,omitempty"`
-	Arch         string            `json:"arch,omitempty"`
-	Dependencies []string          `json:"dependencies,omitempty"`
-	Metadata     map[string]string `json:"metadata,omitempty"`
+// Manager defines the interface for managing package indexes
+type Manager interface {
+	// Sync updates the index for a specific repository
+	Sync(ctx context.Context, name string) error
+
+	// SyncAll updates all repository indexes
+	SyncAll(ctx context.Context, name string) error
+
+	// IsCacheStale checks if the cache for a repository is stale
+	IsCacheStale(name string) bool
+
+	// GetCacheAge returns the age of the cache for a repository
+	GetCacheAge(name string) (time.Duration, error)
+
+	// FindPackages searches for packages by name across all repositories
+	FindPackages(name string) (map[string][]*Package, error)
+
+	// ResolvePackage finds a specific package with the given name, version, OS and architecture
+	ResolvePackage(name, version, os, arch string) (*Package, error)
+
+	// GetIndex retrieves an index by name
+	GetIndex(name string) (*Index, error)
 }

@@ -18,7 +18,7 @@ var (
 )
 
 // This is a bridge function that the CLI commands can use.
-func loadConfigAndManager() (*config.Config, *index.Manager, error) {
+func loadConfigAndManager() (*config.Config, *index.ManagerImpl, error) {
 	var cfg *config.Config
 	var err error
 

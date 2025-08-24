@@ -8,23 +8,28 @@ import (
 	"github.com/cperrin88/gotya/pkg/index"
 )
 
-type Manager struct {
-	indexManager *index.Manager
+type ManagerImpl struct {
+	indexManager index.Manager
 	config       *config.Config
+	httpClient   http.Client
 }
 
-func New(indexManager *index.Manager, config *config.Config) *Manager {
-	return &Manager{
+func NewManager(indexManager index.Manager, config *config.Config) *ManagerImpl {
+	return &ManagerImpl{
 		indexManager: indexManager,
 		config:       config,
+		httpClient:   http.NewHTTPClient(config.Settings.HTTPTimeout),
 	}
 }
 
-func (m Manager) InstallPackage(ctx context.Context, pkgName, version, os, arch string, force bool) error {
+func (m ManagerImpl) InstallPackage(ctx context.Context, pkgName, version, os, arch string, force bool) error {
 	pkg, err := m.indexManager.ResolvePackage(pkgName, version, os, arch)
 	if err != nil {
 		return err
 	}
-	hc := http.NewHTTPClient(m.config.Settings.HTTPTimeout)
-	hc.DownloadPackage(ctx, pkg.URL, m.config.GetIndexPath())
+	if err := m.httpClient.DownloadPackage(ctx, pkg.GetUrl(), ""); err != nil {
+		return err
+	}
+
+	return nil
 }

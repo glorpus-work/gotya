@@ -1,6 +1,13 @@
 package pkg
 
-import "time"
+import (
+	"context"
+	"time"
+)
+
+type Manager interface {
+	InstallPackage(ctx context.Context, pkgName, version, os, arch string, force bool) error
+}
 
 // InstalledManager defines the interface for managing installed packages.
 type InstalledManager interface {

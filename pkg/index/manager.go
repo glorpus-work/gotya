@@ -13,41 +13,41 @@ import (
 	"github.com/cperrin88/gotya/pkg/http"
 )
 
-type Manager struct {
+type ManagerImpl struct {
 	config  *config.Config
 	indexes map[string]*Index
 }
 
-func NewRepositoryManager(config *config.Config) *Manager {
-	return &Manager{
+func NewRepositoryManager(config *config.Config) *ManagerImpl {
+	return &ManagerImpl{
 		config:  config,
 		indexes: make(map[string]*Index, len(config.Repositories)),
 	}
 }
 
-func (rm *Manager) Sync(ctx context.Context, name string) error {
+func (rm *ManagerImpl) Sync(ctx context.Context, name string) error {
 	repo := rm.config.GetRepository(name)
 	if repo == nil {
 		return errors.ErrRepositoryNotFound(name)
 	}
 	hc := http.NewHTTPClient(rm.config.Settings.HTTPTimeout)
-	if err := hc.DownloadIndex(ctx, repo.URL, rm.config.GetIndexPath(name)); err != nil {
+	if err := hc.DownloadIndex(ctx, repo.GetUrl(), rm.config.GetIndexPath(name)); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (rm *Manager) SyncAll(ctx context.Context, name string) error {
+func (rm *ManagerImpl) SyncAll(ctx context.Context, name string) error {
 	hc := http.NewHTTPClient(rm.config.Settings.HTTPTimeout)
 	for _, repo := range rm.config.Repositories {
-		if err := hc.DownloadIndex(ctx, repo.URL, rm.config.GetIndexPath(name)); err != nil {
+		if err := hc.DownloadIndex(ctx, repo.GetUrl(), rm.config.GetIndexPath(name)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (rm *Manager) IsCacheStale(name string) bool {
+func (rm *ManagerImpl) IsCacheStale(name string) bool {
 	cacheTTL := rm.config.Settings.CacheTTL
 	repo := rm.config.GetRepository(name)
 	if repo == nil {
@@ -64,7 +64,7 @@ func (rm *Manager) IsCacheStale(name string) bool {
 	return stat.ModTime().Add(cacheTTL).Before(time.Now())
 }
 
-func (rm *Manager) GetCacheAge(name string) (time.Duration, error) {
+func (rm *ManagerImpl) GetCacheAge(name string) (time.Duration, error) {
 	repo := rm.config.GetRepository(name)
 	if repo == nil {
 		return -1, errors.ErrRepositoryNotFound(name)
@@ -80,7 +80,7 @@ func (rm *Manager) GetCacheAge(name string) (time.Duration, error) {
 	return time.Now().Sub(stat.ModTime()), nil
 }
 
-func (rm *Manager) FindPackages(name string) (map[string][]*Package, error) {
+func (rm *ManagerImpl) FindPackages(name string) (map[string][]*Package, error) {
 	indexes, err := rm.getIndexes()
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (rm *Manager) FindPackages(name string) (map[string][]*Package, error) {
 	return packages, nil
 }
 
-func (rm *Manager) ResolvePackage(name, version, os, arch string) (*Package, error) {
+func (rm *ManagerImpl) ResolvePackage(name, version, os, arch string) (*Package, error) {
 	repoPackages, err := rm.FindPackages(name)
 	if err != nil {
 		return nil, err
@@ -114,13 +114,13 @@ func (rm *Manager) ResolvePackage(name, version, os, arch string) (*Package, err
 
 	for idxName, pkgs := range repoPackages {
 		for _, pkg := range pkgs {
-			if version != "" && !pkg.MatchVersion(version) {
+			if !pkg.MatchVersion(version) {
 				continue
 			}
-			if os != "" && !pkg.MatchOs(os) {
+			if !pkg.MatchOs(os) {
 				continue
 			}
-			if arch != "" && !pkg.MatchArch(arch) {
+			if !pkg.MatchArch(arch) {
 				continue
 			}
 
@@ -153,7 +153,7 @@ func (rm *Manager) ResolvePackage(name, version, os, arch string) (*Package, err
 	return finalPackage, nil
 }
 
-func (rm *Manager) getIndexes() (map[string]*Index, error) {
+func (rm *ManagerImpl) getIndexes() (map[string]*Index, error) {
 	if rm.indexes == nil {
 		if err := rm.loadIndexes(); err != nil {
 			return nil, err
@@ -162,7 +162,7 @@ func (rm *Manager) getIndexes() (map[string]*Index, error) {
 	return rm.indexes, nil
 }
 
-func (rm *Manager) loadIndexes() error {
+func (rm *ManagerImpl) loadIndexes() error {
 	for _, repo := range rm.config.Repositories {
 		index, err := ParseIndexFromFile(rm.config.GetIndexPath(repo.Name))
 		if err != nil {
@@ -173,7 +173,7 @@ func (rm *Manager) loadIndexes() error {
 	return nil
 }
 
-func (rm *Manager) GetIndex(name string) (*Index, error) {
+func (rm *ManagerImpl) GetIndex(name string) (*Index, error) {
 	index, err := ParseIndexFromFile(rm.config.GetIndexPath(name))
 	if err != nil {
 		return nil, err

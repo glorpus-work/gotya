@@ -12,18 +12,17 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
-	"github.com/cperrin88/gotya/pkg/index"
 )
 
-// HTTPClient handles HTTP operations for repositories.
-type HTTPClient struct {
+// ClientImpl handles HTTP operations for repositories.
+type ClientImpl struct {
 	client    *http.Client
 	userAgent string
 }
 
 // NewHTTPClient creates a new HTTP client for index operations.
-func NewHTTPClient(timeout time.Duration) *HTTPClient {
-	return &HTTPClient{
+func NewHTTPClient(timeout time.Duration) *ClientImpl {
+	return &ClientImpl{
 		client: &http.Client{
 			Timeout: timeout,
 		},
@@ -37,13 +36,13 @@ var ErrNotModified = fmt.Errorf("index not modified")
 // DownloadIndex downloads the index index from the given URL.
 // If lastModified is not zero, it will be used to make a conditional request.
 // Returns the index and its last modified time, or ErrNotModified if the index hasn't changed.
-func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, filePath string) error {
+func (hc *ClientImpl) DownloadIndex(ctx context.Context, repoURL *url.URL, filePath string) error {
 	indexURL, err := hc.buildIndexURL(repoURL)
 	if err != nil {
 		return errors.Wrapf(err, "failed to build index URL")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, indexURL, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, indexURL.String(), http.NoBody)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create request")
 	}
@@ -71,16 +70,17 @@ func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, filePat
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return errors.Wrap(err, "failed to read response body")
-	}
-
 	if err := os.MkdirAll(filepath.Dir(filePath), fsutil.DirModeSecure); err != nil {
 		return errors.Wrap(err, "could not create directory for index")
 	}
 
-	if err := os.WriteFile(filePath, data, fsutil.FileModeSecure); err != nil {
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fsutil.FileModeSecure)
+	if err != nil {
+		return errors.Wrap(err, "could not open index file")
+	}
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
 		return errors.Wrap(err, "could not write index")
 	}
 
@@ -98,8 +98,8 @@ func (hc *HTTPClient) DownloadIndex(ctx context.Context, repoURL string, filePat
 }
 
 // DownloadPackage downloads a pkg file from the index.
-func (hc *HTTPClient) DownloadPackage(ctx context.Context, packageURL string, filePath string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, packageURL, http.NoBody)
+func (hc *ClientImpl) DownloadPackage(ctx context.Context, packageURL *url.URL, filePath string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, packageURL.String(), http.NoBody)
 	if err != nil {
 		return errors.Wrap(err, "failed to create request")
 	}
@@ -116,53 +116,31 @@ func (hc *HTTPClient) DownloadPackage(ctx context.Context, packageURL string, fi
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	_, err = io.Copy(writer, resp.Body)
-	if err != nil {
-		return errors.Wrap(err, "failed to write pkg data")
+	if err := os.MkdirAll(filepath.Dir(filePath), fsutil.DirModeSecure); err != nil {
+		return err
 	}
 
-	return nil
-}
-
-// CheckRepositoryHealth checks if a index is accessible.
-func (hc *HTTPClient) CheckRepositoryHealth(ctx context.Context, repoURL string) error {
-	indexURL, err := hc.buildIndexURL(repoURL)
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fsutil.FileModeSecure)
 	if err != nil {
-		return errors.Wrap(err, "failed to build index URL")
+		return errors.Wrap(err, "could not open index file")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, indexURL, http.NoBody)
+	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		return errors.Wrap(err, "failed to create request")
-	}
-
-	req.Header.Set("User-Agent", hc.userAgent)
-
-	resp, err := hc.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("index not accessible: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("index not healthy: HTTP %d", resp.StatusCode)
+		return errors.Wrap(err, "could not write index")
 	}
 
 	return nil
 }
 
 // buildIndexURL constructs the index URL from a index base URL.
-func (hc *HTTPClient) buildIndexURL(repoURL string) (string, error) {
-	parsedURL, err := url.Parse(repoURL)
-	if err != nil {
-		return "", errors.Wrap(index.ErrRepositoryURLInvalid, "invalid index URL")
-	}
-
+func (hc *ClientImpl) buildIndexURL(repoURL *url.URL) (*url.URL, error) {
 	// Use path.Join for URL paths (always uses forward slashes)
-	parsedURL.Path, err = url.JoinPath(parsedURL.Path, "index.json")
+	var err error
+	repoURL.Path, err = url.JoinPath(repoURL.Path, "index.json")
 	if err != nil {
-		return "", errors.Wrap(err, "failed to build index URL")
+		return nil, errors.Wrap(err, "failed to build index URL")
 	}
 
-	return parsedURL.String(), nil
+	return repoURL, nil
 }

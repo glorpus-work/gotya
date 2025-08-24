@@ -199,6 +199,9 @@ var (
 
 	// ErrUnknownConfigKey is returned when an unknown configuration key is encountered.
 	ErrUnknownConfigKey = fmt.Errorf("unknown configuration key")
+
+	// ErrRepositoryURLInvalid is returned when a index URL is invalid.
+	ErrRepositoryURLInvalid = fmt.Errorf("index URL is invalid")
 )
 
 // Wrap wraps an error with additional context.

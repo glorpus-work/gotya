@@ -17,9 +17,6 @@ var (
 	// ErrRepositoryNameEmpty is returned when a index name is empty.
 	ErrRepositoryNameEmpty = fmt.Errorf("index name cannot be empty")
 
-	// ErrRepositoryURLInvalid is returned when a index URL is invalid.
-	ErrRepositoryURLInvalid = fmt.Errorf("index URL is invalid")
-
 	// ErrRepositoryURLMissing is returned when a index URL is empty.
 	ErrRepositoryURLMissing = fmt.Errorf("index URL cannot be empty")
 

@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/cperrin88/gotya/pkg/platform"
+	"github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPackage_MatchOs(t *testing.T) {
@@ -86,6 +88,157 @@ func TestPackage_MatchArch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			pkg := &Package{Arch: tt.pkgArch}
 			result := pkg.MatchArch(tt.testArch)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestPackage_MatchVersion(t *testing.T) {
+	tests := []struct {
+		name       string
+		pkgVersion string
+		constraint string
+		expected   bool
+	}{
+		{
+			name:       "exact version match",
+			pkgVersion: "1.2.3",
+			constraint: "= 1.2.3",
+			expected:   true,
+		},
+		{
+			name:       "exact version match without operator",
+			pkgVersion: "1.2.3",
+			constraint: "1.2.3",
+			expected:   true,
+		},
+		{
+			name:       "exact version match not matching",
+			pkgVersion: "1.2.2",
+			constraint: "1.2.3",
+			expected:   false,
+		},
+		{
+			name:       "exact version match without operator not matching",
+			pkgVersion: "1.2.2",
+			constraint: "1.2.3",
+			expected:   false,
+		},
+		{
+			name:       "version does not match constraint",
+			pkgVersion: "1.2.3",
+			constraint: ">= 2.0.0",
+			expected:   false,
+		},
+		{
+			name:       "version matches range constraint",
+			pkgVersion: "1.2.3",
+			constraint: ">= 1.0.0, < 2.0.0",
+			expected:   true,
+		},
+		{
+			name:       "invalid version string",
+			pkgVersion: "not-a-version",
+			constraint: ">= 1.0.0",
+			expected:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pkg := &Package{Version: tt.pkgVersion}
+			result := pkg.MatchVersion(tt.constraint)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestPackage_GetVersion(t *testing.T) {
+	tests := []struct {
+		name     string
+		version  string
+		expected *version.Version
+	}{
+		{
+			name:     "valid version string",
+			version:  "1.2.3",
+			expected: version.Must(version.NewVersion("1.2.3")),
+		},
+		{
+			name:     "empty version",
+			version:  "",
+			expected: nil,
+		},
+		{
+			name:     "invalid version",
+			version:  "not-a-version",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pkg := &Package{Version: tt.version}
+			result := pkg.GetVersion()
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Equal(t, 0, result.Compare(tt.expected))
+			}
+		})
+	}
+}
+
+func TestPackage_GetOS(t *testing.T) {
+	tests := []struct {
+		name     string
+		pkgOS    string
+		expected string
+	}{
+		{
+			name:     "empty OS returns any",
+			pkgOS:    "",
+			expected: platform.AnyOS,
+		},
+		{
+			name:     "specific OS returns as is",
+			pkgOS:    "linux",
+			expected: "linux",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pkg := &Package{OS: tt.pkgOS}
+			result := pkg.GetOS()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestPackage_GetArch(t *testing.T) {
+	tests := []struct {
+		name     string
+		pkgArch  string
+		expected string
+	}{
+		{
+			name:     "empty arch returns any",
+			pkgArch:  "",
+			expected: platform.AnyArch,
+		},
+		{
+			name:     "specific arch returns as is",
+			pkgArch:  "amd64",
+			expected: "amd64",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pkg := &Package{Arch: tt.pkgArch}
+			result := pkg.GetArch()
 			assert.Equal(t, tt.expected, result)
 		})
 	}
