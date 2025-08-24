@@ -55,7 +55,7 @@ type File struct {
 	Digest string `json:"digest"`
 }
 
-// validatePath validates that a path is absolute and exists.
+// validatePath validates that a path exists and converts it to an absolute path.
 func validatePath(path string) (string, error) {
 	if path == "" {
 		return "", errors.Wrapf(errors.ErrInvalidPath, "path cannot be empty")
@@ -64,9 +64,13 @@ func validatePath(path string) (string, error) {
 	// Clean the path
 	cleanPath := filepath.Clean(path)
 
-	// Check if the path is absolute
+	// Convert to absolute path if it's not already
 	if !filepath.IsAbs(cleanPath) {
-		return "", errors.Wrapf(errors.ErrInvalidPath, "path must be absolute: %s", cleanPath)
+		absPath, err := filepath.Abs(cleanPath)
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to convert path to absolute: %s", cleanPath)
+		}
+		cleanPath = absPath
 	}
 
 	// Check if the path exists

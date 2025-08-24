@@ -8,16 +8,16 @@
   "last_updated": "2024-08-16T10:00:00Z",
   "packages": [
     {
-      "name": "hello-world",
+      "name": "test-package",
       "version": "1.0.0",
-      "description": "A simple hello world package for testing",
+      "description": "A simple test package for testing",
       "author": "Test Author",
       "license": "MIT",
       "homepage": "https://example.com/hello-world",
       "dependencies": [],
       "keywords": ["test", "hello", "example"],
       "architecture": "any",
-      "url": "http://localhost:63342/gotya/test/repo/packages/hello-world-1.0.0.tar.gz",
+      "url": "http://localhost:63342/gotya/test/repo/packages/test-package_1.0.0_any_any.tar.gz",
       "checksum": "abc123def456",
       "created_at": "2024-08-16T09:00:00Z"
     }

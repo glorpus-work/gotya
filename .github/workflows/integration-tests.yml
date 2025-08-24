@@ -41,54 +41,39 @@ jobs:
             echo "GOTYA_BIN=./gotya" >> $GITHUB_ENV
           fi
 
-      - name: Set up test environment
-        run: |
-          # Create config directory
-          mkdir -p "${{ github.workspace }}/.gotya"
-          
-          # Copy test configuration
-          cp test/config.yaml "${{ github.workspace }}/.gotya/config.yaml"
-          
-          # Set GOTYA_HOME environment variable
-          echo "GOTYA_HOME=${{ github.workspace }}/.gotya" >> $GITHUB_ENV
-          
-          # Add gotya to PATH on Windows
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            echo "${{ github.workspace }};" >> "$GITHUB_PATH"
-          else
-            echo "${{ github.workspace }}" >> "$GITHUB_PATH"
-          fi
-
       - name: Run integration tests
         run: |
           # Test repository listing
-          ${{ env.GOTYA_BIN }} repo list
+          ${{ env.GOTYA_BIN }} --config test/config.yaml config repo list
+          
+          # Sync repo
+          ${{ env.GOTYA_BIN }} --config test/config.yaml sync
           
           # Test package search
-          ${{ env.GOTYA_BIN }} search test-package
+          ${{ env.GOTYA_BIN }} --config test/config.yaml search test-package
           
           # Test package installation
-          ${{ env.GOTYA_BIN }} install test-package
+          ${{ env.GOTYA_BIN }} --config test/config.yaml install test-package
           
           # Verify installation
-          ${{ env.GOTYA_BIN }} list --installed | grep test-package
+          ${{ env.GOTYA_BIN }} --config test/config.yaml list --installed | grep test-package
           
           # Test package update
-          ${{ env.GOTYA_BIN }} update test-package
+          ${{ env.GOTYA_BIN }} --config test/config.yaml update test-package
           
           # Test package uninstallation
-          ${{ env.GOTYA_BIN }} uninstall test-package
+          ${{ env.GOTYA_BIN }} --config test/config.yaml uninstall test-package
           
           # Verify uninstallation
-          if ${{ env.GOTYA_BIN }} list --installed | grep -q test-package; then
+          if ${{ env.GOTYA_BIN }} --config test/config.yaml list --installed | grep -q test-package; then
             echo "Package was not properly uninstalled"
             exit 1
           fi
           
           # Test cache operations
-          ${{ env.GOTYA_BIN }} cache clean --all
+          ${{ env.GOTYA_BIN }} --config test/config.yaml cache clean --all
           
           # Test configuration
-          ${{ env.GOTYA_BIN }} config show
+          ${{ env.GOTYA_BIN }} --config test/config.yaml config show
 
 
