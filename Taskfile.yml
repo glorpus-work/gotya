@@ -10,12 +10,6 @@ env:
   CGO_ENABLED: 0
 
 tasks:
-  default:
-    desc: Show available tasks
-    cmds:
-      - task --list-all
-    silent: true
-
   # Build tasks
   build:
     desc: Build the project
@@ -45,6 +39,20 @@ tasks:
     desc: Generate HTML coverage report
     cmds:
       - go tool cover -html={{.COVER_PROFILE}} -o coverage.html
+
+  mutate:
+    desc: Run mutation testing on the codebase
+    deps: [test]  # Ensure tests pass before mutation testing
+    cmds:
+      - go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
+      - go-mutesting --exec "go test -v" ./...
+
+  mutate-verbose:
+    desc: Run mutation testing with verbose output
+    deps: [test]
+    cmds:
+      - go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
+      - go-mutesting --debug --exec "go test -v" ./...
 
   # Lint and format
   lint:

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	goerrors "errors"
 	"fmt"
 	"io"
 	"os"
@@ -78,6 +79,241 @@ func validatePath(path string) (string, error) {
 	return cleanPath, nil
 }
 
+// validatePackageStructure validates the package directory structure.
+// It ensures that:
+// - The source directory contains a 'files' subdirectory
+// - No package.json exists in the source directory
+// - If a meta directory exists, it only contains allowed files (*.tengo hook scripts)
+func validatePackageStructure(sourceDir string) error {
+	// Check for required files directory
+	filesDir := filepath.Join(sourceDir, "files")
+	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
+		return errors.Wrapf(errors.ErrInvalidPath, "missing required directory: files")
+	} else if err != nil {
+		return errors.Wrapf(err, "failed to access files directory")
+	}
+
+	// Check for package.json in source directory (shouldn't exist yet)
+	if _, err := os.Stat(filepath.Join(sourceDir, "package.json")); err == nil {
+		return errors.Wrapf(errors.ErrInvalidPath, "package.json already exists in source directory")
+	} else if !os.IsNotExist(err) {
+		return errors.Wrap(err, "failed to check for package.json")
+	}
+
+	// Check if meta directory exists
+	metaDir := filepath.Join(sourceDir, "meta")
+	if _, err := os.Stat(metaDir); os.IsNotExist(err) {
+		// Meta directory doesn't exist, which is fine
+		return nil
+	} else if err != nil {
+		return errors.Wrap(err, "failed to access meta directory")
+	}
+
+	// Meta directory exists, validate its contents
+	entries, err := os.ReadDir(metaDir)
+	if err != nil {
+		return errors.Wrap(err, "failed to read meta directory")
+	}
+
+	for _, entry := range entries {
+		// Skip directories
+		if entry.IsDir() {
+			continue
+		}
+
+		// Only allow .tengo files in meta directory
+		if filepath.Ext(entry.Name()) != ".tengo" {
+			return errors.Wrapf(errors.ErrInvalidPath,
+				"invalid file in meta directory: %s (only .tengo files allowed)", entry.Name())
+		}
+	}
+
+	return nil
+}
+
+// processPackageFiles processes all files in the files/ directory of a package.
+// It returns a slice of File structs containing metadata about each file.
+// The function will return an error if:
+// - The files directory is empty
+// - Any file cannot be read or hashed
+// - Any symlink points outside the files directory
+func processPackageFiles(filesDir string) ([]File, error) {
+	// Verify the files directory exists and is accessible
+	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
+		return nil, errors.Wrapf(errors.ErrFileNotFound, "files directory not found: %s", filesDir)
+	} else if err != nil {
+		return nil, errors.Wrapf(err, "failed to access files directory: %s", filesDir)
+	}
+
+	var files []File
+	err := filepath.Walk(filesDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return errors.Wrapf(err, "error accessing path %s", path)
+		}
+
+		// Skip the root directory
+		if path == filesDir {
+			return nil
+		}
+
+		// Handle symlinks
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(path)
+			if err != nil {
+				return errors.Wrapf(err, "failed to read symlink %s", path)
+			}
+
+			// Ensure symlink points within the files directory
+			targetPath := filepath.Join(filepath.Dir(path), target)
+			relPath, err := filepath.Rel(filesDir, targetPath)
+			if err != nil || strings.HasPrefix(relPath, "..") {
+				return errors.Wrapf(errors.ErrInvalidPath,
+					"symlink %s points outside the files directory", path)
+			}
+			return nil
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Calculate file hash
+		hash, err := calculateFileHash(path)
+		if err != nil {
+			return errors.Wrapf(err, "failed to calculate hash for %s", path)
+		}
+
+		// Get relative path from the files directory
+		relPath, err := filepath.Rel(filesDir, path)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get relative path for %s", path)
+		}
+
+		// Add file to results
+		files = append(files, File{
+			Path:   filepath.ToSlash(filepath.Join("files", relPath)), // Use forward slashes for consistency
+			Size:   info.Size(),
+			Mode:   uint32(info.Mode()),
+			Digest: hash,
+		})
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, errors.Wrap(err, "error walking the files directory")
+	}
+
+	// Ensure we found at least one file
+	if len(files) == 0 {
+		return nil, goerrors.New("no files found in the files directory")
+	}
+
+	return files, nil
+}
+
+// processHookScripts processes hook scripts in the meta/ directory.
+// It validates that only referenced hook scripts exist and returns their metadata.
+// The function will return an error if:
+// - The meta directory is not accessible (when it should be)
+// - Any hook script cannot be read or hashed
+// - Any file in meta/ is not referenced in the hooks map
+func processHookScripts(metaDir string, hooks map[string]string) ([]File, error) {
+	// If no hooks are defined, ensure the meta directory is empty or doesn't exist
+	if len(hooks) == 0 {
+		if _, err := os.Stat(metaDir); os.IsNotExist(err) {
+			// Meta directory doesn't exist, which is fine
+			return nil, nil
+		}
+		// Directory exists, check if it's empty
+		entries, err := os.ReadDir(metaDir)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to read meta directory %s", metaDir)
+		}
+		if len(entries) > 0 {
+			return nil, errors.Wrapf(errors.ErrInvalidPath,
+				"meta directory %s is not empty but no hooks are defined", metaDir)
+		}
+		return nil, nil
+	}
+
+	// We have hooks defined, so the meta directory must exist
+	if _, err := os.Stat(metaDir); os.IsNotExist(err) {
+		return nil, errors.Wrapf(errors.ErrInvalidPath,
+			"hooks are defined but meta directory %s does not exist", metaDir)
+	} else if err != nil {
+		return nil, errors.Wrapf(err, "failed to access meta directory %s", metaDir)
+	}
+
+	// Create a map of expected hook scripts for quick lookup
+	expectedHooks := make(map[string]bool, len(hooks))
+	for _, hookPath := range hooks {
+		expectedHooks[hookPath] = true
+	}
+
+	var hookFiles []File
+
+	// Process each file in the meta directory
+	entries, err := os.ReadDir(metaDir)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to read meta directory %s", metaDir)
+	}
+
+	for _, entry := range entries {
+		// Skip directories
+		if entry.IsDir() {
+			continue
+		}
+
+		// Only process .tengo files
+		if filepath.Ext(entry.Name()) != ".tengo" {
+			continue
+		}
+
+		hookPath := filepath.Join(metaDir, entry.Name())
+		info, err := os.Stat(hookPath)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to get file info for %s", hookPath)
+		}
+
+		// Check if this hook is expected
+		if !expectedHooks[entry.Name()] {
+			return nil, errors.Wrapf(errors.ErrInvalidPath,
+				"unexpected hook script: %s (not referenced in hooks)", entry.Name())
+		}
+
+		// Calculate file hash
+		hash, err := calculateFileHash(hookPath)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to calculate hash for hook script %s", hookPath)
+		}
+
+		// Add to results
+		hookFiles = append(hookFiles, File{
+			Path:   filepath.ToSlash(entry.Name()),
+			Size:   info.Size(),
+			Mode:   uint32(info.Mode()),
+			Digest: hash,
+		})
+
+		// Remove from expected hooks to track which ones we've processed
+		delete(expectedHooks, entry.Name())
+	}
+
+	// Check if any expected hooks were not found
+	if len(expectedHooks) > 0 {
+		missingHooks := make([]string, 0, len(expectedHooks))
+		for hook := range expectedHooks {
+			missingHooks = append(missingHooks, hook)
+		}
+		return nil, errors.Wrapf(errors.ErrFileNotFound,
+			"missing hook scripts: %v", missingHooks)
+	}
+
+	return hookFiles, nil
+}
+
 // calculateFileHash calculates the SHA256 hash of a file.
 func calculateFileHash(path string) (string, error) {
 	// Validate the path
@@ -105,140 +341,53 @@ func calculateFileHash(path string) (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// processFiles processes all files in the source directory and updates the metadata.
+// processFiles orchestrates the processing of package files and hook scripts.
+// It validates the package structure and processes files according to the package design.
+// The function will return an error if:
+// - The package structure is invalid
+// - No files are found in the package
+// - Any file processing fails
+// - Any hook script validation fails
 func processFiles(sourceDir string, meta *Metadata) error {
 	// Clear existing files
 	meta.Files = []File{}
 
-	// First, check if we have a 'files' subdirectory
+	// 1. Validate package structure first
+	if err := validatePackageStructure(sourceDir); err != nil {
+		return errors.Wrap(err, "invalid package structure")
+	}
+
+	// 2. Process package files from the 'files' directory
 	filesDir := filepath.Join(sourceDir, "files")
-	if _, err := os.Stat(filesDir); err == nil {
-		// Process files from the 'files' subdirectory
-		err := filepath.Walk(filesDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return errors.Wrapf(err, "error accessing %s", path)
-			}
+	files, err := processPackageFiles(filesDir)
+	if err != nil {
+		return errors.Wrapf(err, "failed to process package files in %s", filesDir)
+	}
+	meta.Files = files
 
-			// Skip the files directory itself
-			if path == filesDir {
-				return nil
-			}
-
-			// Skip directories
-			if info.IsDir() {
-				return nil
-			}
-
-			// Skip hidden files and directories
-			if strings.HasPrefix(filepath.Base(path), ".") {
-				return nil
-			}
-
-			// Get relative path from the files directory
-			relPath, err := filepath.Rel(filesDir, path)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get relative path for %s", path)
-			}
-
-			// Calculate file hash
-			hash, err := calculateFileHash(path)
-			if err != nil {
-				return errors.Wrapf(err, "failed to calculate hash for %s", path)
-			}
-
-			// Add file to metadata
-			meta.Files = append(meta.Files, File{
-				Path:   filepath.ToSlash(relPath), // Use forward slashes for consistency
-				Size:   info.Size(),
-				Mode:   uint32(info.Mode()),
-				Digest: hash,
-			})
-
-			return nil
-		})
-		if err != nil {
-			return errors.Wrapf(err, "error walking the path %s", filesDir)
-		}
-
-		// If we found files in the 'files' directory, we're done
-		if len(meta.Files) > 0 {
-			return nil
-		}
+	// 3. Process hook scripts
+	metaDir := filepath.Join(sourceDir, "meta")
+	hookFiles, err := processHookScripts(metaDir, meta.Hooks)
+	if err != nil {
+		return errors.Wrap(err, "failed to process hook scripts")
 	}
 
-	// If no 'files' directory or it was empty, process the source directory directly
-	cleanSourceDir, err := validatePath(sourceDir)
-	if err != nil {
-		return errors.Wrapf(err, "invalid source directory %s", sourceDir)
+	// Add hook files to the files list with 'meta/' prefix
+	for _, hookFile := range hookFiles {
+		hookFile.Path = filepath.ToSlash(filepath.Join("meta", hookFile.Path))
+		meta.Files = append(meta.Files, hookFile)
 	}
 
-	err = filepath.Walk(cleanSourceDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return errors.Wrapf(err, "error accessing %s", path)
-		}
-
-		// Skip the source directory itself
-		if path == cleanSourceDir {
-			return nil
-		}
-
-		// Skip the 'meta' directory and its contents
-		if strings.HasPrefix(path, filepath.Join(cleanSourceDir, "meta")) {
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		// Skip the 'files' directory (we already processed it)
-		if strings.HasPrefix(path, filepath.Join(cleanSourceDir, "files")) {
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		// Skip directories
-		if info.IsDir() {
-			return nil
-		}
-
-		// Skip hidden files and directories
-		if strings.HasPrefix(filepath.Base(path), ".") {
-			return nil
-		}
-
-		// Calculate relative path
-		relPath, err := filepath.Rel(cleanSourceDir, path)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get relative path for %s", path)
-		}
-
-		// Calculate file hash
-		hash, err := calculateFileHash(path)
-		if err != nil {
-			return errors.Wrapf(err, "failed to calculate hash for %s", path)
-		}
-
-		// Add file to metadata
-		meta.Files = append(meta.Files, File{
-			Path:   filepath.ToSlash(relPath), // Use forward slashes for consistency
-			Size:   info.Size(),
-			Mode:   uint32(info.Mode()),
-			Digest: hash,
-		})
-
-		return nil
-	})
-	if err != nil {
-		return errors.Wrapf(err, "error walking the path %s", cleanSourceDir)
+	// 4. Ensure we have at least one file in the package
+	if len(meta.Files) == 0 {
+		return goerrors.New("package must contain at least one file")
 	}
 
 	return nil
 }
 
 // CreatePackage creates a new package from the source directory.
-// It automatically generates the package metadata based on the source directory contents.
+// It validates input parameters, processes files, and creates a verified package.
 // The package will be created in the output directory with the specified name, version, OS, and architecture.
 // Additional metadata like maintainer, description, and dependencies can be provided.
 func CreatePackage(
@@ -248,70 +397,60 @@ func CreatePackage(
 	dependencies []string,
 	hooks map[string]string,
 ) (string, error) {
-	// Validate package name
-	if pkgName == "" {
+	// Validate package name and version
+	switch {
+	case pkgName == "":
 		return "", errors.Wrapf(errors.ErrNameRequired, "package name cannot be empty")
-	}
-	if !packageNameRegex.MatchString(pkgName) {
+	case !packageNameRegex.MatchString(pkgName):
 		return "", errors.Wrapf(
 			errors.ErrInvalidPackageName,
 			"invalid package name: %s - must match %s",
 			pkgName,
 			packageNameRegex.String(),
 		)
-	}
-
-	// Validate package version
-	if pkgVer == "" {
+	case pkgVer == "":
 		return "", errors.Wrapf(errors.ErrVersionRequired, "package version cannot be empty")
-	}
-	if !versionRegex.MatchString(pkgVer) {
+	case !versionRegex.MatchString(pkgVer):
 		return "", errors.Wrapf(
 			errors.ErrInvalidVersionString,
 			"invalid package version: %s - must match %s",
 			pkgVer,
 			versionRegex.String(),
 		)
-	}
-
-	// Validate OS and architecture
-	if pkgOS == "" {
+	case pkgOS == "":
 		return "", errors.Wrapf(errors.ErrTargetOSEmpty, "OS cannot be empty")
-	}
-	if pkgArch == "" {
+	case pkgArch == "":
 		return "", errors.Wrapf(errors.ErrTargetArchEmpty, "architecture cannot be empty")
 	}
 
-	// Clean and validate source directory path
+	// Validate and clean paths
 	cleanSourceDir, err := validatePath(sourceDir)
 	if err != nil {
 		return "", errors.Wrapf(err, "invalid source directory %s", sourceDir)
 	}
 
-	// Ensure source directory exists and is readable
-	if _, err := os.Stat(cleanSourceDir); os.IsNotExist(err) {
-		return "", errors.Wrapf(err, "source directory does not exist: %s", cleanSourceDir)
+	// Clean the output directory path
+	outputDir = filepath.Clean(outputDir)
+
+	// Create output directory if it doesn't exist
+	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(outputDir, DefaultDirMode); err != nil {
+			return "", errors.Wrapf(err, "failed to create output directory %s", outputDir)
+		}
 	} else if err != nil {
-		return "", errors.Wrapf(err, "failed to access source directory %s", sourceDir)
+		return "", errors.Wrapf(err, "failed to access output directory %s", outputDir)
 	}
 
-	// Clean and validate output directory path
-	outputDir, err = validatePath(outputDir)
-	if err != nil {
-		return "", errors.Wrapf(err, "invalid output directory")
-	}
-
-	// Ensure output directory exists and is writable
+	// Ensure output directory is writable
 	if err := verifyDirectoryWritable(outputDir); err != nil {
 		return "", errors.Wrapf(err, "output directory %s is not writable", outputDir)
 	}
 
-	// Set default description if not provided
+	// Initialize metadata with provided values or defaults
 	if description == "" {
 		description = fmt.Sprintf("Package %s version %s", pkgName, pkgVer)
 	}
 
-	// Create package metadata
 	meta := &Metadata{
 		Name:         pkgName,
 		Version:      pkgVer,
@@ -322,35 +461,16 @@ func CreatePackage(
 		Files:        []File{},
 	}
 
-	// Ensure source directory is not empty
-	dir, err := os.Open(cleanSourceDir)
-	if err != nil {
-		return "", errors.Wrapf(err, "failed to open source directory %s", cleanSourceDir)
-	}
-	defer dir.Close()
-
-	_, err = dir.Readdirnames(1)
-	if err == io.EOF {
-		return "", errors.Wrapf(errors.ErrPackageInvalid, "source directory %s must not be empty", cleanSourceDir)
-	} else if err != nil {
-		return "", errors.Wrapf(err, "failed to read source directory %s", cleanSourceDir)
+	// Process files and update metadata - this validates source directory and file structure
+	if err := processFiles(cleanSourceDir, meta); err != nil {
+		return "", errors.Wrapf(err, "failed to process files in %s", cleanSourceDir)
 	}
 
-	// Process files and update metadata
-	if err := processFiles(sourceDir, meta); err != nil {
-		return "", errors.Wrapf(err, "failed to process files in %s", sourceDir)
-	}
-
-	// Check if we have any files to package
-	if len(meta.Files) == 0 {
-		return "", errors.Wrapf(errors.ErrPackageInvalid, "no files found to package in %s", sourceDir)
-	}
-
-	// Create the output filename
+	// Create output filename and package
 	outputFile := filepath.Join(outputDir, fmt.Sprintf("%s_%s_%s_%s.tar.gz", pkgName, pkgVer, pkgOS, pkgArch))
 
-	// Create the tarball
-	if err := createTarball(sourceDir, outputFile, meta); err != nil {
+	// Create and verify the tarball
+	if err := createTarball(cleanSourceDir, outputFile, meta); err != nil {
 		// Clean up the output file if it was partially created
 		if removeErr := os.Remove(outputFile); removeErr != nil && !os.IsNotExist(removeErr) {
 			return "", errors.Wrapf(removeErr, "failed to clean up partially created package file %s", outputFile)
@@ -360,7 +480,6 @@ func CreatePackage(
 
 	// Verify the created package
 	if err := verifyPackage(outputFile, meta); err != nil {
-		// Clean up the output file if verification failed
 		if removeErr := os.Remove(outputFile); removeErr != nil && !os.IsNotExist(removeErr) {
 			return "", errors.Wrapf(removeErr, "failed to clean up package file after verification failure %s", outputFile)
 		}
@@ -462,6 +581,8 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 		return errors.Wrap(err, "error marshaling metadata to JSON")
 	}
 
+	metaJSON = append(metaJSON, '\n')
+
 	header := &tar.Header{
 		Name:    "meta/package.json",
 		Size:    int64(len(metaJSON)),
@@ -478,22 +599,6 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 	}
 
 	return nil
-}
-
-// readPackageMetadata reads and parses package metadata from a JSON file.
-func readPackageMetadata(metadataPath string) (*Metadata, error) {
-	file, err := os.Open(metadataPath)
-	if err != nil {
-		return nil, errors.WrapFileError(err, "open", metadataPath)
-	}
-	defer file.Close()
-
-	var meta Metadata
-	if err := json.NewDecoder(file).Decode(&meta); err != nil {
-		return nil, errors.WrapJSONError(err, "decode metadata")
-	}
-
-	return &meta, nil
 }
 
 // openPackageFile opens the package file and returns a reader.
@@ -685,42 +790,27 @@ func createExpectedFilesMap(meta *Metadata) (map[string]File, error) {
 }
 
 // addMetadataFile adds the package metadata file to the expected files map.
+// It generates the metadata in memory without writing to disk.
 func addMetadataFile(expectedFiles map[string]File, meta *Metadata) error {
-	// Create a temporary file to store the metadata
-	tmpFile, err := os.CreateTemp("", "package-meta-*.json")
+	// Marshal the metadata to JSON with indentation for consistent hashing
+	jsonData, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
-		return errors.Wrap(err, "create temporary file for metadata")
+		return errors.Wrap(err, "marshal metadata to JSON")
 	}
-	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
 
-	// Write the expected metadata to the temporary file
-	encoder := json.NewEncoder(tmpFile)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(meta); err != nil {
-		tmpFile.Close()
-		return errors.Wrap(err, "encode expected metadata")
-	}
-	if err := tmpFile.Close(); err != nil {
-		return errors.Wrap(err, "close temporary metadata file")
-	}
+	// Add newline to match file writing behavior
+	jsonData = append(jsonData, '\n')
+
+	// Calculate the hash of the JSON data
+	hash := sha256.Sum256(jsonData)
+	hexHash := hex.EncodeToString(hash[:])
 
 	// Add the metadata file to expected files
-	hash, err := calculateFileHash(tmpPath)
-	if err != nil {
-		return errors.Wrap(err, "calculate hash for expected metadata")
-	}
-
-	fileInfo, err := os.Stat(tmpPath)
-	if err != nil {
-		return errors.Wrap(err, "get file info for expected metadata")
-	}
-
 	expectedFiles["meta/package.json"] = File{
 		Path:   "meta/package.json",
-		Size:   fileInfo.Size(),
-		Mode:   uint32(fileInfo.Mode()),
-		Digest: hash,
+		Size:   int64(len(jsonData)),
+		Mode:   DefaultFileMode,
+		Digest: hexHash,
 	}
 
 	return nil
@@ -730,17 +820,7 @@ func addMetadataFile(expectedFiles map[string]File, meta *Metadata) error {
 func verifyExpectedFiles(foundFiles map[string]bool, expectedFiles []File) error {
 	for _, file := range expectedFiles {
 		if !foundFiles[file.Path] {
-			// Check if the file exists with a different path prefix
-			var altPath string
-			if strings.HasPrefix(file.Path, "files/") {
-				altPath = strings.TrimPrefix(file.Path, "files/")
-			} else {
-				altPath = filepath.Join("files", file.Path)
-			}
-
-			if !foundFiles[altPath] {
-				return errors.NewMissingFileError(file.Path)
-			}
+			return errors.NewMissingFileError(file.Path)
 		}
 	}
 
