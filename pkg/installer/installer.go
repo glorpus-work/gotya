@@ -2,6 +2,7 @@ package installer
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -16,18 +17,45 @@ import (
 
 // Installer handles package installation and updates.
 type Installer struct {
-	config      *config.Config
-	repoManager repository.RepositoryManager
-	hookManager hook.HookManager
+	config       *config.Config
+	repoManager  repository.RepositoryManager
+	hookManager  hook.HookManager
+	cacheDir     string
+	installedDir string
+	metaDir      string
 }
 
 // New creates a new Installer instance.
-func New(cfg *config.Config, repoManager repository.RepositoryManager, hookManager hook.HookManager) *Installer {
-	return &Installer{
-		config:      cfg,
-		repoManager: repoManager,
-		hookManager: hookManager,
+func New(cfg *config.Config, repoManager repository.RepositoryManager, hookManager hook.HookManager) (*Installer, error) {
+	// Ensure all required directories exist
+	if err := fsutil.EnsureDirs(); err != nil {
+		return nil, errors.Wrap(err, "failed to initialize directories")
 	}
+
+	// Get platform-specific directories
+	cacheDir, err := fsutil.GetPackageCacheDir()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get cache directory")
+	}
+
+	installedDir, err := fsutil.GetInstalledDir()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get installed packages directory")
+	}
+
+	metaDir, err := fsutil.GetMetaDir()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get metadata directory")
+	}
+
+	return &Installer{
+		config:       cfg,
+		repoManager:  repoManager,
+		hookManager:  hookManager,
+		cacheDir:     cacheDir,
+		installedDir: installedDir,
+		metaDir:      metaDir,
+	}, nil
 }
 
 // InstallPackage installs a package with the given name.
@@ -150,18 +178,47 @@ func (i *Installer) UpdatePackage(packageName string) (bool, error) {
 	return true, nil
 }
 
-// installPackageFiles installs the actual package files.
+// getPackageInstallDir returns the installation directory for a package
+func (i *Installer) getPackageInstallDir(pkgName string) string {
+	return filepath.Join(i.installedDir, pkgName)
+}
+
+// getPackageMetaDir returns the metadata directory for a package
+func (i *Installer) getPackageMetaDir(pkgName string) string {
+	return filepath.Join(i.metaDir, pkgName)
+}
+
+// getPackageCachePath returns the cache path for a package archive
+func (i *Installer) getPackageCachePath(pkg *repository.Package) string {
+	// Use the filename from the URL if available, otherwise create a default name
+	if pkg.URL != "" {
+		_, filename := filepath.Split(pkg.URL)
+		if filename != "" {
+			return filepath.Join(i.cacheDir, filename)
+		}
+	}
+	// Fallback to a default naming scheme if URL is not available
+	return filepath.Join(i.cacheDir, fmt.Sprintf("%s_%s.tar.gz", pkg.Name, pkg.Version))
+}
+
+// installPackageFiles installs the actual package files
 func (i *Installer) installPackageFiles(pkg *repository.Package) error {
 	// Create target directories
-	targetDir := filepath.Join(i.config.Settings.InstallDir, pkg.Name)
+	targetDir := i.getPackageInstallDir(pkg.Name)
+	metaDir := i.getPackageMetaDir(pkg.Name)
+
 	logger.Debugf("Creating target directory: %s", targetDir)
-	if err := fsutil.EnsureDir(targetDir); err != nil {
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return errors.Wrapf(err, "failed to create target directory: %s", targetDir)
 	}
 
-	// Download and extract package
-	// This is a simplified example - in a real implementation, you would:
-	// 1. Download the package archive
+	logger.Debugf("Creating metadata directory: %s", metaDir)
+	if err := os.MkdirAll(metaDir, 0755); err != nil {
+		return errors.Wrapf(err, "failed to create metadata directory: %s", metaDir)
+	}
+
+	// TODO: Implement package download and extraction
+	// 1. Download package to cache
 	// 2. Verify checksum
 	// 3. Extract to target directory
 	// 4. Handle file conflicts
@@ -175,19 +232,6 @@ func (i *Installer) runHooks(event, packageName string, pkg *repository.Package)
 		return nil // No hook manager configured
 	}
 
-	// Create hook context
-	hookCtx := hook.HookContext{
-		PackageName:    pkg.Name,
-		PackageVersion: pkg.Version,
-		PackagePath:    pkg.URL, // Using URL as the package path
-		InstallPath:    filepath.Join(i.config.Settings.InstallDir, pkg.Name),
-		Vars: map[string]interface{}{
-			"config": map[string]interface{}{
-				"install_dir": i.config.Settings.InstallDir,
-			},
-		},
-	}
-
 	// Convert event string to HookType
 	var hookType hook.HookType
 	switch event {
@@ -197,6 +241,26 @@ func (i *Installer) runHooks(event, packageName string, pkg *repository.Package)
 		hookType = hook.PostInstall
 	default:
 		return hook.ErrUnsupportedHookEvent(event)
+	}
+
+	// Create hook context
+	hookCtx := hook.HookContext{
+		PackageName:    pkg.Name,
+		PackageVersion: pkg.Version,
+		PackagePath:    i.getPackageInstallDir(pkg.Name),
+		InstallPath:    i.getPackageInstallDir(pkg.Name),
+		Vars: map[string]interface{}{
+			"config": map[string]interface{}{
+				"cache_dir":     i.cacheDir,
+				"installed_dir": i.installedDir,
+				"meta_dir":      i.metaDir,
+			},
+			"package": map[string]interface{}{
+				"name":    pkg.Name,
+				"version": pkg.Version,
+				"url":     pkg.URL,
+			},
+		},
 	}
 
 	// Execute the hook
