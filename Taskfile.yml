@@ -84,3 +84,38 @@ tasks:
       - task: test
       - task: lint
       - task: build
+
+  # GitHub Actions Local Testing with act
+  act-list:
+    desc: List available act workflows
+    cmds:
+      - act -l
+
+  act-integration-test:
+    desc: Run integration tests locally using act (Ubuntu only)
+    cmds:
+      - act -j integration-test --matrix "os:ubuntu-latest"
+
+  act-integration-test-windows:
+    desc: Run integration tests on Windows using act
+    cmds:
+      - act -j integration-test --matrix "os:windows-latest"
+
+  act-integration-test-all:
+    desc: Run integration tests on all platforms locally using act
+    cmds:
+      - act -j integration-test --matrix "os:ubuntu-latest,windows-latest,macos-latest"
+
+  act-ci:
+    desc: Run full CI workflow locally using act
+    cmds:
+      - act
+
+  act-ci-all:
+    desc: Run full CI workflow on all platforms
+    cmds:
+      - act --matrix "os=ubuntu-latest,windows-latest,macos-latest"
+
+  # Alias for convenience
+  test-local: act-integration-test
+  test-local-all: act-integration-test-all
