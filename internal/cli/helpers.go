@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/logger"
-	"github.com/cperrin88/gotya/pkg/repository"
 	"github.com/sirupsen/logrus"
 )
 
-// These variables will be set by the main package.
+// These variables will be set by the main pkg.
 var (
 	ConfigPath   *string
 	Verbose      *bool
@@ -18,7 +18,7 @@ var (
 )
 
 // This is a bridge function that the CLI commands can use.
-func loadConfigAndManager() (*config.Config, repository.RepositoryManager, error) {
+func loadConfigAndManager() (*config.Config, *index.Manager, error) {
 	var cfg *config.Config
 	var err error
 
@@ -55,29 +55,14 @@ func loadConfigAndManager() (*config.Config, repository.RepositoryManager, error
 	// Initialize logger with config settings
 	logger.InitLogger(cfg.Settings.LogLevel, !cfg.Settings.ColorOutput)
 
-	// Create repository manager with platform settings from config
-	manager := repository.NewManagerWithPlatform(
-		"", // cacheDir will be set by the manager if empty
-		cfg.Settings.Platform.OS,
-		cfg.Settings.Platform.Arch,
-		cfg.Settings.Platform.PreferNative,
-	)
+	// Create index manager with platform settings from config
+	manager := index.NewRepositoryManager(cfg)
 
-	logger.Debug("Initialized repository manager with platform settings", logrus.Fields{
+	logger.Debug("Initialized index manager with platform settings", logrus.Fields{
 		"os":           cfg.Settings.Platform.OS,
 		"arch":         cfg.Settings.Platform.Arch,
 		"preferNative": cfg.Settings.Platform.PreferNative,
 	})
-
-	// Apply config repositories to manager
-	for _, repo := range cfg.Repositories {
-		if err := manager.AddRepository(repo.Name, repo.URL); err != nil {
-			return nil, nil, fmt.Errorf("failed to add repository %s: %w", repo.Name, err)
-		}
-		if err := manager.EnableRepository(repo.Name, repo.Enabled); err != nil {
-			return nil, nil, fmt.Errorf("failed to configure repository %s: %w", repo.Name, err)
-		}
-	}
 
 	return cfg, manager, nil
 }

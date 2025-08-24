@@ -39,7 +39,7 @@ type Config struct {
 	Settings Settings `yaml:"settings"`
 }
 
-// RepositoryConfig represents a single repository configuration.
+// RepositoryConfig represents a single index configuration.
 type RepositoryConfig struct {
 	Name     string `yaml:"name"`
 	URL      string `yaml:"url"`
@@ -70,7 +70,7 @@ type Settings struct {
 	AutoSync bool          `yaml:"auto_sync"`
 
 	// Installation settings
-	InstallDir string `yaml:"install_dir,omitempty"` // Base directory for package installations
+	InstallDir string `yaml:"install_dir,omitempty"` // Base directory for pkg installations
 
 	// Network settings
 	HTTPTimeout   time.Duration `yaml:"http_timeout"`
@@ -88,15 +88,13 @@ type Settings struct {
 // DefaultConfig returns a configuration with sensible defaults.
 func DefaultConfig() *Config {
 	// Get the default install directory (usually ~/.local/share/gotya/install on Linux)
-	var installDir string
-	userDataDir, err := getUserDataDir()
-	if err == nil && userDataDir != "" {
-		installDir = filepath.Join(userDataDir, "install")
-	}
+	installDir, _ := fsutil.GetInstalledDir()
+	cacheDir, _ := fsutil.GetCacheDir()
 
 	return &Config{
 		Repositories: []RepositoryConfig{},
 		Settings: Settings{
+			CacheDir:      cacheDir,
 			CacheTTL:      DefaultCacheTTL,
 			AutoSync:      false,
 			HTTPTimeout:   DefaultHTTPTimeout,
@@ -350,17 +348,17 @@ func GetDefaultConfigPath() (string, error) {
 	return filepath.Join(gotyaConfigDir, "config.yaml"), nil
 }
 
-// AddRepository adds a repository to the configuration.
-// Returns an error if a repository with the same name already exists.
+// AddRepository adds a index to the configuration.
+// Returns an error if a index with the same name already exists.
 func (c *Config) AddRepository(name, url string, enabled bool) error {
-	// Check if repository already exists
+	// Check if index already exists
 	for _, repo := range c.Repositories {
 		if repo.Name == name {
 			return errors.ErrRepositoryExistsWithName(name)
 		}
 	}
 
-	// Add new repository
+	// Add new index
 	c.Repositories = append(c.Repositories, RepositoryConfig{
 		Name:     name,
 		URL:      url,
@@ -371,7 +369,7 @@ func (c *Config) AddRepository(name, url string, enabled bool) error {
 	return nil
 }
 
-// RemoveRepository removes a repository from the configuration.
+// RemoveRepository removes a index from the configuration.
 func (c *Config) RemoveRepository(name string) bool {
 	for i, repo := range c.Repositories {
 		if repo.Name == name {
@@ -382,7 +380,7 @@ func (c *Config) RemoveRepository(name string) bool {
 	return false
 }
 
-// GetRepository gets a repository configuration by name.
+// GetRepository gets a index configuration by name.
 func (c *Config) GetRepository(name string) *RepositoryConfig {
 	for i, repo := range c.Repositories {
 		if repo.Name == name {
@@ -392,7 +390,7 @@ func (c *Config) GetRepository(name string) *RepositoryConfig {
 	return nil
 }
 
-// EnableRepository enables or disables a repository.
+// EnableRepository enables or disables a index.
 func (c *Config) EnableRepository(name string, enabled bool) bool {
 	for i, repo := range c.Repositories {
 		if repo.Name == name {
@@ -412,6 +410,14 @@ func (c *Config) GetDatabasePath() string {
 	}
 
 	return filepath.Join(stateDir, "gotya", "state", "installed.json")
+}
+
+func (c *Config) GetIndexPath(name string) string {
+	return filepath.Join(c.Settings.CacheDir, "indexes", fmt.Sprintf("%s.json", name))
+}
+
+func (c *Config) GetPackageCachePath(name string) string {
+	return filepath.Join(c.Settings.CacheDir, "packages", fmt.Sprintf("%s.tar.gz", name))
 }
 
 // getUserDataDir returns the user state directory following platform conventions.

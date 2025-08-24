@@ -262,16 +262,16 @@ hookManager := hook.NewManager()
 // Create installer
 installer := installer.New(config, repoManager, hookManager)
 
-// Install a package
-err := installer.InstallPackage("example-package", false, false)
+// Install a pkg
+err := installer.InstallPackage("example-pkg", false, false)
 if err != nil {
-    log.Fatalf("Failed to install package: %v", err)
+    log.Fatalf("Failed to install pkg: %v", err)
 }
 
-// Update a package
-updated, err := installer.UpdatePackage("example-package")
+// Update a pkg
+updated, err := installer.UpdatePackage("example-pkg")
 if err != nil {
-    log.Fatalf("Failed to update package: %v", err)
+    log.Fatalf("Failed to update pkg: %v", err)
 }
 if updated {
     log.Println("Package was updated")

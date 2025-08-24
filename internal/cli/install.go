@@ -3,9 +3,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/cperrin88/gotya/pkg/installer"
 	"github.com/cperrin88/gotya/pkg/logger"
-	pkgpkg "github.com/cperrin88/gotya/pkg/package"
+	pkgpkg "github.com/cperrin88/gotya/pkg/pkg"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +26,7 @@ Dependencies will be automatically resolved and installed unless --skip-deps is 
 		},
 	}
 
-	cmd.Flags().BoolVar(&force, "force", false, "Force installation even if package already exists")
+	cmd.Flags().BoolVar(&force, "force", false, "Force installation even if pkg already exists")
 	cmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency resolution")
 
 	return cmd
@@ -58,10 +57,10 @@ func runInstall(packages []string, force, skipDeps bool) error {
 		return err
 	}
 
-	// Create installer with nil hook manager for now
+	// Create installer with nil hooks manager for now
 	pkgInstaller := installer.New(cfg, repoManager, nil)
 
-	// Process each package
+	// Process each pkg
 	for _, pkgName := range packages {
 		if err := pkgInstaller.InstallPackage(pkgName, force, skipDeps); err != nil {
 			return fmt.Errorf("failed to install %s: %w", pkgName, err)
@@ -77,7 +76,7 @@ func runUpdate(packages []string, all bool) error {
 		return err
 	}
 
-	// Create installer with nil hook manager for now
+	// Create installer with nil hooks manager for now
 	pkgInstaller := installer.New(cfg, repoManager, nil)
 
 	// Get packages to update
@@ -99,7 +98,7 @@ func runUpdate(packages []string, all bool) error {
 		return fmt.Errorf("no packages specified and --all flag not used")
 	}
 
-	// Process each package
+	// Process each pkg
 	updated := false
 	for _, pkgName := range packagesToUpdate {
 		wasUpdated, err := pkgInstaller.UpdatePackage(pkgName)

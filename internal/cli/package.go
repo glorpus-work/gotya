@@ -6,13 +6,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	pkgpkg "github.com/cperrin88/gotya/pkg/package"
+	pkgpkg "github.com/cperrin88/gotya/pkg/pkg"
 )
 
-// NewPackageCmd creates a new package command.
+// NewPackageCmd creates a new pkg command.
 func NewPackageCmd() *cobra.Command {
 	pkgCmd := &cobra.Command{
-		Use:   "package",
+		Use:   "pkg",
 		Short: "Package management commands",
 		Long:  "Commands for creating and managing gotya packages",
 	}
@@ -23,7 +23,7 @@ func NewPackageCmd() *cobra.Command {
 	return pkgCmd
 }
 
-// newPackageCreateCommand creates the 'package create' command.
+// newPackageCreateCommand creates the 'pkg create' command.
 func newPackageCreateCommand() *cobra.Command {
 	// Command line flags
 	var (
@@ -41,11 +41,11 @@ func newPackageCreateCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a new package",
-		Long: `Create a new gotya package from a source directory.
-The source directory should contain a 'meta/package.json' file and a 'files/' directory.`,
+		Short: "Create a new pkg",
+		Long: `Create a new gotya pkg from a source directory.
+The source directory should contain a 'meta/pkg.json' file and a 'files/' directory.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			// Delegate to the package implementation
+			// Delegate to the pkg implementation
 			_, err := pkgpkg.CreatePackage(
 				sourceDir,
 				outputDir,
@@ -59,23 +59,23 @@ The source directory should contain a 'meta/package.json' file and a 'files/' di
 				hooks,
 			)
 			if err != nil {
-				return fmt.Errorf("failed to create package: %w", err)
+				return fmt.Errorf("failed to create pkg: %w", err)
 			}
 			return nil
 		},
 	}
 
 	// Add flags with descriptions and defaults
-	cmd.Flags().StringVarP(&sourceDir, "source", "s", ".", "Source directory containing package files (required)")
-	cmd.Flags().StringVarP(&outputDir, "output", "o", ".", "Output directory for the created package")
-	cmd.Flags().StringVar(&pkgName, "name", "", "Package name (required, overrides name in package.json)")
-	cmd.Flags().StringVar(&pkgVer, "version", "0.1.0", "Package version (e.g., 1.0.0, overrides version in package.json)")
+	cmd.Flags().StringVarP(&sourceDir, "source", "s", ".", "Source directory containing pkg files (required)")
+	cmd.Flags().StringVarP(&outputDir, "output", "o", ".", "Output directory for the created pkg")
+	cmd.Flags().StringVar(&pkgName, "name", "", "Package name (required, overrides name in pkg.json)")
+	cmd.Flags().StringVar(&pkgVer, "version", "0.1.0", "Package version (e.g., 1.0.0, overrides version in pkg.json)")
 	cmd.Flags().StringVar(&pkgOS, "os", runtime.GOOS, "Target operating system")
 	cmd.Flags().StringVar(&pkgArch, "arch", runtime.GOARCH, "Target architecture")
 	cmd.Flags().StringVar(&maintainer, "maintainer", "", "Package maintainer (name <email>)")
 	cmd.Flags().StringVar(&description, "description", "", "Package description")
 	cmd.Flags().StringSliceVar(&dependencies, "depends", nil, "Package dependencies (comma-separated)")
-	cmd.Flags().StringToStringVar(&hooks, "hooks", nil, "Package hooks in format 'hook=script.tengo' (comma-separated)")
+	cmd.Flags().StringToStringVar(&hooks, "hooks", nil, "Package hooks in format 'hooks=script.tengo' (comma-separated)")
 
 	// Mark required flags
 	_ = cmd.MarkFlagRequired("source")

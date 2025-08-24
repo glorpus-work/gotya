@@ -57,7 +57,7 @@ func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
 	if options.All || options.Packages {
 		size, err := cm.cleanPackageCache()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to clean package cache")
+			return nil, errors.Wrapf(err, "failed to clean pkg cache")
 		}
 		result.PackageFreed = size
 		result.TotalFreed += size
@@ -82,11 +82,11 @@ func (cm *CacheManager) GetInfo() (*Info, error) {
 	info.IndexSize = indexSize
 	info.IndexFiles = indexFiles
 
-	// Get package cache info
+	// Get pkg cache info
 	pkgDir := filepath.Join(cm.directory, "packages")
 	pkgSize, pkgFiles, err := getDirSizeAndFiles(pkgDir)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, errors.Wrapf(err, "failed to get package cache info")
+		return nil, errors.Wrapf(err, "failed to get pkg cache info")
 	}
 	info.PackageSize = pkgSize
 	info.PackageFiles = pkgFiles
@@ -117,7 +117,7 @@ func (cm *CacheManager) cleanIndexCache() (int64, error) {
 	return cleanDirectory(indexDir)
 }
 
-// cleanPackageCache removes all package cache files.
+// cleanPackageCache removes all pkg cache files.
 func (cm *CacheManager) cleanPackageCache() (int64, error) {
 	packageDir := filepath.Join(cm.directory, "packages")
 	return cleanDirectory(packageDir)

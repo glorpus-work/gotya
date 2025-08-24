@@ -12,9 +12,9 @@ import (
 func NewSyncCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",
-		Short: "Synchronize package repository indexes",
-		Long: `Synchronize package repository indexes by downloading the latest
-package lists from configured repositories.`,
+		Short: "Synchronize pkg index indexes",
+		Long: `Synchronize pkg index indexes by downloading the latest
+pkg lists from configured repositories.`,
 		RunE: runSync,
 	}
 
@@ -27,9 +27,9 @@ func runSync(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	logger.Debug("Synchronizing repository indexes...")
+	logger.Debug("Synchronizing index indexes...")
 
-	if err := manager.SyncRepositories(context.Background()); err != nil {
+	if err := manager.SyncAll(context.Background()); err != nil {
 		return fmt.Errorf("failed to sync repositories: %w", err)
 	}
 

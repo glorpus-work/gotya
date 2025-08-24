@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/cperrin88/gotya/pkg/repository"
+	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/spf13/cobra"
 )
 
@@ -12,7 +12,7 @@ func NewRepoCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "repo",
 		Short: "Manage repositories",
-		Long:  "Add, remove, list, and manage package repositories",
+		Long:  "Add, remove, list, and manage pkg repositories",
 	}
 
 	cmd.AddCommand(
@@ -33,8 +33,8 @@ func newRepoAddCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "add URL",
-		Short: "Add a new repository",
-		Long:  "Add a new package repository by URL",
+		Short: "Add a new index",
+		Long:  "Add a new pkg index by URL",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runRepoAdd(args[0], name)
@@ -50,8 +50,8 @@ func newRepoAddCmd() *cobra.Command {
 func newRepoRemoveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "remove NAME",
-		Short: "Remove a repository",
-		Long:  "Remove a repository by name",
+		Short: "Remove a index",
+		Long:  "Remove a index by name",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runRepoRemove(args[0])
@@ -65,7 +65,7 @@ func newRepoListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List configured repositories",
-		Long:  "List all configured package repositories",
+		Long:  "List all configured pkg repositories",
 		RunE:  runRepoList,
 	}
 
@@ -75,8 +75,8 @@ func newRepoListCmd() *cobra.Command {
 func newRepoUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update [NAME...]",
-		Short: "Update repository indexes",
-		Long:  "Update package indexes for specified repositories or all repositories",
+		Short: "Update index indexes",
+		Long:  "Update pkg indexes for specified repositories or all repositories",
 		RunE:  runRepoUpdate,
 	}
 
@@ -89,7 +89,7 @@ func runRepoAdd(url, name string) error {
 		return err
 	}
 
-	repoOp := repository.NewRepositoryOperation(manager)
+	repoOp := index.NewRepositoryOperation(manager)
 	return repoOp.Add(name, url, 0) // Default priority is 0
 }
 
@@ -99,9 +99,9 @@ func runRepoRemove(name string) error {
 		return err
 	}
 
-	repoOp := repository.NewRepositoryOperation(manager)
+	repoOp := index.NewRepositoryOperation(manager)
 	if err := repoOp.Remove(name); err != nil {
-		return fmt.Errorf("failed to remove repository '%s': %w", name, err)
+		return fmt.Errorf("failed to remove index '%s': %w", name, err)
 	}
 	return nil
 }
@@ -112,7 +112,7 @@ func runRepoList(_ *cobra.Command, _ []string) error {
 		return err
 	}
 
-	repoOp := repository.NewRepositoryOperation(manager)
+	repoOp := index.NewRepositoryOperation(manager)
 	output, err := repoOp.List()
 	if err != nil {
 		return fmt.Errorf("failed to list repositories: %w", err)
@@ -128,7 +128,7 @@ func runRepoUpdate(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	repoOp := repository.NewRepositoryOperation(manager)
+	repoOp := index.NewRepositoryOperation(manager)
 	output, err := repoOp.Update(args)
 	if err != nil {
 		return fmt.Errorf("failed to update repositories: %w", err)

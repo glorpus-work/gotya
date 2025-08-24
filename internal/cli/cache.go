@@ -14,8 +14,8 @@ import (
 func NewCacheCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cache",
-		Short: "Manage package cache",
-		Long:  "Clean, show information about, and manage the package cache",
+		Short: "Manage pkg cache",
+		Long:  "Clean, show information about, and manage the pkg cache",
 	}
 
 	cmd.AddCommand(
@@ -36,7 +36,7 @@ func newCacheCleanCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "clean",
-		Short: "Clean package cache",
+		Short: "Clean pkg cache",
 		Long:  "Remove cached files to free up disk space",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return runCacheClean(all, indexes, packages)
@@ -44,7 +44,7 @@ func newCacheCleanCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&all, "all", false, "Clean all cached files")
-	cmd.Flags().BoolVar(&indexes, "indexes", false, "Clean only repository indexes")
+	cmd.Flags().BoolVar(&indexes, "indexes", false, "Clean only index indexes")
 	cmd.Flags().BoolVar(&packages, "packages", false, "Clean only downloaded packages")
 
 	return cmd
@@ -54,7 +54,7 @@ func newCacheInfoCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "info",
 		Short: "Show cache information",
-		Long:  "Display information about the package cache",
+		Long:  "Display information about the pkg cache",
 		RunE:  runCacheInfo,
 	}
 

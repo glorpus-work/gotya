@@ -1,7 +1,7 @@
 package fsutil
 
 import (
-	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,34 +31,26 @@ func GetCacheDir() (string, error) {
 // On macOS: ~/Library/Application Support
 // On Windows: %LOCALAPPDATA%
 func getAppDataDir() (string, error) {
-	switch runtime.GOOS {
-	case platform.OSWindows:
-		// Windows: %LOCALAPPDATA%
-		localAppData := os.Getenv("LOCALAPPDATA")
-		if localAppData == "" {
-			return "", errors.New("LOCALAPPDATA environment variable not set")
-		}
-		return localAppData, nil
-
-	case platform.OSDarwin:
-		// macOS: ~/Library/Application Support
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(home, "Library", "Application Support"), nil
-
-	default: // Linux, BSD, etc.
-		// Use XDG_DATA_HOME with fallback to ~/.local/share
-		if xdgDataHome := os.Getenv("XDG_DATA_HOME"); xdgDataHome != "" {
-			return xdgDataHome, nil
-		}
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		return filepath.Join(home, ".local", "share"), nil
+	// Check for XDG_STATE_HOME environment variable - if set, always use it
+	if dir := os.Getenv("XDG_DATA_HOME"); dir != "" {
+		return dir, nil
 	}
+
+	// Special case for Linux: follow XDG Base Directory Specification
+	if runtime.GOOS == platform.OSLinux {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		return filepath.Join(homeDir, ".local", "share"), nil
+	}
+
+	// For all other platforms (Windows, macOS, etc.), use UserConfigDir + gotya/state
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user config directory: %w", err)
+	}
+	return filepath.Join(configDir), nil
 }
 
 // GetDataDir returns the platform-specific data directory for the application
@@ -74,7 +66,7 @@ func GetDataDir() (string, error) {
 	return filepath.Join(baseDir, AppName), nil
 }
 
-// GetPackageCacheDir returns the directory for storing downloaded package archives
+// GetPackageCacheDir returns the directory for storing downloaded pkg archives
 // Format: <cache_dir>/packages/
 func GetPackageCacheDir() (string, error) {
 	cacheDir, err := GetCacheDir()
@@ -94,7 +86,7 @@ func GetInstalledDir() (string, error) {
 	return filepath.Join(dataDir, "installed"), nil
 }
 
-// GetMetaDir returns the directory for package metadata
+// GetMetaDir returns the directory for pkg metadata
 // Format: <data_dir>/meta/
 func GetMetaDir() (string, error) {
 	dataDir, err := GetDataDir()

@@ -61,7 +61,7 @@ var (
 		"failed to clean index cache") // When index cache cleanup fails
 
 	ErrCacheCleanPackage = fmt.Errorf(
-		"failed to clean package cache") // When package cache cleanup fails
+		"failed to clean pkg cache") // When pkg cache cleanup fails
 
 	// Platform and configuration validation errors.
 	// These errors are used to validate system-specific configuration values.
@@ -75,25 +75,25 @@ var (
 	// CLI errors are returned during command-line interface operations.
 	// These errors help users understand and correct their command usage.
 
-	// ErrNoPackagesSpecified is returned when a command requires package arguments
+	// ErrNoPackagesSpecified is returned when a command requires pkg arguments
 	// but none were provided and the --all flag was not used.
 	ErrNoPackagesSpecified = fmt.Errorf("no packages specified and --all flag not used")
 
 	// ErrNoRepositories is returned when no repositories are configured
-	// and an operation requires at least one repository.
+	// and an operation requires at least one index.
 	ErrNoRepositories = fmt.Errorf("no repositories configured")
 
-	// ErrPackageNotFound is returned when an operation is attempted on a package
+	// ErrPackageNotFound is returned when an operation is attempted on a pkg
 	// that doesn't exist in the database.
-	ErrPackageNotFound = fmt.Errorf("package not found")
+	ErrPackageNotFound = fmt.Errorf("pkg not found")
 
-	// Repository errors are related to repository management operations.
+	// Repository errors are related to index management operations.
 
-	// ErrEmptyRepositoryName is returned when a repository configuration is missing a name.
-	ErrEmptyRepositoryName = fmt.Errorf("repository name cannot be empty")
+	// ErrEmptyRepositoryName is returned when a index configuration is missing a name.
+	ErrEmptyRepositoryName = fmt.Errorf("index name cannot be empty")
 
-	// ErrRepositoryURLEmpty is returned when a repository configuration is missing a URL.
-	ErrRepositoryURLEmpty = fmt.Errorf("repository URL cannot be empty")
+	// ErrRepositoryURLEmpty is returned when a index configuration is missing a URL.
+	ErrRepositoryURLEmpty = fmt.Errorf("index URL cannot be empty")
 
 	// ErrEmptyRepositoryURL is an alias for ErrRepositoryURLEmpty for backward compatibility.
 	// Use ErrRepositoryURLEmpty instead.
@@ -108,15 +108,15 @@ var (
 	// ErrUnsupportedOS is returned when an unsupported operating system is detected.
 	ErrUnsupportedOS = fmt.Errorf("unsupported operating system")
 
-	// ErrRepositoryExists is returned when attempting to add a repository that already exists.
-	ErrRepositoryExists = fmt.Errorf("repository already exists")
+	// ErrRepositoryExists is returned when attempting to add a index that already exists.
+	ErrRepositoryExists = fmt.Errorf("index already exists")
 
-	// ErrDuplicateRepository is returned when a repository with the same name already exists.
-	// The parameter 'name' is the duplicate repository name.
+	// ErrDuplicateRepository is returned when a index with the same name already exists.
+	// The parameter 'name' is the duplicate index name.
 	// This is an alias for ErrRepositoryExists for backward compatibility.
 	ErrDuplicateRepository = ErrRepositoryExists
 
-	// Package errors are related to package management operations.
+	// Package errors are related to pkg management operations.
 
 	// ErrFileNotFound is returned when a required file cannot be found.
 	ErrFileNotFound = fmt.Errorf("file not found")
@@ -127,28 +127,28 @@ var (
 	// ErrInvalidFile is returned when a file exists but is invalid or corrupted.
 	ErrInvalidFile = fmt.Errorf("invalid file")
 
-	// Package errors are related to package management operations.
-	// ErrPackageInvalid is returned when a package is invalid or contains invalid data.
-	ErrPackageInvalid = fmt.Errorf("invalid package")
+	// Package errors are related to pkg management operations.
+	// ErrPackageInvalid is returned when a pkg is invalid or contains invalid data.
+	ErrPackageInvalid = fmt.Errorf("invalid pkg")
 
-	// ErrValidationFailed is returned when package validation fails.
+	// ErrValidationFailed is returned when pkg validation fails.
 	// This is the preferred error for validation failures.
 	ErrValidationFailed = fmt.Errorf("validation failed") // Alias for backward compatibility
 
-	// ErrNameRequired is returned when a package name is required but not provided.
+	// ErrNameRequired is returned when a pkg name is required but not provided.
 	ErrNameRequired = fmt.Errorf("name is required")
 
-	// Example: fmt.Errorf("invalid package name: %s - must match %s", name, pattern).
-	ErrInvalidPackageName = fmt.Errorf("invalid package name: %%s - must match %%s")
+	// Example: fmt.Errorf("invalid pkg name: %s - must match %s", name, pattern).
+	ErrInvalidPackageName = fmt.Errorf("invalid pkg name: %%s - must match %%s")
 
-	// ErrVersionRequired is returned when a package version is required but not provided.
+	// ErrVersionRequired is returned when a pkg version is required but not provided.
 	ErrVersionRequired = fmt.Errorf("version is required")
 
-	// ErrInvalidVersionString is returned when a package version string is invalid.
+	// ErrInvalidVersionString is returned when a pkg version string is invalid.
 	// The format string is used to include the version string and regex pattern.
 	// Example: fmt.Errorf(ErrInvalidVersionString.Error(), "1.0", "^[0-9]+\\.[0-9]+\\.[0-9]+$")
 	// The %%s placeholders will be replaced with the actual values when the error is created.
-	ErrInvalidVersionString = fmt.Errorf("invalid package version: %%s - must match %%s")
+	ErrInvalidVersionString = fmt.Errorf("invalid pkg version: %%s - must match %%s")
 
 	// ErrHTTPTimeoutNegative is returned when HTTP timeout is set to a negative value.
 	ErrHTTPTimeoutNegative = fmt.Errorf("http_timeout cannot be negative")
@@ -238,19 +238,19 @@ func ErrConfigFileExistsWithPath(configPath string) error {
 	return fmt.Errorf("%w: %s", ErrConfigFileExists, configPath)
 }
 
-// ErrEmptyRepositoryNameWithIndex is a helper to create a wrapped error with the repository index.
+// ErrEmptyRepositoryNameWithIndex is a helper to create a wrapped error with the index index.
 func ErrEmptyRepositoryNameWithIndex(i int) error {
-	return fmt.Errorf("repository %d: %w", i, ErrEmptyRepositoryName)
+	return fmt.Errorf("index %d: %w", i, ErrEmptyRepositoryName)
 }
 
-// ErrRepositoryURLEmptyWithName is a helper to create a wrapped error with the repository name.
+// ErrRepositoryURLEmptyWithName is a helper to create a wrapped error with the index name.
 func ErrRepositoryURLEmptyWithName(name string) error {
-	return fmt.Errorf("repository '%s': %w", name, ErrRepositoryURLEmpty)
+	return fmt.Errorf("index '%s': %w", name, ErrRepositoryURLEmpty)
 }
 
-// ErrRepositoryExistsWithName is a helper to create a wrapped error with the repository name.
+// ErrRepositoryExistsWithName is a helper to create a wrapped error with the index name.
 func ErrRepositoryExistsWithName(name string) error {
-	return fmt.Errorf("repository '%s': %w", name, ErrRepositoryExists)
+	return fmt.Errorf("index '%s': %w", name, ErrRepositoryExists)
 }
 
 // ErrInvalidOSValueWithDetails is a helper to create a wrapped error with the invalid value and valid options.
@@ -288,6 +288,10 @@ func ErrInvalidBoolValueWithDetails(key, value string) error {
 	return fmt.Errorf("%w for %s: %s", ErrInvalidBoolValue, key, value)
 }
 
+func ErrRepositoryNotFound(name string) error {
+	return fmt.Errorf("index with name %s not found", name)
+}
+
 // ErrUnknownConfigKeyWithName is a helper to create a wrapped error with the unknown key.
 func ErrUnknownConfigKeyWithName(key string) error {
 	return fmt.Errorf("%w: %s", ErrUnknownConfigKey, key)
@@ -317,7 +321,7 @@ var ErrUnexpectedFile = fmt.Errorf("unexpected file")
 // ErrMissingFile is returned when an expected file is missing.
 var ErrMissingFile = fmt.Errorf("missing file")
 
-// Helper functions for package errors
+// Helper functions for pkg errors
 
 // WrapFileError wraps a file-related error with additional context.
 func WrapFileError(err error, operation, path string) error {

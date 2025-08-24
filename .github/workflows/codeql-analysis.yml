@@ -19,7 +19,7 @@ jobs:
       security-events: write
 
     steps:
-    - name: Checkout repository
+    - name: Checkout index
       uses: actions/checkout@v5
       with:
         fetch-depth: 0

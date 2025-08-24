@@ -6,9 +6,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/logger"
-	pkg "github.com/cperrin88/gotya/pkg/package"
-	"github.com/cperrin88/gotya/pkg/repository"
+	pkg "github.com/cperrin88/gotya/pkg/pkg"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -85,19 +85,19 @@ func runSearch(_ *cobra.Command, query string, exactMatch bool, limit int) error
 			continue
 		}
 
-		logger.Debug("Searching repository", logrus.Fields{"repository": repo.Name})
+		logger.Debug("Searching index", logrus.Fields{"index": repo.Name})
 
-		// Get repository index
-		index, err := manager.GetRepositoryIndex(repo.Name)
+		// Get index index
+		index, err := manager.GetIndex(repo.Name)
 		if err != nil {
-			logger.Warn("Failed to get index for repository", logrus.Fields{
-				"repository": repo.Name,
-				"error":      err.Error(),
+			logger.Warn("Failed to get index for index", logrus.Fields{
+				"index": repo.Name,
+				"error": err.Error(),
 			})
 			continue
 		}
 
-		// Search in this repository's index
+		// Search in this index's index
 		results := searchInIndex(index, repo.Name, query, exactMatch)
 		allResults = append(allResults, results...)
 	}
@@ -126,7 +126,7 @@ type SearchResult struct {
 	Repository  string
 }
 
-func searchInIndex(index repository.Index, repoName, query string, exactMatch bool) []SearchResult {
+func searchInIndex(index index.Index, repoName, query string, exactMatch bool) []SearchResult {
 	var searchResults []SearchResult
 
 	availablePackages := index.GetPackages()
@@ -211,11 +211,11 @@ func runList(showInstalled, showAvailable bool) error {
 				continue
 			}
 
-			index, err := manager.GetRepositoryIndex(repo.Name)
+			index, err := manager.GetIndex(repo.Name)
 			if err != nil {
-				logger.Warn("Failed to get index for repository", logrus.Fields{
-					"repository": repo.Name,
-					"error":      err.Error(),
+				logger.Warn("Failed to get index for index", logrus.Fields{
+					"index": repo.Name,
+					"error": err.Error(),
 				})
 				continue
 			}
@@ -223,10 +223,10 @@ func runList(showInstalled, showAvailable bool) error {
 			repoPackages := index.GetPackages()
 			for pkgIdx := range repoPackages {
 				repoPkg := &repoPackages[pkgIdx]
-				// Check if package is already installed
+				// Check if pkg is already installed
 				var status string
 				if showInstalled {
-					// Check if we already have this package in our list (installed)
+					// Check if we already have this pkg in our list (installed)
 					found := false
 					for installedPkgIdx := range packages {
 						if packages[installedPkgIdx].Name == repoPkg.Name {
@@ -278,7 +278,7 @@ func runList(showInstalled, showAvailable bool) error {
 	return nil
 }
 
-// PackageListItem represents a package in the list output.
+// PackageListItem represents a pkg in the list output.
 type PackageListItem struct {
 	Name        string
 	Version     string

@@ -244,7 +244,7 @@ func TestRepositoryManagement(t *testing.T) {
 	assert.Equal(t, "test-repo", cfg.Repositories[0].Name)
 	assert.True(t, cfg.Repositories[0].Enabled)
 
-	// Test duplicate repository
+	// Test duplicate index
 	err = cfg.AddRepository("test-repo", "https://example.com/another", true)
 	assert.Error(t, err)
 
@@ -258,7 +258,7 @@ func TestRepositoryManagement(t *testing.T) {
 	assert.True(t, removed)
 	assert.Len(t, cfg.Repositories, 0)
 
-	// Test Remove non-existent repository
+	// Test Remove non-existent index
 	removed = cfg.RemoveRepository("non-existent")
 	assert.False(t, removed)
 
@@ -270,7 +270,7 @@ func TestRepositoryManagement(t *testing.T) {
 	assert.True(t, enabled)
 	assert.True(t, cfg.Repositories[0].Enabled)
 
-	// Test enabling non-existent repository
+	// Test enabling non-existent index
 	enabled = cfg.EnableRepository("non-existent", true)
 	assert.False(t, enabled)
 }

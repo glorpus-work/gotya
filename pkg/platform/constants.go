@@ -13,6 +13,8 @@ const (
 	OSOpenBSD = "openbsd"
 	// OSNetBSD represents the NetBSD operating system.
 	OSNetBSD = "netbsd"
+	// AnyOS represents any possible OS
+	AnyOS = "any"
 
 	// ArchAMD64 represents the AMD64 (x86_64) architecture.
 	ArchAMD64 = "amd64"
@@ -22,6 +24,8 @@ const (
 	ArchARM = "arm"
 	// ArchARM64 represents the ARM64 (AArch64) architecture.
 	ArchARM64 = "arm64"
+	// AnyArch represents any possible architecture
+	AnyArch = "any"
 )
 
 // ValidOS returns a list of valid OS values.
