@@ -4,9 +4,11 @@ import (
 	"fmt"
 
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/http"
 	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/logger"
-	"github.com/sirupsen/logrus"
+	"github.com/cperrin88/gotya/pkg/pkg"
+	"github.com/cperrin88/gotya/pkg/repository"
 )
 
 // These variables will be set by the main pkg.
@@ -18,7 +20,7 @@ var (
 )
 
 // This is a bridge function that the CLI commands can use.
-func loadConfigAndManager() (*config.Config, *index.ManagerImpl, error) {
+func loadConfig() (*config.Config, error) {
 	var cfg *config.Config
 	var err error
 
@@ -32,13 +34,13 @@ func loadConfigAndManager() (*config.Config, *index.ManagerImpl, error) {
 	} else {
 		defaultPath, pathErr := config.GetDefaultConfigPath()
 		if pathErr != nil {
-			return nil, nil, fmt.Errorf("failed to get default config path: %w", pathErr)
+			return nil, fmt.Errorf("failed to get default config path: %w", pathErr)
 		}
 		cfg, err = config.LoadConfig(defaultPath)
 	}
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to load config: %w", err)
+		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	// Override config with CLI flags if provided
@@ -55,14 +57,26 @@ func loadConfigAndManager() (*config.Config, *index.ManagerImpl, error) {
 	// Initialize logger with config settings
 	logger.InitLogger(cfg.Settings.LogLevel, !cfg.Settings.ColorOutput)
 
-	// Create index manager with platform settings from config
-	manager := index.NewRepositoryManager(cfg)
+	return cfg, nil
+}
 
-	logger.Debug("Initialized index manager with platform settings", logrus.Fields{
-		"os":           cfg.Settings.Platform.OS,
-		"arch":         cfg.Settings.Platform.Arch,
-		"preferNative": cfg.Settings.Platform.PreferNative,
-	})
+func loadIndexManager(config *config.Config, httpClient http.Client) index.Manager {
+	repositories := make([]*repository.Repository, len(config.Repositories))
+	for _, repo := range config.Repositories {
+		repositories = append(repositories, &repository.Repository{
+			Name:     repo.Name,
+			Url:      repo.GetUrl(),
+			Priority: uint(repo.Priority),
+			Enabled:  repo.Enabled,
+		})
+	}
+	return index.NewManager(httpClient, repositories, config.GetIndexDir(), config.Settings.CacheTTL)
+}
 
-	return cfg, manager, nil
+func loadPackageManager(config *config.Config, indexManager index.Manager, httpClient http.Client) pkg.Manager {
+	return pkg.NewManager(indexManager, httpClient, config.Settings.Platform.OS, config.Settings.Platform.Arch, config.GetPackageCacheDir())
+}
+
+func loadHttpClient(config *config.Config) http.Client {
+	return http.NewHTTPClient(config.Settings.HTTPTimeout)
 }

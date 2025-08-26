@@ -96,7 +96,7 @@ func newConfigInitCmd() *cobra.Command {
 }
 
 func runConfigShow(*cobra.Command, []string) error {
-	cfg, _, err := loadConfigAndManager()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func runConfigShow(*cobra.Command, []string) error {
 }
 
 func runConfigSet(key, value string) error {
-	cfg, _, err := loadConfigAndManager()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -184,7 +184,7 @@ func runConfigSet(key, value string) error {
 }
 
 func runConfigGet(key string) error {
-	cfg, _, err := loadConfigAndManager()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}

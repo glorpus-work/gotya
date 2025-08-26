@@ -6,7 +6,7 @@ import (
 )
 
 type Manager interface {
-	InstallPackage(ctx context.Context, pkgName, version, os, arch string, force bool) error
+	InstallPackage(ctx context.Context, pkgName, version string, force bool) error
 }
 
 // InstalledManager defines the interface for managing installed packages.

@@ -324,6 +324,8 @@ var ErrUnexpectedFile = fmt.Errorf("unexpected file")
 // ErrMissingFile is returned when an expected file is missing.
 var ErrMissingFile = fmt.Errorf("missing file")
 
+var ErrDownloadFailed = fmt.Errorf("download failed")
+
 // Helper functions for pkg errors
 
 // WrapFileError wraps a file-related error with additional context.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cperrin88/gotya/pkg/pkg"
 	"github.com/spf13/cobra"
 )
 
@@ -56,17 +55,17 @@ Use --all to update all installed packages.`,
 	}
 */
 func runInstall(packages []string, force, skipDeps bool) error {
-	cfg, indexManager, err := loadConfigAndManager()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
-
-	// Create installer with nil hooks manager for now
-	pkgInstaller := pkg.NewManager(indexManager, cfg)
+	httpClient := loadHttpClient(cfg)
+	indexManager := loadIndexManager(cfg, httpClient)
+	pkgManger := loadPackageManager(cfg, indexManager, httpClient)
 
 	// Process each pkg
 	for _, pkgName := range packages {
-		if err := pkgInstaller.InstallPackage(context.Background(), pkgName, ">= 0.0.0", cfg.Settings.Platform.OS, cfg.Settings.Platform.Arch, force); err != nil {
+		if err := pkgManger.InstallPackage(context.Background(), pkgName, ">= 0.0.0", force); err != nil {
 			return fmt.Errorf("failed to install %s: %w", pkgName, err)
 		}
 	}
@@ -76,7 +75,7 @@ func runInstall(packages []string, force, skipDeps bool) error {
 
 /*
 func runUpdate(packages []string, all bool) error {
-	cfg, repoManager, err := loadConfigAndManager()
+	cfg, repoManager, err := loadConfig()
 	if err != nil {
 		return err
 	}

@@ -60,7 +60,7 @@ func NewListCmd() *cobra.Command {
 }
 
 func runSearch(_ *cobra.Command, query string, exactMatch bool, limit int) error {
-	_, manager, err := loadConfigAndManager()
+	_, manager, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -172,7 +172,7 @@ func displaySearchResults(results []SearchResult) {
 }
 
 func runList(showInstalled, showAvailable bool) error {
-	cfg, manager, err := loadConfigAndManager()
+	cfg, manager, err := loadConfig()
 	if err != nil {
 		return err
 	}

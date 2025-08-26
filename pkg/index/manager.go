@@ -2,45 +2,62 @@ package index
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/http"
+	"github.com/cperrin88/gotya/pkg/repository"
 )
 
+type UintSlice []uint
+
+func (x UintSlice) Len() int           { return len(x) }
+func (x UintSlice) Less(i, j int) bool { return x[i] < x[j] }
+func (x UintSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
+
 type ManagerImpl struct {
-	config  *config.Config
-	indexes map[string]*Index
+	httpClient   http.Client
+	repositories []*repository.Repository
+	indexPath    string
+	cacheTTL     time.Duration
+	indexes      map[string]*Index
 }
 
-func NewRepositoryManager(config *config.Config) *ManagerImpl {
+func NewManager(
+	httpClient http.Client,
+	repositories []*repository.Repository,
+	indexPath string,
+	cacheTTL time.Duration,
+) *ManagerImpl {
 	return &ManagerImpl{
-		config:  config,
-		indexes: make(map[string]*Index, len(config.Repositories)),
+		httpClient:   httpClient,
+		repositories: repositories,
+		indexPath:    indexPath,
+		cacheTTL:     cacheTTL,
+		indexes:      make(map[string]*Index, len(repositories)),
 	}
 }
 
 func (rm *ManagerImpl) Sync(ctx context.Context, name string) error {
-	repo := rm.config.GetRepository(name)
-	if repo == nil {
+	repo, err := rm.getRepository(name)
+	if err != nil {
 		return errors.ErrRepositoryNotFound(name)
 	}
-	hc := http.NewHTTPClient(rm.config.Settings.HTTPTimeout)
-	if err := hc.DownloadIndex(ctx, repo.GetUrl(), rm.config.GetIndexPath(name)); err != nil {
+	if err := rm.httpClient.DownloadIndex(ctx, repo.Url, rm.indexPath); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (rm *ManagerImpl) SyncAll(ctx context.Context, name string) error {
-	hc := http.NewHTTPClient(rm.config.Settings.HTTPTimeout)
-	for _, repo := range rm.config.Repositories {
-		if err := hc.DownloadIndex(ctx, repo.GetUrl(), rm.config.GetIndexPath(name)); err != nil {
+	for _, repo := range rm.repositories {
+		if err := rm.httpClient.DownloadIndex(ctx, repo.Url, rm.getIndexPath(name)); err != nil {
 			return err
 		}
 	}
@@ -48,29 +65,20 @@ func (rm *ManagerImpl) SyncAll(ctx context.Context, name string) error {
 }
 
 func (rm *ManagerImpl) IsCacheStale(name string) bool {
-	cacheTTL := rm.config.Settings.CacheTTL
-	repo := rm.config.GetRepository(name)
-	if repo == nil {
-		return true
-	}
-
-	indexPath := rm.config.GetIndexPath(name)
-
-	stat, err := os.Stat(indexPath)
+	age, err := rm.GetCacheAge(name)
 	if err != nil {
 		return true
 	}
-
-	return stat.ModTime().Add(cacheTTL).Before(time.Now())
+	return age > rm.cacheTTL
 }
 
 func (rm *ManagerImpl) GetCacheAge(name string) (time.Duration, error) {
-	repo := rm.config.GetRepository(name)
-	if repo == nil {
+	repo, err := rm.getRepository(name)
+	if err != nil {
 		return -1, errors.ErrRepositoryNotFound(name)
 	}
 
-	indexPath := rm.config.GetIndexPath(name)
+	indexPath := rm.getIndexPath(repo.Name)
 
 	stat, err := os.Stat(indexPath)
 	if err != nil {
@@ -110,7 +118,7 @@ func (rm *ManagerImpl) ResolvePackage(name, version, os, arch string) (*Package,
 		return nil, err
 	}
 
-	repoPrioPackages := make(map[int][]*Package)
+	repoPrioPackages := make(map[uint][]*Package)
 
 	for idxName, pkgs := range repoPackages {
 		for _, pkg := range pkgs {
@@ -124,8 +132,8 @@ func (rm *ManagerImpl) ResolvePackage(name, version, os, arch string) (*Package,
 				continue
 			}
 
-			repo := rm.config.GetRepository(idxName)
-			if repo == nil {
+			repo, err := rm.getRepository(idxName)
+			if err != nil {
 				return nil, errors.ErrRepositoryNotFound(idxName)
 			}
 			if repoPrioPackages[repo.Priority] == nil {
@@ -139,10 +147,10 @@ func (rm *ManagerImpl) ResolvePackage(name, version, os, arch string) (*Package,
 	}
 
 	prios := slices.Collect(maps.Keys(repoPrioPackages))
-	sort.Sort(sort.Reverse(sort.IntSlice(prios)))
+	sort.Sort(sort.Reverse(UintSlice(prios)))
 
 	var finalPackage *Package
-	for prio := range prios {
+	for _, prio := range prios {
 		for _, pkg := range repoPrioPackages[prio] {
 			if finalPackage == nil || pkg.GetVersion().GreaterThanOrEqual(finalPackage.GetVersion()) {
 				finalPackage = pkg
@@ -153,8 +161,16 @@ func (rm *ManagerImpl) ResolvePackage(name, version, os, arch string) (*Package,
 	return finalPackage, nil
 }
 
+func (rm *ManagerImpl) GetIndex(name string) (*Index, error) {
+	index, err := ParseIndexFromFile(rm.indexPath)
+	if err != nil {
+		return nil, err
+	}
+	return index, nil
+}
+
 func (rm *ManagerImpl) getIndexes() (map[string]*Index, error) {
-	if rm.indexes == nil {
+	if len(rm.indexes) == 0 {
 		if err := rm.loadIndexes(); err != nil {
 			return nil, err
 		}
@@ -163,8 +179,8 @@ func (rm *ManagerImpl) getIndexes() (map[string]*Index, error) {
 }
 
 func (rm *ManagerImpl) loadIndexes() error {
-	for _, repo := range rm.config.Repositories {
-		index, err := ParseIndexFromFile(rm.config.GetIndexPath(repo.Name))
+	for _, repo := range rm.repositories {
+		index, err := ParseIndexFromFile(rm.getIndexPath(repo.Name))
 		if err != nil {
 			return err
 		}
@@ -173,10 +189,16 @@ func (rm *ManagerImpl) loadIndexes() error {
 	return nil
 }
 
-func (rm *ManagerImpl) GetIndex(name string) (*Index, error) {
-	index, err := ParseIndexFromFile(rm.config.GetIndexPath(name))
-	if err != nil {
-		return nil, err
+func (rm *ManagerImpl) getRepository(name string) (*repository.Repository, error) {
+	idx := slices.IndexFunc(rm.repositories, func(r *repository.Repository) bool {
+		return r.Name == name
+	})
+	if idx == -1 {
+		return nil, errors.ErrRepositoryNotFound(name)
 	}
-	return index, nil
+	return rm.repositories[idx], nil
+}
+
+func (rm *ManagerImpl) getIndexPath(repoName string) string {
+	return filepath.Join(rm.indexPath, fmt.Sprintf("%s.json", repoName))
 }

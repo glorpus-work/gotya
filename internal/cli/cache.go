@@ -73,7 +73,7 @@ func newCacheDirCmd() *cobra.Command {
 }
 
 func runCacheClean(all, indexes, packages bool) error {
-	config, _, err := loadConfigAndManager()
+	config, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func runCacheClean(all, indexes, packages bool) error {
 }
 
 func runCacheInfo(_ *cobra.Command, _ []string) error {
-	config, _, err := loadConfigAndManager()
+	config, err := loadConfig()
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func runCacheInfo(_ *cobra.Command, _ []string) error {
 }
 
 func runCacheDir(_ *cobra.Command, _ []string) error {
-	config, _, err := loadConfigAndManager()
+	config, err := loadConfig()
 	if err != nil {
 		return err
 	}

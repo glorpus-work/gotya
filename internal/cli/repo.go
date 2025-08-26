@@ -84,7 +84,9 @@ func newRepoUpdateCmd() *cobra.Command {
 }
 
 func runRepoAdd(url, name string) error {
-	_, manager, err := loadConfigAndManager()
+	config, err := loadConfig()
+	httpClient := loadHttpClient(config)
+	manager := loadIndexManager(config, httpClient)
 	if err != nil {
 		return err
 	}
@@ -94,7 +96,9 @@ func runRepoAdd(url, name string) error {
 }
 
 func runRepoRemove(name string) error {
-	_, manager, err := loadConfigAndManager()
+	config, err := loadConfig()
+	httpClient := loadHttpClient(config)
+	manager := loadIndexManager(config, httpClient)
 	if err != nil {
 		return err
 	}
@@ -107,7 +111,9 @@ func runRepoRemove(name string) error {
 }
 
 func runRepoList(_ *cobra.Command, _ []string) error {
-	_, manager, err := loadConfigAndManager()
+	config, err := loadConfig()
+	httpClient := loadHttpClient(config)
+	manager := loadIndexManager(config, httpClient)
 	if err != nil {
 		return err
 	}
@@ -123,7 +129,9 @@ func runRepoList(_ *cobra.Command, _ []string) error {
 }
 
 func runRepoUpdate(_ *cobra.Command, args []string) error {
-	_, manager, err := loadConfigAndManager()
+	config, err := loadConfig()
+	httpClient := loadHttpClient(config)
+	manager := loadIndexManager(config, httpClient)
 	if err != nil {
 		return err
 	}

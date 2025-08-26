@@ -33,7 +33,7 @@ const (
 // Config represents the application configuration.
 type Config struct {
 	// Repository configuration
-	Repositories []RepositoryConfig `yaml:"repositories"`
+	Repositories []*RepositoryConfig `yaml:"repositories"`
 
 	// General settings
 	Settings Settings `yaml:"settings"`
@@ -92,7 +92,7 @@ func DefaultConfig() *Config {
 	cacheDir, _ := fsutil.GetCacheDir()
 
 	return &Config{
-		Repositories: []RepositoryConfig{},
+		Repositories: []*RepositoryConfig{},
 		Settings: Settings{
 			CacheDir:      cacheDir,
 			CacheTTL:      DefaultCacheTTL,
@@ -359,7 +359,7 @@ func (c *Config) AddRepository(name, url string, enabled bool) error {
 	}
 
 	// Add new index
-	c.Repositories = append(c.Repositories, RepositoryConfig{
+	c.Repositories = append(c.Repositories, &RepositoryConfig{
 		Name:     name,
 		URL:      url,
 		Enabled:  enabled,
@@ -384,7 +384,7 @@ func (c *Config) RemoveRepository(name string) bool {
 func (c *Config) GetRepository(name string) *RepositoryConfig {
 	for i, repo := range c.Repositories {
 		if repo.Name == name {
-			return &c.Repositories[i]
+			return c.Repositories[i]
 		}
 	}
 	return nil
@@ -412,12 +412,12 @@ func (c *Config) GetDatabasePath() string {
 	return filepath.Join(stateDir, "gotya", "state", "installed.json")
 }
 
-func (c *Config) GetIndexPath(name string) string {
-	return filepath.Join(c.Settings.CacheDir, "indexes", fmt.Sprintf("%s.json", name))
+func (c *Config) GetIndexDir() string {
+	return filepath.Join(c.Settings.CacheDir, "indexes")
 }
 
-func (c *Config) GetPackageCachePath(name string) string {
-	return filepath.Join(c.Settings.CacheDir, "packages", fmt.Sprintf("%s.tar.gz", name))
+func (c *Config) GetPackageCacheDir() string {
+	return filepath.Join(c.Settings.CacheDir, "packages")
 }
 
 // getUserDataDir returns the user state directory following platform conventions.

@@ -66,6 +66,7 @@ func ParseIndexFromReader(reader io.Reader) (*Index, error) {
 
 func ParseIndexFromFile(filePath string) (*Index, error) {
 	file, err := os.Open(filePath)
+	defer file.Close()
 	if err != nil {
 		return nil, errors.Wrapf(err, "Cannot open index file %s for parsing", filePath)
 	}

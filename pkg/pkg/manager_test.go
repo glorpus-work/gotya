@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/cperrin88/gotya/pkg/config"
 	mockhttp "github.com/cperrin88/gotya/pkg/http/mocks"
 	"github.com/cperrin88/gotya/pkg/index"
 	mockindex "github.com/cperrin88/gotya/pkg/index/mocks"
@@ -18,18 +17,13 @@ func TestNewManager(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	cfg := &config.Config{
-		Settings: config.Settings{
-			HTTPTimeout: 30,
-		},
-	}
 	mockIndexMgr := mockindex.NewMockManager(ctrl)
+	mockHttpClient := mockhttp.NewMockClient(ctrl)
 
-	mgr := NewManager(mockIndexMgr, cfg)
+	mgr := NewManager(mockIndexMgr, mockHttpClient)
 
 	assert.NotNil(t, mgr)
 	assert.Equal(t, mockIndexMgr, mgr.indexManager)
-	assert.Equal(t, cfg, mgr.config)
 }
 
 func TestInstallPackage_Success(t *testing.T) {
@@ -68,12 +62,13 @@ func TestInstallPackage_Success(t *testing.T) {
 	// Create manager with mocks
 	mgr := &ManagerImpl{
 		indexManager: mockIndexMgr,
-		config:       &config.Config{},
 		httpClient:   mockHTTPClient,
+		os:           os,
+		arch:         arch,
 	}
 
 	// Test
-	err := mgr.InstallPackage(context.Background(), pkgName, version, os, arch, false)
+	err := mgr.InstallPackage(context.Background(), pkgName, version, false)
 
 	// Assert
 	assert.NoError(t, err)
@@ -97,12 +92,13 @@ func TestInstallPackage_ResolveError(t *testing.T) {
 	// Create manager with mocks
 	mgr := &ManagerImpl{
 		indexManager: mockIndexMgr,
-		config:       &config.Config{},
 		httpClient:   mockhttp.NewMockClient(ctrl),
+		os:           "linux",
+		arch:         "amd64",
 	}
 
 	// Test
-	err := mgr.InstallPackage(context.Background(), "invalid-pkg", "1.0.0", "linux", "amd64", false)
+	err := mgr.InstallPackage(context.Background(), "invalid-pkg", "1.0.0", false)
 
 	// Assert
 	assert.EqualError(t, err, expectedErr.Error())
@@ -145,12 +141,13 @@ func TestInstallPackage_DownloadError(t *testing.T) {
 	// Create manager with mocks
 	mgr := &ManagerImpl{
 		indexManager: mockIndexMgr,
-		config:       &config.Config{},
 		httpClient:   mockHTTPClient,
+		os:           os,
+		arch:         arch,
 	}
 
 	// Test
-	err := mgr.InstallPackage(context.Background(), pkgName, version, os, arch, false)
+	err := mgr.InstallPackage(context.Background(), pkgName, version, false)
 
 	// Assert
 	assert.EqualError(t, err, downloadErr.Error())
