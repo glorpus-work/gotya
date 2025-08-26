@@ -60,10 +60,12 @@ func NewListCmd() *cobra.Command {
 }
 
 func runSearch(_ *cobra.Command, query string, exactMatch bool, limit int) error {
-	_, manager, err := loadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
+	httpClient := loadHttpClient(cfg)
+	manager := loadIndexManager(cfg, httpClient)
 
 	logger.Debug("Searching for packages", logrus.Fields{
 		"query":       query,
@@ -85,20 +87,20 @@ func runSearch(_ *cobra.Command, query string, exactMatch bool, limit int) error
 			continue
 		}
 
-		logger.Debug("Searching index", logrus.Fields{"index": repo.Name})
+		logger.Debug("Searching idx", logrus.Fields{"idx": repo.Name})
 
-		// Get index index
-		index, err := manager.GetIndex(repo.Name)
+		// Get idx idx
+		idx, err := manager.GetIndex(repo.Name)
 		if err != nil {
-			logger.Warn("Failed to get index for index", logrus.Fields{
-				"index": repo.Name,
+			logger.Warn("Failed to get idx for idx", logrus.Fields{
+				"idx":   repo.Name,
 				"error": err.Error(),
 			})
 			continue
 		}
 
-		// Search in this index's index
-		results := searchInIndex(index, repo.Name, query, exactMatch)
+		// Search in this idx's idx
+		results := searchInIndex(idx, repo.Name, query, exactMatch)
 		allResults = append(allResults, results...)
 	}
 
@@ -126,12 +128,12 @@ type SearchResult struct {
 	Repository  string
 }
 
-func searchInIndex(index index.Index, repoName, query string, exactMatch bool) []SearchResult {
+func searchInIndex(index *index.Index, repoName, query string, exactMatch bool) []SearchResult {
 	var searchResults []SearchResult
 
 	availablePackages := index.GetPackages()
 	for packageIndex := range availablePackages {
-		pkg := &availablePackages[packageIndex]
+		pkg := availablePackages[packageIndex]
 		var isMatch bool
 
 		if exactMatch {
@@ -172,10 +174,12 @@ func displaySearchResults(results []SearchResult) {
 }
 
 func runList(showInstalled, showAvailable bool) error {
-	cfg, manager, err := loadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
+	httpClient := loadHttpClient(cfg)
+	manager := loadIndexManager(cfg, httpClient)
 
 	// Default to showing installed packages if no flags specified
 	if !showInstalled && !showAvailable {
@@ -222,7 +226,7 @@ func runList(showInstalled, showAvailable bool) error {
 
 			repoPackages := index.GetPackages()
 			for pkgIdx := range repoPackages {
-				repoPkg := &repoPackages[pkgIdx]
+				repoPkg := repoPackages[pkgIdx]
 				// Check if pkg is already installed
 				var status string
 				if showInstalled {

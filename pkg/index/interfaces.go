@@ -4,6 +4,8 @@ package index
 import (
 	"context"
 	"time"
+
+	"github.com/cperrin88/gotya/pkg/repository"
 )
 
 type Index struct {
@@ -26,7 +28,7 @@ type Manager interface {
 	Sync(ctx context.Context, name string) error
 
 	// SyncAll updates all repository indexes
-	SyncAll(ctx context.Context, name string) error
+	SyncAll(ctx context.Context) error
 
 	// IsCacheStale checks if the cache for a repository is stale
 	IsCacheStale(name string) bool
@@ -42,4 +44,5 @@ type Manager interface {
 
 	// GetIndex retrieves an index by name
 	GetIndex(name string) (*Index, error)
+	ListRepositories() []*repository.Repository
 }

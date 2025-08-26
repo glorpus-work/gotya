@@ -407,7 +407,7 @@ func TestManager_SyncAll(t *testing.T) {
 				cacheTTL:     time.Hour,
 			}
 
-			err := manager.SyncAll(context.Background(), "test")
+			err := manager.SyncAll(context.Background())
 			if tt.expectErr {
 				assert.Error(t, err)
 			} else {

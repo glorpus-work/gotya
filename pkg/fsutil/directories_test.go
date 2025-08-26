@@ -12,6 +12,9 @@ import (
 )
 
 func TestEnsureDir(t *testing.T) {
+	if runtime.GOOS == platform.OSWindows {
+		t.Skip("Skipping permission test on Windows")
+	}
 	tests := []struct {
 		name        string
 		setup       func(t *testing.T) string
@@ -63,11 +66,11 @@ func TestEnsureDir(t *testing.T) {
 				assert.DirExists(t, path)
 
 				// Verify permissions (only check on Unix-like systems)
-				if runtime.GOOS != platform.OSWindows {
-					info, err := os.Stat(path)
-					require.NoError(t, err)
-					assert.Equal(t, os.FileMode(DirModeDefault), info.Mode().Perm())
-				}
+
+				info, err := os.Stat(path)
+				require.NoError(t, err)
+				assert.Equal(t, os.FileMode(DirModeDefault), info.Mode().Perm())
+
 			}
 		})
 	}

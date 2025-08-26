@@ -55,9 +55,9 @@ func (rm *ManagerImpl) Sync(ctx context.Context, name string) error {
 	return nil
 }
 
-func (rm *ManagerImpl) SyncAll(ctx context.Context, name string) error {
+func (rm *ManagerImpl) SyncAll(ctx context.Context) error {
 	for _, repo := range rm.repositories {
-		if err := rm.httpClient.DownloadIndex(ctx, repo.Url, rm.getIndexPath(name)); err != nil {
+		if err := rm.httpClient.DownloadIndex(ctx, repo.Url, rm.getIndexPath(repo.Name)); err != nil {
 			return err
 		}
 	}
@@ -187,6 +187,10 @@ func (rm *ManagerImpl) loadIndexes() error {
 		rm.indexes[repo.Name] = index
 	}
 	return nil
+}
+
+func (rm *ManagerImpl) ListRepositories() []*repository.Repository {
+	return rm.repositories
 }
 
 func (rm *ManagerImpl) getRepository(name string) (*repository.Repository, error) {

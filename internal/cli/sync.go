@@ -22,7 +22,12 @@ pkg lists from configured repositories.`,
 }
 
 func runSync(_ *cobra.Command, _ []string) error {
-	_, manager, err := loadConfig()
+	cfg, err := loadConfig()
+	if err != nil {
+		return err
+	}
+	httpClient := loadHttpClient(cfg)
+	manager := loadIndexManager(cfg, httpClient)
 	if err != nil {
 		return err
 	}
