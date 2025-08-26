@@ -23,7 +23,7 @@ jobs:
           check-latest: true
 
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Start HTTP server for test index
         uses: Eun/http-server-action@v1.0.12
