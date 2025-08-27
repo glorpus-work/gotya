@@ -15,6 +15,7 @@ import (
 	time "time"
 
 	index "github.com/cperrin88/gotya/pkg/index"
+	repository "github.com/cperrin88/gotya/pkg/repository"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -101,6 +102,20 @@ func (mr *MockManagerMockRecorder) IsCacheStale(name any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsCacheStale", reflect.TypeOf((*MockManager)(nil).IsCacheStale), name)
 }
 
+// ListRepositories mocks base method.
+func (m *MockManager) ListRepositories() []*repository.Repository {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListRepositories")
+	ret0, _ := ret[0].([]*repository.Repository)
+	return ret0
+}
+
+// ListRepositories indicates an expected call of ListRepositories.
+func (mr *MockManagerMockRecorder) ListRepositories() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRepositories", reflect.TypeOf((*MockManager)(nil).ListRepositories))
+}
+
 // ResolvePackage mocks base method.
 func (m *MockManager) ResolvePackage(name, version, os, arch string) (*index.Package, error) {
 	m.ctrl.T.Helper()
@@ -131,15 +146,15 @@ func (mr *MockManagerMockRecorder) Sync(ctx, name any) *gomock.Call {
 }
 
 // SyncAll mocks base method.
-func (m *MockManager) SyncAll(ctx context.Context, name string) error {
+func (m *MockManager) SyncAll(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SyncAll", ctx, name)
+	ret := m.ctrl.Call(m, "SyncAll", ctx)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SyncAll indicates an expected call of SyncAll.
-func (mr *MockManagerMockRecorder) SyncAll(ctx, name any) *gomock.Call {
+func (mr *MockManagerMockRecorder) SyncAll(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAll", reflect.TypeOf((*MockManager)(nil).SyncAll), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SyncAll", reflect.TypeOf((*MockManager)(nil).SyncAll), ctx)
 }

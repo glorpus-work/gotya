@@ -12,13 +12,12 @@ import (
 )
 
 func TestEnsureDir(t *testing.T) {
-	if runtime.GOOS == platform.OSWindows {
-		t.Skip("Skipping permission test on Windows")
-	}
+
 	tests := []struct {
 		name        string
 		setup       func(t *testing.T) string
 		cleanup     func(t *testing.T, path string)
+		checkPerms  bool
 		expectError bool
 	}{
 		{
@@ -28,6 +27,7 @@ func TestEnsureDir(t *testing.T) {
 				return dir
 			},
 			cleanup:     func(t *testing.T, path string) {},
+			checkPerms:  true,
 			expectError: false,
 		},
 		{
@@ -37,6 +37,7 @@ func TestEnsureDir(t *testing.T) {
 				return dir
 			},
 			cleanup:     func(t *testing.T, path string) {},
+			checkPerms:  true,
 			expectError: false,
 		},
 		{
@@ -46,6 +47,7 @@ func TestEnsureDir(t *testing.T) {
 				return dir
 			},
 			cleanup:     func(t *testing.T, path string) {},
+			checkPerms:  false,
 			expectError: false,
 		},
 	}
@@ -66,11 +68,11 @@ func TestEnsureDir(t *testing.T) {
 				assert.DirExists(t, path)
 
 				// Verify permissions (only check on Unix-like systems)
-
-				info, err := os.Stat(path)
-				require.NoError(t, err)
-				assert.Equal(t, os.FileMode(DirModeDefault), info.Mode().Perm())
-
+				if testCase.checkPerms && runtime.GOOS == platform.OSWindows {
+					info, err := os.Stat(path)
+					require.NoError(t, err)
+					assert.Equal(t, os.FileMode(DirModeDefault), info.Mode().Perm())
+				}
 			}
 		})
 	}
@@ -80,6 +82,7 @@ func TestEnsureFileDir(t *testing.T) {
 	tests := []struct {
 		name        string
 		setup       func(t *testing.T) string
+		checkPerms  bool
 		expectError bool
 	}{
 		{
@@ -87,6 +90,7 @@ func TestEnsureFileDir(t *testing.T) {
 			setup: func(t *testing.T) string {
 				return filepath.Join(t.TempDir(), "parent", "file.txt")
 			},
+			checkPerms:  true,
 			expectError: false,
 		},
 		{
@@ -94,6 +98,7 @@ func TestEnsureFileDir(t *testing.T) {
 			setup: func(t *testing.T) string {
 				return filepath.Join(t.TempDir(), "nested", "parent", "file.txt")
 			},
+			checkPerms:  true,
 			expectError: false,
 		},
 		{
@@ -102,6 +107,7 @@ func TestEnsureFileDir(t *testing.T) {
 				dir := t.TempDir()
 				return filepath.Join(dir, "file.txt")
 			},
+			checkPerms:  false,
 			expectError: false,
 		},
 	}
@@ -120,7 +126,7 @@ func TestEnsureFileDir(t *testing.T) {
 				assert.DirExists(t, dir)
 
 				// Verify permissions (only check on Unix-like systems)
-				if runtime.GOOS != "windows" {
+				if testCase.checkPerms && runtime.GOOS != "windows" {
 					info, err := os.Stat(dir)
 					require.NoError(t, err)
 					assert.Equal(t, os.FileMode(DirModeDefault), info.Mode().Perm())

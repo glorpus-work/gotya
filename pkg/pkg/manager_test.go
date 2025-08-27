@@ -9,6 +9,7 @@ import (
 	mockhttp "github.com/cperrin88/gotya/pkg/http/mocks"
 	"github.com/cperrin88/gotya/pkg/index"
 	mockindex "github.com/cperrin88/gotya/pkg/index/mocks"
+	"github.com/cperrin88/gotya/pkg/platform"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -20,7 +21,7 @@ func TestNewManager(t *testing.T) {
 	mockIndexMgr := mockindex.NewMockManager(ctrl)
 	mockHttpClient := mockhttp.NewMockClient(ctrl)
 
-	mgr := NewManager(mockIndexMgr, mockHttpClient)
+	mgr := NewManager(mockIndexMgr, mockHttpClient, platform.OSLinux, platform.ArchAMD64, t.TempDir())
 
 	assert.NotNil(t, mgr)
 	assert.Equal(t, mockIndexMgr, mgr.indexManager)
