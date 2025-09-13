@@ -3,11 +3,11 @@ package cli
 import (
 	"fmt"
 
+	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/http"
 	"github.com/cperrin88/gotya/pkg/index"
-	"github.com/cperrin88/gotya/pkg/logger"
 )
 
 // These variables will be set by the main artifact.

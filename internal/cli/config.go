@@ -7,8 +7,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/config"
-	"github.com/cperrin88/gotya/pkg/logger"
 	"github.com/cperrin88/gotya/pkg/platform"
 	"github.com/spf13/cobra"
 )

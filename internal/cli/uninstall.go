@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/cperrin88/gotya/internal/logger"
 	pkg "github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/hooks"
-	"github.com/cperrin88/gotya/pkg/logger"
 	"github.com/spf13/cobra"
 )
 

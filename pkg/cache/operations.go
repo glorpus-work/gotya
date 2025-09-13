@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/logger"
 )
 
 // CacheOperation represents an operation that can be performed on the cache.

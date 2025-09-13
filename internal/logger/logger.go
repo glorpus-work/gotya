@@ -3,9 +3,17 @@ package logger
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
+)
+
+var (
+	// testOutput is used to capture log output during tests
+	testOutput   io.Writer
+	testOutputMu sync.Mutex
 )
 
 // Fields is a type alias for log fields to make the API cleaner
@@ -14,6 +22,29 @@ type Fields map[string]interface{}
 var logger *slog.Logger
 
 // InitLogger initializes the global logger for CLI operations.
+// SetTestOutput sets the output writer for testing purposes
+func SetTestOutput(w io.Writer) {
+	testOutputMu.Lock()
+	defer testOutputMu.Unlock()
+	testOutput = w
+}
+
+// UnsetTestOutput resets the test output to nil
+func UnsetTestOutput() {
+	testOutputMu.Lock()
+	defer testOutputMu.Unlock()
+	testOutput = nil
+}
+
+func getOutput() io.Writer {
+	testOutputMu.Lock()
+	defer testOutputMu.Unlock()
+	if testOutput != nil {
+		return testOutput
+	}
+	return os.Stdout
+}
+
 func InitLogger(logLevel string, noColor bool) {
 	var level slog.Level
 	switch strings.ToLower(logLevel) {
@@ -34,13 +65,15 @@ func InitLogger(logLevel string, noColor bool) {
 		Level: level,
 	}
 
+	output := getOutput()
+
 	var handler slog.Handler
 	if noColor {
-		handler = slog.NewTextHandler(os.Stdout, opts)
+		handler = slog.NewTextHandler(output, opts)
 	} else {
 		// For colored output, we'll use a custom handler that adds colors
 		handler = &coloredTextHandler{
-			Handler: slog.NewTextHandler(os.Stdout, opts),
+			Handler: slog.NewTextHandler(output, opts),
 		}
 	}
 
@@ -180,7 +213,7 @@ func SuccessfWithFields(fields Fields, format string, args ...interface{}) {
 
 // mergeFields merges multiple field maps into one slice of key-value pairs for slog.
 func mergeFields(fields ...Fields) []interface{} {
-	var result []interface{}
+	result := []interface{}{}
 	for _, field := range fields {
 		for k, v := range field {
 			result = append(result, k, v)

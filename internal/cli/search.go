@@ -6,9 +6,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/cperrin88/gotya/internal/logger"
 	pkg "github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/index"
-	"github.com/cperrin88/gotya/pkg/logger"
 	"github.com/spf13/cobra"
 )
 

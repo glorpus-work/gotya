@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cperrin88/gotya/pkg/logger"
+	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/spf13/cobra"
 )
 

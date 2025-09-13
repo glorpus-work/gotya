@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
-	"github.com/cperrin88/gotya/pkg/logger"
 )
 
 // Common validation patterns.
