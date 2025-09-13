@@ -3,13 +3,13 @@ package hooks_test
 import (
 	"testing"
 
-	hook2 "github.com/cperrin88/gotya/pkg/pkg/hooks"
+	"github.com/cperrin88/gotya/pkg/hooks"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTengoExecutor(t *testing.T) {
-	executor := hook2.NewTengoExecutor()
-	ctx := hook2.HookContext{
+	executor := hooks.NewTengoExecutor()
+	ctx := hooks.HookContext{
 		PackageName:    "test-pkg",
 		PackageVersion: "1.0.0",
 		InstallPath:    "/test/install/path",
@@ -21,9 +21,9 @@ func TestTengoExecutor(t *testing.T) {
 	t.Run("Execute script with return value", func(t *testing.T) {
 		// Test a simple script that doesn't return anything
 		script := `// This is a valid script that does nothing`
-		executor.AddScript(hook2.PreInstall, script)
+		executor.AddScript(hooks.PreInstall, script)
 
-		err := executor.Execute(hook2.PreInstall, ctx)
+		err := executor.Execute(hooks.PreInstall, ctx)
 		assert.NoError(t, err, "Execute should not return an error for valid script")
 	})
 
@@ -33,9 +33,9 @@ func TestTengoExecutor(t *testing.T) {
 			// This will cause a runtime error because non-existent-function doesn't exist
 			non_existent_function()
 		`
-		executor.AddScript(hook2.PostInstall, script)
+		executor.AddScript(hooks.PostInstall, script)
 
-		err := executor.Execute(hook2.PostInstall, ctx)
+		err := executor.Execute(hooks.PostInstall, ctx)
 		assert.Error(t, err, "Execute should return an error for invalid script")
 	})
 
@@ -47,7 +47,7 @@ func TestTengoExecutor(t *testing.T) {
 
 	t.Run("HasScript check", func(t *testing.T) {
 		// Test HasScript method
-		hookType := hook2.HookType("test-hooks")
+		hookType := hooks.HookType("test-hooks")
 		assert.False(t, executor.HasScript(hookType), "Should not have script before adding")
 
 		executor.AddScript(hookType, "// test script")
@@ -71,9 +71,9 @@ func TestTengoExecutor(t *testing.T) {
 				// All variables are set, do nothing
 			}
 		`
-		executor.AddScript(hook2.PreRemove, script)
+		executor.AddScript(hooks.PreRemove, script)
 
-		err := executor.Execute(hook2.PreRemove, ctx)
+		err := executor.Execute(hooks.PreRemove, ctx)
 		assert.NoError(t, err, "Context variables should be accessible in script")
 	})
 
@@ -90,9 +90,9 @@ func TestTengoExecutor(t *testing.T) {
 				// Do nothing, just testing the condition
 			}
 		`
-		executor.AddScript(hook2.PostRemove, script)
+		executor.AddScript(hooks.PostRemove, script)
 
-		err := executor.Execute(hook2.PostRemove, ctx)
+		err := executor.Execute(hooks.PostRemove, ctx)
 		assert.NoError(t, err, "Basic operations should work in script")
 	})
 }

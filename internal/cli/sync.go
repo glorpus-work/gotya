@@ -24,13 +24,10 @@ pkg lists from configured repositories.`,
 func runSync(_ *cobra.Command, _ []string) error {
 	cfg, err := loadConfig()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load config: %w", err)
 	}
-	httpClient := loadHttpClient(cfg)
+	httpClient := loadHTTPClient(cfg)
 	manager := loadIndexManager(cfg, httpClient)
-	if err != nil {
-		return err
-	}
 
 	logger.Debug("Synchronizing index indexes...")
 

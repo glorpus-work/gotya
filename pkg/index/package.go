@@ -62,7 +62,7 @@ func (pkg *Package) GetArch() string {
 	return pkg.Arch
 }
 
-func (pkg *Package) GetUrl() *url.URL {
+func (pkg *Package) GetURL() *url.URL {
 	parse, err := url.Parse(pkg.URL)
 	if err != nil {
 		return nil

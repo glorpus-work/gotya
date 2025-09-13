@@ -49,7 +49,7 @@ func (rm *ManagerImpl) Sync(ctx context.Context, name string) error {
 	if err != nil {
 		return errors.ErrRepositoryNotFound(name)
 	}
-	if err := rm.httpClient.DownloadIndex(ctx, repo.Url, rm.indexPath); err != nil {
+	if err := rm.httpClient.DownloadIndex(ctx, repo.URL, rm.indexPath); err != nil {
 		return err
 	}
 	return nil
@@ -57,7 +57,7 @@ func (rm *ManagerImpl) Sync(ctx context.Context, name string) error {
 
 func (rm *ManagerImpl) SyncAll(ctx context.Context) error {
 	for _, repo := range rm.repositories {
-		if err := rm.httpClient.DownloadIndex(ctx, repo.Url, rm.getIndexPath(repo.Name)); err != nil {
+		if err := rm.httpClient.DownloadIndex(ctx, repo.URL, rm.getIndexPath(repo.Name)); err != nil {
 			return err
 		}
 	}

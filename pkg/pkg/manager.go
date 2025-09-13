@@ -30,7 +30,7 @@ func (m ManagerImpl) InstallPackage(ctx context.Context, pkgName, version string
 	if err != nil {
 		return err
 	}
-	if err := m.httpClient.DownloadPackage(ctx, pkg.GetUrl(), ""); err != nil {
+	if err := m.httpClient.DownloadPackage(ctx, pkg.GetURL(), ""); err != nil {
 		return err
 	}
 

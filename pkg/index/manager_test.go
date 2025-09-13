@@ -32,7 +32,7 @@ func TestManager_Sync(t *testing.T) {
 			repos: []*repository.Repository{
 				{
 					Name:     "test-repo",
-					Url:      &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
+					URL:      &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
 					Priority: 1,
 					Enabled:  true,
 				},
@@ -51,7 +51,7 @@ func TestManager_Sync(t *testing.T) {
 			repos: []*repository.Repository{
 				{
 					Name:     "test-repo",
-					Url:      &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
+					URL:      &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
 					Priority: 1,
 					Enabled:  true,
 				},
@@ -97,7 +97,7 @@ func TestManager_IsCacheStale(t *testing.T) {
 	// Create a test repository
 	repo := &repository.Repository{
 		Name:     "test-repo",
-		Url:      &url.URL{Scheme: "https", Host: "example.com", Path: "/index.json"},
+		URL:      &url.URL{Scheme: "https", Host: "example.com", Path: "/index.json"},
 		Priority: 1,
 		Enabled:  true,
 	}
@@ -213,7 +213,7 @@ func TestManager_ResolvePackage(t *testing.T) {
 
 	repo := &repository.Repository{
 		Name:     "test-repo",
-		Url:      &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
+		URL:      &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
 		Priority: 1,
 		Enabled:  true,
 	}
@@ -287,7 +287,7 @@ func TestManager_GetCacheAge(t *testing.T) {
 	// Create a test repository
 	repo := &repository.Repository{
 		Name:     "test-repo",
-		Url:      &url.URL{Scheme: "https", Host: "example.com", Path: "/index.json"},
+		URL:      &url.URL{Scheme: "https", Host: "example.com", Path: "/index.json"},
 		Priority: 1,
 		Enabled:  true,
 	}
@@ -351,13 +351,13 @@ func TestManager_SyncAll(t *testing.T) {
 	repos := []*repository.Repository{
 		{
 			Name:     "repo1",
-			Url:      repo1URL,
+			URL:      repo1URL,
 			Priority: 1,
 			Enabled:  true,
 		},
 		{
 			Name:     "repo2",
-			Url:      repo2URL,
+			URL:      repo2URL,
 			Priority: 2,
 			Enabled:  true,
 		},

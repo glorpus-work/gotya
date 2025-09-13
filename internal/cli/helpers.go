@@ -65,7 +65,7 @@ func loadIndexManager(config *config.Config, httpClient http.Client) index.Manag
 	for _, repo := range config.Repositories {
 		repositories = append(repositories, &repository.Repository{
 			Name:     repo.Name,
-			Url:      repo.GetUrl(),
+			URL:      repo.GetURL(),
 			Priority: uint(repo.Priority),
 			Enabled:  repo.Enabled,
 		})
@@ -77,6 +77,6 @@ func loadPackageManager(config *config.Config, indexManager index.Manager, httpC
 	return pkg.NewManager(indexManager, httpClient, config.Settings.Platform.OS, config.Settings.Platform.Arch, config.GetPackageCacheDir())
 }
 
-func loadHttpClient(config *config.Config) http.Client {
+func loadHTTPClient(config *config.Config) http.Client {
 	return http.NewHTTPClient(config.Settings.HTTPTimeout)
 }

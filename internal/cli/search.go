@@ -64,7 +64,7 @@ func runSearch(_ *cobra.Command, query string, exactMatch bool, limit int) error
 	if err != nil {
 		return err
 	}
-	httpClient := loadHttpClient(cfg)
+	httpClient := loadHTTPClient(cfg)
 	manager := loadIndexManager(cfg, httpClient)
 
 	logger.Debug("Searching for packages", logrus.Fields{
@@ -178,7 +178,7 @@ func runList(showInstalled, showAvailable bool) error {
 	if err != nil {
 		return err
 	}
-	httpClient := loadHttpClient(cfg)
+	httpClient := loadHTTPClient(cfg)
 	manager := loadIndexManager(cfg, httpClient)
 
 	// Default to showing installed packages if no flags specified

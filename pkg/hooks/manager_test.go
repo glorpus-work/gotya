@@ -6,19 +6,19 @@ import (
 	"strings"
 	"testing"
 
-	hook2 "github.com/cperrin88/gotya/pkg/pkg/hooks"
+	"github.com/cperrin88/gotya/pkg/hooks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewHookManager(t *testing.T) {
-	manager := hook2.NewHookManager()
+	manager := hooks.NewHookManager()
 	assert.NotNil(t, manager, "NewHookManager should return a non-nil manager")
 }
 
 func TestAddAndExecuteHook(t *testing.T) {
-	manager := hook2.NewHookManager()
-	ctx := hook2.HookContext{
+	manager := hooks.NewHookManager()
+	ctx := hooks.HookContext{
 		PackageName:    "test-pkg",
 		PackageVersion: "1.0.0",
 		Vars: map[string]interface{}{
@@ -28,23 +28,23 @@ func TestAddAndExecuteHook(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		hook          hook2.Hook
+		hook          hooks.Hook
 		expectedError string
 	}{
 		{
 			name: "valid hooks",
-			hook: hook2.Hook{
-				Type:    hook2.PreInstall,
+			hook: hooks.Hook{
+				Type:    hooks.PreInstall,
 				Content: `// Simple hooks that doesn't return anything`,
 			},
 		},
 		{
 			name: "empty hooks type",
-			hook: hook2.Hook{
+			hook: hooks.Hook{
 				Type:    "",
 				Content: "test content",
 			},
-			expectedError: hook2.ErrHookTypeEmpty.Error(),
+			expectedError: hooks.ErrHookTypeEmpty.Error(),
 		},
 	}
 
@@ -65,43 +65,43 @@ func TestAddAndExecuteHook(t *testing.T) {
 	}
 
 	// Test executing the hooks
-	err := manager.Execute(hook2.PreInstall, ctx)
+	err := manager.Execute(hooks.PreInstall, ctx)
 	require.NoError(t, err, "Execute should not return an error for valid hooks")
 }
 
 func TestHasHook(t *testing.T) {
-	manager := hook2.NewHookManager()
+	manager := hooks.NewHookManager()
 
 	// Initially should not have the hooks
-	assert.False(t, manager.HasHook(hook2.PreInstall), "Should not have hooks before adding")
+	assert.False(t, manager.HasHook(hooks.PreInstall), "Should not have hooks before adding")
 
 	// Add the hooks
-	err := manager.AddHook(hook2.Hook{
-		Type:    hook2.PreInstall,
+	err := manager.AddHook(hooks.Hook{
+		Type:    hooks.PreInstall,
 		Content: `// Test hooks`,
 	})
 	require.NoError(t, err)
 
 	// Now should have the hooks
-	assert.True(t, manager.HasHook(hook2.PreInstall), "Should have hooks after adding")
+	assert.True(t, manager.HasHook(hooks.PreInstall), "Should have hooks after adding")
 }
 
 func TestRemoveHook(t *testing.T) {
-	manager := hook2.NewHookManager()
+	manager := hooks.NewHookManager()
 
 	// Add a hooks
-	err := manager.AddHook(hook2.Hook{
-		Type:    hook2.PreInstall,
+	err := manager.AddHook(hooks.Hook{
+		Type:    hooks.PreInstall,
 		Content: `// Test hooks`,
 	})
 	require.NoError(t, err)
 
 	// Remove the hooks
-	err = manager.RemoveHook(hook2.PreInstall)
+	err = manager.RemoveHook(hooks.PreInstall)
 	require.NoError(t, err, "RemoveHook should not return an error for existing hooks")
 
 	// Should not have the hooks anymore
-	assert.False(t, manager.HasHook(hook2.PreInstall), "Should not have hooks after removal")
+	assert.False(t, manager.HasHook(hooks.PreInstall), "Should not have hooks after removal")
 }
 
 func TestLoadHooksFromPackageDir(t *testing.T) {
@@ -117,30 +117,30 @@ func TestLoadHooksFromPackageDir(t *testing.T) {
 	require.NoError(t, err, "Failed to create test hooks file")
 
 	// Test loading hooks
-	manager := hook2.NewHookManager()
-	err = hook2.LoadHooksFromPackageDir(manager, tempDir)
+	manager := hooks.NewHookManager()
+	err = hooks.LoadHooksFromPackageDir(manager, tempDir)
 	require.NoError(t, err, "LoadHooksFromPackageDir should not return an error")
 
 	// Verify the hooks was loaded
-	assert.True(t, manager.HasHook(hook2.PreInstall), "Should have loaded the pre-install hooks")
+	assert.True(t, manager.HasHook(hooks.PreInstall), "Should have loaded the pre-install hooks")
 }
 
 func TestHookTemplate(t *testing.T) {
 	tests := []struct {
 		name     string
-		hookType hook2.HookType
+		hookType hooks.HookType
 		expected string
 	}{
-		{"PreInstall", hook2.PreInstall, "Pre-install hooks"},
-		{"PostInstall", hook2.PostInstall, "Post-install hooks"},
-		{"PreRemove", hook2.PreRemove, "Pre-remove hooks"},
-		{"PostRemove", hook2.PostRemove, "Post-remove hooks"},
-		{"Unknown", hook2.HookType("unknown"), "Unknown hooks type"},
+		{"PreInstall", hooks.PreInstall, "Pre-install hooks"},
+		{"PostInstall", hooks.PostInstall, "Post-install hooks"},
+		{"PreRemove", hooks.PreRemove, "Pre-remove hooks"},
+		{"PostRemove", hooks.PostRemove, "Post-remove hooks"},
+		{"Unknown", hooks.HookType("unknown"), "Unknown hooks type"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			template := hook2.HookTemplate(tc.hookType)
+			template := hooks.HookTemplate(tc.hookType)
 			assert.Contains(t, template, tc.expected, "Template should contain expected content")
 		})
 	}

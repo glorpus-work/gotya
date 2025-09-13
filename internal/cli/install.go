@@ -59,7 +59,7 @@ func runInstall(packages []string, force, skipDeps bool) error {
 	if err != nil {
 		return err
 	}
-	httpClient := loadHttpClient(cfg)
+	httpClient := loadHTTPClient(cfg)
 	indexManager := loadIndexManager(cfg, httpClient)
 	pkgManger := loadPackageManager(cfg, indexManager, httpClient)
 

@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/hooks"
 	"github.com/cperrin88/gotya/pkg/logger"
 	pkg "github.com/cperrin88/gotya/pkg/pkg"
-	hook2 "github.com/cperrin88/gotya/pkg/pkg/hooks"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -80,12 +80,12 @@ func uninstallPackage(cfg *config.Config, installedDB *pkg.InstalledDatabase, pa
 	}
 
 	// Create hooks manager
-	hookManager := hook2.NewHookManager()
+	hookManager := hooks.NewHookManager()
 
 	// Try to load hooks from the pkg if it's still available
 	packagePath := filepath.Join(cfg.Settings.InstallDir, pkgInfo.Name)
 	if !skipHooks {
-		if err := hook2.LoadHooksFromPackageDir(hookManager, packagePath); err != nil {
+		if err := hooks.LoadHooksFromPackageDir(hookManager, packagePath); err != nil {
 			logger.Warn("Failed to load hooks from pkg", logrus.Fields{
 				"pkg":   packageName,
 				"error": err.Error(),
@@ -94,7 +94,7 @@ func uninstallPackage(cfg *config.Config, installedDB *pkg.InstalledDatabase, pa
 	}
 
 	// Create hooks context
-	hookCtx := hook2.HookContext{
+	hookCtx := hooks.HookContext{
 		PackageName:    pkgInfo.Name,
 		PackageVersion: pkgInfo.Version,
 		InstallPath:    packagePath, // Use packagePath instead of installPath
@@ -104,9 +104,9 @@ func uninstallPackage(cfg *config.Config, installedDB *pkg.InstalledDatabase, pa
 	}
 
 	// Execute pre-remove hooks if available and not skipped
-	if !skipHooks && hookManager.HasHook(hook2.PreRemove) {
+	if !skipHooks && hookManager.HasHook(hooks.PreRemove) {
 		logger.Debug("Running pre-remove hooks", logrus.Fields{"pkg": packageName})
-		if err := hookManager.Execute(hook2.PreRemove, hookCtx); err != nil && !force {
+		if err := hookManager.Execute(hooks.PreRemove, hookCtx); err != nil && !force {
 			return fmt.Errorf("pre-remove hooks failed: %w", err)
 		}
 	}
@@ -123,9 +123,9 @@ func uninstallPackage(cfg *config.Config, installedDB *pkg.InstalledDatabase, pa
 	// 3. Handle any errors appropriately
 
 	// Execute post-remove hooks if available and not skipped
-	if !skipHooks && hookManager.HasHook(hook2.PostRemove) {
+	if !skipHooks && hookManager.HasHook(hooks.PostRemove) {
 		logger.Debug("Running post-remove hooks", logrus.Fields{"pkg": packageName})
-		if err := hookManager.Execute(hook2.PostRemove, hookCtx); err != nil && !force {
+		if err := hookManager.Execute(hooks.PostRemove, hookCtx); err != nil && !force {
 			// If post-remove fails and we're not forcing, we should stop
 			return fmt.Errorf("post-remove hooks failed: %w", err)
 		}
