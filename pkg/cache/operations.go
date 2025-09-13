@@ -6,7 +6,6 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/logger"
-	"github.com/sirupsen/logrus"
 )
 
 // CacheOperation represents an operation that can be performed on the cache.
@@ -35,7 +34,7 @@ func (op *CacheOperation) Clean(all, indexes, packages bool) (string, error) {
 		options.Artifacts = true
 	}
 
-	logger.Debug("Cleaning cache", logrus.Fields{
+	logger.Debug("Cleaning cache", logger.Fields{
 		"all":      options.All,
 		"indexes":  options.Indexes,
 		"packages": options.Artifacts,
@@ -102,7 +101,7 @@ func (op *CacheOperation) SetDirectory(dir string) error {
 		return errors.Wrap(errors.ErrInvalidConfigPath, "cache directory cannot be empty")
 	}
 
-	logger.Debug("Setting cache directory", logrus.Fields{"directory": dir})
+	logger.Debug("Setting cache directory", logger.Fields{"directory": dir})
 	return op.manager.SetDirectory(dir)
 }
 

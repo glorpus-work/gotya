@@ -8,7 +8,6 @@ import (
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/hooks"
 	"github.com/cperrin88/gotya/pkg/logger"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -73,7 +72,7 @@ func uninstallArtifact(cfg *config.Config, installedDB *pkg.InstalledDatabase, p
 	pkgInfo := installedDB.FindArtifact(packageName)
 	if pkgInfo == nil {
 		if force {
-			logger.Warn("Artifact not installed, skipping", logrus.Fields{"artifact": packageName})
+			logger.Warn("Artifact not installed, skipping", logger.Fields{"artifact": packageName})
 			return nil
 		}
 		return fmt.Errorf("artifact %s is not installed", packageName)
@@ -86,7 +85,7 @@ func uninstallArtifact(cfg *config.Config, installedDB *pkg.InstalledDatabase, p
 	packagePath := filepath.Join(cfg.Settings.InstallDir, pkgInfo.Name)
 	if !skipHooks {
 		if err := hooks.LoadHooksFromArtifactDir(hookManager, packagePath); err != nil {
-			logger.Warn("Failed to load hooks from artifact", logrus.Fields{
+			logger.Warn("Failed to load hooks from artifact", logger.Fields{
 				"artifact": packageName,
 				"error":    err.Error(),
 			})
@@ -105,14 +104,14 @@ func uninstallArtifact(cfg *config.Config, installedDB *pkg.InstalledDatabase, p
 
 	// Execute pre-remove hooks if available and not skipped
 	if !skipHooks && hookManager.HasHook(hooks.PreRemove) {
-		logger.Debug("Running pre-remove hooks", logrus.Fields{"artifact": packageName})
+		logger.Debug("Running pre-remove hooks", logger.Fields{"artifact": packageName})
 		if err := hookManager.Execute(hooks.PreRemove, hookCtx); err != nil && !force {
 			return fmt.Errorf("pre-remove hooks failed: %w", err)
 		}
 	}
 
 	// Remove artifact files (simplified - in a real implementation, we would remove actual files)
-	logger.Debug("Removing artifact files", logrus.Fields{
+	logger.Debug("Removing artifact files", logger.Fields{
 		"artifact": packageName,
 		"path":     packagePath, // Use packagePath instead of installPath
 	})
@@ -124,7 +123,7 @@ func uninstallArtifact(cfg *config.Config, installedDB *pkg.InstalledDatabase, p
 
 	// Execute post-remove hooks if available and not skipped
 	if !skipHooks && hookManager.HasHook(hooks.PostRemove) {
-		logger.Debug("Running post-remove hooks", logrus.Fields{"artifact": packageName})
+		logger.Debug("Running post-remove hooks", logger.Fields{"artifact": packageName})
 		if err := hookManager.Execute(hooks.PostRemove, hookCtx); err != nil && !force {
 			// If post-remove fails and we're not forcing, we should stop
 			return fmt.Errorf("post-remove hooks failed: %w", err)
@@ -136,7 +135,7 @@ func uninstallArtifact(cfg *config.Config, installedDB *pkg.InstalledDatabase, p
 		return fmt.Errorf("failed to remove artifact from database: artifact not found")
 	}
 
-	logger.Info("Successfully uninstalled artifact", logrus.Fields{
+	logger.Info("Successfully uninstalled artifact", logger.Fields{
 		"artifact": packageName,
 	})
 

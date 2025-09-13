@@ -10,7 +10,6 @@ import (
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/logger"
 	"github.com/cperrin88/gotya/pkg/platform"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -172,7 +171,7 @@ func runConfigSet(key, value string) error {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
-	logger.Success("Configuration updated", logrus.Fields{"key": key, "value": value})
+	logger.Success("Configuration updated", logger.Fields{"key": key, "value": value})
 
 	// If platform settings were updated, suggest restarting the CLI
 	if strings.HasPrefix(key, "platform.") {
@@ -211,7 +210,7 @@ func runConfigInit(force bool) error {
 		return fmt.Errorf("failed to save default configuration: %w", err)
 	}
 
-	logger.Success("Configuration file created", logrus.Fields{"path": configPath})
+	logger.Success("Configuration file created", logger.Fields{"path": configPath})
 	return nil
 }
 

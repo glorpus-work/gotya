@@ -9,7 +9,6 @@ import (
 	pkg "github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/logger"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -67,7 +66,7 @@ func runSearch(_ *cobra.Command, query string, exactMatch bool, limit int) error
 	httpClient := loadHTTPClient(cfg)
 	manager := loadIndexManager(cfg, httpClient)
 
-	logger.Debug("Searching for packages", logrus.Fields{
+	logger.Debug("Searching for packages", logger.Fields{
 		"query":       query,
 		"exact_match": exactMatch,
 		"limit":       limit,
@@ -87,12 +86,12 @@ func runSearch(_ *cobra.Command, query string, exactMatch bool, limit int) error
 			continue
 		}
 
-		logger.Debug("Searching idx", logrus.Fields{"idx": repo.Name})
+		logger.Debug("Searching idx", logger.Fields{"idx": repo.Name})
 
 		// Get idx idx
 		idx, err := manager.GetIndex(repo.Name)
 		if err != nil {
-			logger.Warn("Failed to get idx for idx", logrus.Fields{
+			logger.Warn("Failed to get idx for idx", logger.Fields{
 				"idx":   repo.Name,
 				"error": err.Error(),
 			})
@@ -116,7 +115,7 @@ func runSearch(_ *cobra.Command, query string, exactMatch bool, limit int) error
 
 	// Display results in table format
 	displaySearchResults(allResults)
-	logger.Info("Search completed", logrus.Fields{"found": len(allResults)})
+	logger.Info("Search completed", logger.Fields{"found": len(allResults)})
 
 	return nil
 }
@@ -192,7 +191,7 @@ func runList(showInstalled, showAvailable bool) error {
 	if showInstalled {
 		installedDB, err := pkg.LoadInstalledDatabase(cfg.GetDatabasePath())
 		if err != nil {
-			logger.Warn("Failed to load installed packages database", logrus.Fields{"error": err.Error()})
+			logger.Warn("Failed to load installed packages database", logger.Fields{"error": err.Error()})
 		} else {
 			installedArtifacts := installedDB.GetInstalledArtifacts()
 			for _, installedPkg := range installedArtifacts {
@@ -217,7 +216,7 @@ func runList(showInstalled, showAvailable bool) error {
 
 			index, err := manager.GetIndex(repo.Name)
 			if err != nil {
-				logger.Warn("Failed to get index for index", logrus.Fields{
+				logger.Warn("Failed to get index for index", logger.Fields{
 					"index": repo.Name,
 					"error": err.Error(),
 				})
@@ -277,7 +276,7 @@ func runList(showInstalled, showAvailable bool) error {
 
 	// Display results in table format
 	displayArtifactList(packages)
-	logger.Info("Artifact listing completed", logrus.Fields{"total": len(packages)})
+	logger.Info("Artifact listing completed", logger.Fields{"total": len(packages)})
 
 	return nil
 }
