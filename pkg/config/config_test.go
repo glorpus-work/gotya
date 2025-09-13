@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cperrin88/gotya/pkg/fsutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +39,7 @@ settings:
     arch: amd64
     prefer_native: true`
 
-	err := os.WriteFile(configPath, []byte(configContent), 0o644)
+	err := os.WriteFile(configPath, []byte(configContent), fsutil.FileModeDefault)
 	require.NoError(t, err)
 
 	// Test loading the config

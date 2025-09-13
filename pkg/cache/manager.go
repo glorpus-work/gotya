@@ -7,7 +7,6 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
-	"github.com/cperrin88/gotya/pkg/permissions"
 )
 
 // CacheManager implements the Manager interface.
@@ -30,7 +29,7 @@ func NewDefaultManager() (*CacheManager, error) {
 	}
 
 	cacheDir := filepath.Join(homeDir, ".cache", "gotya")
-	if err := os.MkdirAll(cacheDir, os.FileMode(permissions.DirModeDefault)); err != nil {
+	if err := os.MkdirAll(cacheDir, os.FileMode(fsutil.DirModeDefault)); err != nil {
 		return nil, errors.Wrapf(err, "failed to create cache directory")
 	}
 

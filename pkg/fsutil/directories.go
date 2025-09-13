@@ -4,15 +4,13 @@ package fsutil
 import (
 	"os"
 	"path/filepath"
-
-	"github.com/cperrin88/gotya/pkg/permissions"
 )
 
 // EnsureDir creates a directory and all necessary parent directories with default permissions if they don't exist.
 // It uses DirModeDefault (0755) permissions for the created directories.
 // Returns an error if the directory cannot be created or if the path exists but is not a directory.
 func EnsureDir(path string) error {
-	return os.MkdirAll(path, permissions.DirModeDefault)
+	return os.MkdirAll(path, DirModeDefault)
 }
 
 // EnsureFileDir creates the parent directory of a file path if it doesn't exist.

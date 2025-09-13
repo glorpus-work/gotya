@@ -17,15 +17,8 @@ import (
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/errors"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 	"github.com/cperrin88/gotya/pkg/logger"
-)
-
-// File permission constants.
-const (
-	// DefaultFileMode is the default file mode for regular files (0o644).
-	DefaultFileMode = 0o644
-	// DefaultDirMode is the default directory mode (0o755).
-	DefaultDirMode = 0o755
 )
 
 // Common validation patterns.
@@ -438,7 +431,7 @@ func CreateArtifact(
 
 	// Create output directory if it doesn't exist
 	if _, err := os.Stat(outputDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(outputDir, DefaultDirMode); err != nil {
+		if err := os.MkdirAll(outputDir, fsutil.DirModeDefault); err != nil {
 			return "", errors.Wrapf(err, "failed to create output directory %s", outputDir)
 		}
 	} else if err != nil {
@@ -590,7 +583,7 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 	header := &tar.Header{
 		Name:    "meta/artifact.json",
 		Size:    int64(len(metaJSON)),
-		Mode:    DefaultFileMode,
+		Mode:    fsutil.FileModeDefault,
 		ModTime: time.Now(),
 	}
 
@@ -694,7 +687,7 @@ func processArtifactContents(reader io.Reader, expectedMeta *Metadata) (map[stri
 
 // isRegularFile checks if the tar header represents a regular file.
 func isRegularFile(flag byte) bool {
-	return flag == tar.TypeReg || flag == tar.TypeRegA
+	return flag == tar.TypeReg
 }
 
 // processFile processes and verifies a single file from the artifact.
@@ -813,7 +806,7 @@ func addMetadataFile(expectedFiles map[string]File, meta *Metadata) error {
 	expectedFiles["meta/artifact.json"] = File{
 		Path:   "meta/artifact.json",
 		Size:   int64(len(jsonData)),
-		Mode:   DefaultFileMode,
+		Mode:   fsutil.FileModeDefault,
 		Digest: hexHash,
 	}
 

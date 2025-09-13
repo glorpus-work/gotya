@@ -11,7 +11,6 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
-	"github.com/cperrin88/gotya/pkg/permissions"
 	"github.com/cperrin88/gotya/pkg/platform"
 	"gopkg.in/yaml.v3"
 )
@@ -177,13 +176,13 @@ func (c *Config) SaveConfig(path string) error {
 	}
 
 	// Ensure the directory exists with secure permissions (0755)
-	if err := os.MkdirAll(filepath.Dir(absPath), permissions.DirModeDefault); err != nil {
+	if err := os.MkdirAll(filepath.Dir(absPath), fsutil.DirModeDefault); err != nil {
 		return errors.Wrap(errors.ErrConfigDirectory, err.Error())
 	}
 
 	// Create temporary file with secure permissions (0600)
 	tempPath := absPath + ".tmp"
-	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, permissions.FileModeDefault)
+	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fsutil.FileModeDefault)
 	if err != nil {
 		return errors.Wrap(errors.ErrConfigFileCreate, err.Error())
 	}
@@ -209,7 +208,7 @@ func (c *Config) SaveConfig(path string) error {
 	}
 
 	// Ensure the final file has the correct permissions (0644)
-	if err := os.Chmod(absPath, permissions.FileModeDefault); err != nil {
+	if err := os.Chmod(absPath, fsutil.FileModeDefault); err != nil {
 		// This is not fatal, but we should log it
 		return errors.Wrap(errors.ErrConfigFileChmod, err.Error())
 	}

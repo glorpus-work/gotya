@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/errors"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 	mockHttp "github.com/cperrin88/gotya/pkg/http/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,10 +127,10 @@ func TestManager_IsCacheStale(t *testing.T) {
 			setupFiles: func(basePath string) error {
 				// Create a stale index file
 				indexPath := filepath.Join(basePath, "indexes", "test-repo.json")
-				if err := os.MkdirAll(filepath.Dir(indexPath), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Dir(indexPath), fsutil.DirModeDefault); err != nil {
 					return err
 				}
-				if err := os.WriteFile(indexPath, []byte("{}"), 0644); err != nil {
+				if err := os.WriteFile(indexPath, []byte("{}"), fsutil.FileModeDefault); err != nil {
 					return err
 				}
 				// Set modification time to 2 hours ago
@@ -174,7 +175,7 @@ func TestManager_IsCacheStale(t *testing.T) {
 
 func createTestIndexFile(t *testing.T, dir, repoName string) string {
 	indexPath := filepath.Join(dir, "indexes", repoName+".json")
-	require.NoError(t, os.MkdirAll(filepath.Dir(indexPath), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(indexPath), fsutil.DirModeDefault))
 
 	// Create a test index file
 	testIndex := `{
@@ -198,7 +199,7 @@ func createTestIndexFile(t *testing.T, dir, repoName string) string {
   ]
 }`
 
-	require.NoError(t, os.WriteFile(indexPath, []byte(testIndex), 0644))
+	require.NoError(t, os.WriteFile(indexPath, []byte(testIndex), fsutil.FileModeDefault))
 	return indexPath
 }
 

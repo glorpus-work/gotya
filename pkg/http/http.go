@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/permissions"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 )
 
 // ClientImpl handles HTTP operations for repositories.
@@ -70,11 +70,11 @@ func (hc *ClientImpl) DownloadIndex(ctx context.Context, repoURL *url.URL, fileP
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(filePath), permissions.DirModeSecure); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filePath), fsutil.DirModeSecure); err != nil {
 		return errors.Wrap(err, "could not create directory for index")
 	}
 
-	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, permissions.FileModeSecure)
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fsutil.FileModeSecure)
 	if err != nil {
 		return errors.Wrap(err, "could not open index file")
 	}
@@ -116,11 +116,11 @@ func (hc *ClientImpl) DownloadArtifact(ctx context.Context, packageURL *url.URL,
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(filePath), permissions.DirModeSecure); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filePath), fsutil.DirModeSecure); err != nil {
 		return err
 	}
 
-	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, permissions.FileModeSecure)
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fsutil.FileModeSecure)
 	if err != nil {
 		return errors.Wrap(err, "could not open index file")
 	}

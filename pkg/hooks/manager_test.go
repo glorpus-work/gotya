@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cperrin88/gotya/pkg/fsutil"
 	"github.com/cperrin88/gotya/pkg/hooks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -108,12 +109,12 @@ func TestLoadHooksFromArtifactDir(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 	hooksDir := filepath.Join(tempDir, ".gotya", "hooks")
-	err := os.MkdirAll(hooksDir, 0o750)
+	err := os.MkdirAll(hooksDir, fsutil.DirModeSecure)
 	require.NoError(t, err, "Failed to create hooks directory")
 
 	// Create a test hooks file
 	hookFile := filepath.Join(hooksDir, "pre-install.tengo")
-	err = os.WriteFile(hookFile, []byte(`result = "Test hooks executed"`), 0o644)
+	err = os.WriteFile(hookFile, []byte(`result = "Test hooks executed"`), fsutil.FileModeDefault)
 	require.NoError(t, err, "Failed to create test hooks file")
 
 	// Test loading hooks

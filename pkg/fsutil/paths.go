@@ -109,7 +109,7 @@ func EnsureDirs() error {
 		if err != nil {
 			return err
 		}
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, DirModeDefault); err != nil {
 			return err
 		}
 	}

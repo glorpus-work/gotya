@@ -1,25 +1,27 @@
 package artifact
 
-import "github.com/cperrin88/gotya/pkg/permissions"
+import (
+	"github.com/cperrin88/gotya/pkg/fsutil"
+)
 
 // Re-export file permission constants from permissions package for backward compatibility.
 const (
 	// File mode masks.
-	FileModeMask = permissions.FileModeMask
-	DirModeMask  = permissions.DirModeMask
+	FileModeMask = fsutil.FileModeMask
+	DirModeMask  = fsutil.DirModeMask
 
 	// Default file modes.
-	FileModeDefault = permissions.FileModeDefault
-	FileModeSecure  = permissions.FileModeSecure
-	FileModeExec    = permissions.FileModeExec
+	FileModeDefault = fsutil.FileModeDefault
+	FileModeSecure  = fsutil.FileModeSecure
+	FileModeExec    = fsutil.FileModeExec
 
 	// Default directory modes.
-	DirModeDefault = permissions.DirModeDefault
-	DirModeSecure  = permissions.DirModeSecure
-	DirModePrivate = permissions.DirModePrivate
+	DirModeDefault = fsutil.DirModeDefault
+	DirModeSecure  = fsutil.DirModeSecure
+	DirModePrivate = fsutil.DirModePrivate
 
 	// Special file modes.
-	Umask = permissions.Umask
+	Umask = fsutil.Umask
 )
 
 // File type constants.

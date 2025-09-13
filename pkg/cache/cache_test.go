@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/cperrin88/gotya/pkg/cache"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -242,7 +243,7 @@ func setupTestCache(t *testing.T, baseDir string) {
 	// Create test directories with secure permissions
 	dirs := []string{"indexes", "packages"}
 	for _, dir := range dirs {
-		err := os.MkdirAll(filepath.Join(baseDir, dir), 0o750)
+		err := os.MkdirAll(filepath.Join(baseDir, dir), fsutil.DirModeSecure)
 		require.NoError(t, err, "Failed to create test directory %s", dir)
 	}
 
@@ -250,14 +251,14 @@ func setupTestCache(t *testing.T, baseDir string) {
 	err := os.WriteFile(
 		filepath.Join(baseDir, "indexes", "test.index"),
 		[]byte("test index data"),
-		0o644,
+		fsutil.FileModeDefault,
 	)
 	require.NoError(t, err)
 
 	err = os.WriteFile(
 		filepath.Join(baseDir, "packages", "test.artifact"),
 		[]byte("test artifact data"),
-		0o644,
+		fsutil.FileModeDefault,
 	)
 	require.NoError(t, err)
 }
