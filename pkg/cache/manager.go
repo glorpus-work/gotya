@@ -180,5 +180,5 @@ func getDirSizeAndFiles(dir string) (size int64, count int, err error) {
 	if err != nil {
 		err = errors.Wrapf(err, "error walking directory %s", dir)
 	}
-	return
+	return size, count, err
 }

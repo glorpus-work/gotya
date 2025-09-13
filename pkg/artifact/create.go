@@ -197,7 +197,6 @@ func processArtifactFiles(filesDir string) ([]File, error) {
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, errors.Wrap(err, "error walking the files directory")
 	}

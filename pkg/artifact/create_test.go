@@ -120,7 +120,7 @@ func verifyArtifactFiles(t *testing.T, pkgPath string, expectedFiles []*testFile
 	}
 
 	// Verify all expected files were found
-	for pkgFilePath, _ := range expectedFileMap {
+	for pkgFilePath := range expectedFileMap {
 		if !foundFiles[pkgFilePath] {
 			return fmt.Errorf("expected file not found in artifact: %s", pkgFilePath)
 		}

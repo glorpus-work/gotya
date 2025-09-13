@@ -12,7 +12,6 @@ import (
 )
 
 func TestEnsureDir(t *testing.T) {
-
 	tests := []struct {
 		name        string
 		setup       func(t *testing.T) string
