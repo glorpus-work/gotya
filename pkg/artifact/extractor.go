@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/cperrin88/gotya/pkg/fsutil"
+	"github.com/cperrin88/gotya/pkg/permissions"
 )
 
 // Artifact artifact provides functionality for working with artifact files and metadata.
@@ -145,12 +146,12 @@ func (t *tarExtractor) validatePath(header *tar.Header) (string, error) {
 func safeFileMode(mode int64) os.FileMode {
 	// Use type assertion to ensure we handle the conversion safely
 	var perm os.FileMode
-	if mode >= 0 && mode <= int64(fsutil.FileModeMask) {
+	if mode >= 0 && mode <= int64(permissions.FileModeMask) {
 		// Safe to convert directly since we've checked the bounds
 		perm = os.FileMode(mode)
 	} else {
 		// If mode is out of bounds, use a safe default (read/write for owner, read for others)
-		perm = fsutil.FileModeDefault
+		perm = permissions.FileModeDefault
 	}
 	return perm
 }
@@ -172,12 +173,12 @@ func ensureFileDir(filePath string) error {
 // extractDirectory handles the extraction of a directory entry.
 func (t *tarExtractor) extractDirectory(header *tar.Header, targetPath string) error {
 	// Create the directory with default permissions
-	if err := os.MkdirAll(targetPath, fsutil.DirModeDefault); err != nil {
+	if err := os.MkdirAll(targetPath, permissions.DirModeDefault); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
 	}
 
 	// Set the original mode if it's more restrictive than our default
-	if header.Mode&fsutil.FileModeMask < fsutil.DirModeDefault {
+	if header.Mode&permissions.FileModeMask < permissions.DirModeDefault {
 		if err := os.Chmod(targetPath, safeFileMode(header.Mode)); err != nil {
 			return fmt.Errorf("failed to set permissions for %s: %w", targetPath, err)
 		}
@@ -193,7 +194,7 @@ func (t *tarExtractor) extractRegularFile(_ *tar.Header, targetPath string) erro
 	}
 
 	// Create the file with default permissions
-	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fsutil.FileModeDefault)
+	file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, permissions.FileModeDefault)
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", targetPath, err)
 	}
@@ -243,7 +244,7 @@ func (t *tarExtractor) extractSymlink(header *tar.Header, targetPath string) err
 		}
 
 		// Create parent directories if they don't exist
-		if err := os.MkdirAll(targetDir, fsutil.DirModeDefault); err != nil {
+		if err := os.MkdirAll(targetDir, permissions.DirModeDefault); err != nil {
 			return wrapExtractorError(err, targetDir)
 		}
 
@@ -465,7 +466,7 @@ func CopyFiles(src, dst string) ([]string, error) {
 }
 
 // copyFile copies a single file from src to dst with the given mode.
-// If mode is 0, fsutil.FileModeDefault will be used.
+// If mode is 0, permissions.FileModeDefault will be used.
 func copyFile(src, dst string, mode os.FileMode) error {
 	// Ensure destination directory exists
 	if err := ensureFileDir(dst); err != nil {
@@ -481,7 +482,7 @@ func copyFile(src, dst string, mode os.FileMode) error {
 
 	// Use default file mode if none specified
 	if mode == 0 {
-		mode = fsutil.FileModeDefault
+		mode = permissions.FileModeDefault
 	}
 
 	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)

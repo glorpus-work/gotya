@@ -1,6 +1,6 @@
 package cache
 
-import "github.com/cperrin88/gotya/pkg/fsutil"
+import "github.com/cperrin88/gotya/pkg/permissions"
 
 // CacheDirPerm is the default permission mode for cache directories (rwx------).
-var CacheDirPerm = fsutil.DirModePrivate
+var CacheDirPerm = permissions.DirModePrivate

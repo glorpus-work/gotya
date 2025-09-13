@@ -10,7 +10,6 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	mockHttp "github.com/cperrin88/gotya/pkg/http/mocks"
-	"github.com/cperrin88/gotya/pkg/repository"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -20,7 +19,7 @@ func TestManager_Sync(t *testing.T) {
 	tests := []struct {
 		name        string
 		repoName    string
-		repos       []*repository.Repository
+		repos       []*Repository
 		setupMocks  func(*mockHttp.MockClient, string)
 		expectErr   bool
 		expectPath  string
@@ -29,7 +28,7 @@ func TestManager_Sync(t *testing.T) {
 		{
 			name:     "successful sync",
 			repoName: "test-repo",
-			repos: []*repository.Repository{
+			repos: []*Repository{
 				{
 					Name:     "test-repo",
 					URL:      &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
@@ -48,7 +47,7 @@ func TestManager_Sync(t *testing.T) {
 		{
 			name:     "repository not found",
 			repoName: "nonexistent",
-			repos: []*repository.Repository{
+			repos: []*Repository{
 				{
 					Name:     "test-repo",
 					URL:      &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
@@ -95,7 +94,7 @@ func TestManager_Sync(t *testing.T) {
 
 func TestManager_IsCacheStale(t *testing.T) {
 	// Create a test repository
-	repo := &repository.Repository{
+	repo := &Repository{
 		Name:     "test-repo",
 		URL:      &url.URL{Scheme: "https", Host: "example.com", Path: "/index.json"},
 		Priority: 1,
@@ -161,7 +160,7 @@ func TestManager_IsCacheStale(t *testing.T) {
 
 			manager := &ManagerImpl{
 				httpClient:   nil, // Not used in this test
-				repositories: []*repository.Repository{repo},
+				repositories: []*Repository{repo},
 				indexPath:    filepath.Join(tempDir, "indexes"),
 				cacheTTL:     tt.cacheTTL,
 				indexes:      make(map[string]*Index),
@@ -211,7 +210,7 @@ func TestManager_ResolveArtifact(t *testing.T) {
 	repoName := "test-repo"
 	indexFile := createTestIndexFile(t, tempDir, repoName)
 
-	repo := &repository.Repository{
+	repo := &Repository{
 		Name:     "test-repo",
 		URL:      &url.URL{Scheme: "https", Host: "example.com", Path: "/"},
 		Priority: 1,
@@ -259,7 +258,7 @@ func TestManager_ResolveArtifact(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			manager := &ManagerImpl{
 				httpClient:   nil, // Not used in this test
-				repositories: []*repository.Repository{repo},
+				repositories: []*Repository{repo},
 				indexPath:    filepath.Dir(indexFile),
 				cacheTTL:     time.Hour,
 				indexes:      make(map[string]*Index, 1),
@@ -285,7 +284,7 @@ func TestManager_GetCacheAge(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create a test repository
-	repo := &repository.Repository{
+	repo := &Repository{
 		Name:     "test-repo",
 		URL:      &url.URL{Scheme: "https", Host: "example.com", Path: "/index.json"},
 		Priority: 1,
@@ -322,7 +321,7 @@ func TestManager_GetCacheAge(t *testing.T) {
 
 			manager := &ManagerImpl{
 				httpClient:   nil, // Not used in this test
-				repositories: []*repository.Repository{repo},
+				repositories: []*Repository{repo},
 				indexPath:    filepath.Dir(indexPath),
 				cacheTTL:     time.Hour,
 			}
@@ -348,7 +347,7 @@ func TestManager_SyncAll(t *testing.T) {
 	repo1URL, _ := url.Parse("https://example.com/repo1/index.json")
 	repo2URL, _ := url.Parse("https://example.com/repo2/index.json")
 
-	repos := []*repository.Repository{
+	repos := []*Repository{
 		{
 			Name:     "repo1",
 			URL:      repo1URL,

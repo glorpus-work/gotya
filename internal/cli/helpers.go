@@ -8,7 +8,6 @@ import (
 	"github.com/cperrin88/gotya/pkg/http"
 	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/logger"
-	"github.com/cperrin88/gotya/pkg/repository"
 )
 
 // These variables will be set by the main artifact.
@@ -61,9 +60,9 @@ func loadConfig() (*config.Config, error) {
 }
 
 func loadIndexManager(config *config.Config, httpClient http.Client) index.Manager {
-	repositories := make([]*repository.Repository, len(config.Repositories))
+	repositories := make([]*index.Repository, len(config.Repositories))
 	for _, repo := range config.Repositories {
-		repositories = append(repositories, &repository.Repository{
+		repositories = append(repositories, &index.Repository{
 			Name:     repo.Name,
 			URL:      repo.GetURL(),
 			Priority: uint(repo.Priority),

@@ -1,5 +1,4 @@
-// Artifact fsutil provides utility functions and constants for file system operations.
-package fsutil
+package permissions
 
 // File and directory permission constants.
 const (

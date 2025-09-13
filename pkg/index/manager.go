@@ -12,7 +12,6 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/http"
-	"github.com/cperrin88/gotya/pkg/repository"
 )
 
 type UintSlice []uint
@@ -23,7 +22,7 @@ func (x UintSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 type ManagerImpl struct {
 	httpClient   http.Client
-	repositories []*repository.Repository
+	repositories []*Repository
 	indexPath    string
 	cacheTTL     time.Duration
 	indexes      map[string]*Index
@@ -31,7 +30,7 @@ type ManagerImpl struct {
 
 func NewManager(
 	httpClient http.Client,
-	repositories []*repository.Repository,
+	repositories []*Repository,
 	indexPath string,
 	cacheTTL time.Duration,
 ) *ManagerImpl {
@@ -85,7 +84,7 @@ func (rm *ManagerImpl) GetCacheAge(name string) (time.Duration, error) {
 		return -1, errors.Wrapf(err, "Cannot stat file %s", indexPath)
 	}
 
-	return time.Now().Sub(stat.ModTime()), nil
+	return time.Since(stat.ModTime()), nil
 }
 
 func (rm *ManagerImpl) FindArtifacts(name string) (map[string][]*Artifact, error) {
@@ -189,12 +188,12 @@ func (rm *ManagerImpl) loadIndexes() error {
 	return nil
 }
 
-func (rm *ManagerImpl) ListRepositories() []*repository.Repository {
+func (rm *ManagerImpl) ListRepositories() []*Repository {
 	return rm.repositories
 }
 
-func (rm *ManagerImpl) getRepository(name string) (*repository.Repository, error) {
-	idx := slices.IndexFunc(rm.repositories, func(r *repository.Repository) bool {
+func (rm *ManagerImpl) getRepository(name string) (*Repository, error) {
+	idx := slices.IndexFunc(rm.repositories, func(r *Repository) bool {
 		return r.Name == name
 	})
 	if idx == -1 {

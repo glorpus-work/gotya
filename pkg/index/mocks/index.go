@@ -15,7 +15,6 @@ import (
 	time "time"
 
 	index "github.com/cperrin88/gotya/pkg/index"
-	repository "github.com/cperrin88/gotya/pkg/repository"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -103,10 +102,10 @@ func (mr *MockManagerMockRecorder) IsCacheStale(name any) *gomock.Call {
 }
 
 // ListRepositories mocks base method.
-func (m *MockManager) ListRepositories() []*repository.Repository {
+func (m *MockManager) ListRepositories() []*index.Repository {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListRepositories")
-	ret0, _ := ret[0].([]*repository.Repository)
+	ret0, _ := ret[0].([]*index.Repository)
 	return ret0
 }
 

@@ -4,8 +4,6 @@ package index
 import (
 	"context"
 	"time"
-
-	"github.com/cperrin88/gotya/pkg/repository"
 )
 
 type Index struct {
@@ -44,5 +42,5 @@ type Manager interface {
 
 	// GetIndex retrieves an index by name
 	GetIndex(name string) (*Index, error)
-	ListRepositories() []*repository.Repository
+	ListRepositories() []*Repository
 }
