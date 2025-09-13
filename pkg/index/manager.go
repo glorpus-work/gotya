@@ -88,39 +88,39 @@ func (rm *ManagerImpl) GetCacheAge(name string) (time.Duration, error) {
 	return time.Now().Sub(stat.ModTime()), nil
 }
 
-func (rm *ManagerImpl) FindPackages(name string) (map[string][]*Package, error) {
+func (rm *ManagerImpl) FindArtifacts(name string) (map[string][]*Artifact, error) {
 	indexes, err := rm.getIndexes()
 	if err != nil {
 		return nil, err
 	}
 
-	packages := make(map[string][]*Package, 10)
+	packages := make(map[string][]*Artifact, 10)
 
 	for idxName, idx := range indexes {
-		pkg := idx.FindPackages(name)
+		pkg := idx.FindArtifacts(name)
 		if pkg != nil {
 			if packages[idxName] != nil {
-				packages[idxName] = make([]*Package, 0, 5)
+				packages[idxName] = make([]*Artifact, 0, 5)
 			}
 			packages[idxName] = pkg
 		}
 	}
 
 	if len(packages) == 0 {
-		return nil, errors.ErrPackageNotFound
+		return nil, errors.ErrArtifactNotFound
 	}
 	return packages, nil
 }
 
-func (rm *ManagerImpl) ResolvePackage(name, version, os, arch string) (*Package, error) {
-	repoPackages, err := rm.FindPackages(name)
+func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*Artifact, error) {
+	repoArtifacts, err := rm.FindArtifacts(name)
 	if err != nil {
 		return nil, err
 	}
 
-	repoPrioPackages := make(map[uint][]*Package)
+	repoPrioArtifacts := make(map[uint][]*Artifact)
 
-	for idxName, pkgs := range repoPackages {
+	for idxName, pkgs := range repoArtifacts {
 		for _, pkg := range pkgs {
 			if !pkg.MatchVersion(version) {
 				continue
@@ -136,29 +136,29 @@ func (rm *ManagerImpl) ResolvePackage(name, version, os, arch string) (*Package,
 			if err != nil {
 				return nil, errors.ErrRepositoryNotFound(idxName)
 			}
-			if repoPrioPackages[repo.Priority] == nil {
-				repoPrioPackages[repo.Priority] = make([]*Package, 5)
+			if repoPrioArtifacts[repo.Priority] == nil {
+				repoPrioArtifacts[repo.Priority] = make([]*Artifact, 5)
 			}
-			repoPrioPackages[repo.Priority] = append(repoPrioPackages[repo.Priority], pkg)
+			repoPrioArtifacts[repo.Priority] = append(repoPrioArtifacts[repo.Priority], pkg)
 		}
 	}
-	if len(repoPrioPackages) == 0 {
-		return nil, ErrPackageNotFound
+	if len(repoPrioArtifacts) == 0 {
+		return nil, ErrArtifactNotFound
 	}
 
-	prios := slices.Collect(maps.Keys(repoPrioPackages))
+	prios := slices.Collect(maps.Keys(repoPrioArtifacts))
 	sort.Sort(sort.Reverse(UintSlice(prios)))
 
-	var finalPackage *Package
+	var finalArtifact *Artifact
 	for _, prio := range prios {
-		for _, pkg := range repoPrioPackages[prio] {
-			if finalPackage == nil || pkg.GetVersion().GreaterThanOrEqual(finalPackage.GetVersion()) {
-				finalPackage = pkg
+		for _, pkg := range repoPrioArtifacts[prio] {
+			if finalArtifact == nil || pkg.GetVersion().GreaterThanOrEqual(finalArtifact.GetVersion()) {
+				finalArtifact = pkg
 			}
 		}
 	}
 
-	return finalPackage, nil
+	return finalArtifact, nil
 }
 
 func (rm *ManagerImpl) GetIndex(name string) (*Index, error) {

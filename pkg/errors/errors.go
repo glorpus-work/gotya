@@ -60,8 +60,8 @@ var (
 	ErrCacheCleanIndex = fmt.Errorf(
 		"failed to clean index cache") // When index cache cleanup fails
 
-	ErrCacheCleanPackage = fmt.Errorf(
-		"failed to clean pkg cache") // When pkg cache cleanup fails
+	ErrCacheCleanArtifact = fmt.Errorf(
+		"failed to clean artifact cache") // When artifact cache cleanup fails
 
 	// Platform and configuration validation errors.
 	// These errors are used to validate system-specific configuration values.
@@ -75,17 +75,17 @@ var (
 	// CLI errors are returned during command-line interface operations.
 	// These errors help users understand and correct their command usage.
 
-	// ErrNoPackagesSpecified is returned when a command requires pkg arguments
+	// ErrNoArtifactsSpecified is returned when a command requires artifact arguments
 	// but none were provided and the --all flag was not used.
-	ErrNoPackagesSpecified = fmt.Errorf("no packages specified and --all flag not used")
+	ErrNoArtifactsSpecified = fmt.Errorf("no packages specified and --all flag not used")
 
 	// ErrNoRepositories is returned when no repositories are configured
 	// and an operation requires at least one index.
 	ErrNoRepositories = fmt.Errorf("no repositories configured")
 
-	// ErrPackageNotFound is returned when an operation is attempted on a pkg
+	// ErrArtifactNotFound is returned when an operation is attempted on a artifact
 	// that doesn't exist in the database.
-	ErrPackageNotFound = fmt.Errorf("pkg not found")
+	ErrArtifactNotFound = fmt.Errorf("artifact not found")
 
 	// Repository errors are related to index management operations.
 
@@ -116,7 +116,7 @@ var (
 	// This is an alias for ErrRepositoryExists for backward compatibility.
 	ErrDuplicateRepository = ErrRepositoryExists
 
-	// Package errors are related to pkg management operations.
+	// Artifact errors are related to artifact management operations.
 
 	// ErrFileNotFound is returned when a required file cannot be found.
 	ErrFileNotFound = fmt.Errorf("file not found")
@@ -127,28 +127,28 @@ var (
 	// ErrInvalidFile is returned when a file exists but is invalid or corrupted.
 	ErrInvalidFile = fmt.Errorf("invalid file")
 
-	// Package errors are related to pkg management operations.
-	// ErrPackageInvalid is returned when a pkg is invalid or contains invalid data.
-	ErrPackageInvalid = fmt.Errorf("invalid pkg")
+	// Artifact errors are related to artifact management operations.
+	// ErrArtifactInvalid is returned when a artifact is invalid or contains invalid data.
+	ErrArtifactInvalid = fmt.Errorf("invalid artifact")
 
-	// ErrValidationFailed is returned when pkg validation fails.
+	// ErrValidationFailed is returned when artifact validation fails.
 	// This is the preferred error for validation failures.
 	ErrValidationFailed = fmt.Errorf("validation failed") // Alias for backward compatibility
 
-	// ErrNameRequired is returned when a pkg name is required but not provided.
+	// ErrNameRequired is returned when a artifact name is required but not provided.
 	ErrNameRequired = fmt.Errorf("name is required")
 
-	// Example: fmt.Errorf("invalid pkg name: %s - must match %s", name, pattern).
-	ErrInvalidPackageName = fmt.Errorf("invalid pkg name: %%s - must match %%s")
+	// Example: fmt.Errorf("invalid artifact name: %s - must match %s", name, pattern).
+	ErrInvalidArtifactName = fmt.Errorf("invalid artifact name: %%s - must match %%s")
 
-	// ErrVersionRequired is returned when a pkg version is required but not provided.
+	// ErrVersionRequired is returned when a artifact version is required but not provided.
 	ErrVersionRequired = fmt.Errorf("version is required")
 
-	// ErrInvalidVersionString is returned when a pkg version string is invalid.
+	// ErrInvalidVersionString is returned when a artifact version string is invalid.
 	// The format string is used to include the version string and regex pattern.
 	// Example: fmt.Errorf(ErrInvalidVersionString.Error(), "1.0", "^[0-9]+\\.[0-9]+\\.[0-9]+$")
 	// The %%s placeholders will be replaced with the actual values when the error is created.
-	ErrInvalidVersionString = fmt.Errorf("invalid pkg version: %%s - must match %%s")
+	ErrInvalidVersionString = fmt.Errorf("invalid artifact version: %%s - must match %%s")
 
 	// ErrHTTPTimeoutNegative is returned when HTTP timeout is set to a negative value.
 	ErrHTTPTimeoutNegative = fmt.Errorf("http_timeout cannot be negative")
@@ -326,7 +326,7 @@ var ErrMissingFile = fmt.Errorf("missing file")
 
 var ErrDownloadFailed = fmt.Errorf("download failed")
 
-// Helper functions for pkg errors
+// Helper functions for artifact errors
 
 // WrapFileError wraps a file-related error with additional context.
 func WrapFileError(err error, operation, path string) error {

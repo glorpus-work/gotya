@@ -6,9 +6,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	pkg "github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/logger"
-	pkg "github.com/cperrin88/gotya/pkg/pkg"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -131,9 +131,9 @@ type SearchResult struct {
 func searchInIndex(index *index.Index, repoName, query string, exactMatch bool) []SearchResult {
 	var searchResults []SearchResult
 
-	availablePackages := index.GetPackages()
-	for packageIndex := range availablePackages {
-		pkg := availablePackages[packageIndex]
+	availableArtifacts := index.GetArtifacts()
+	for packageIndex := range availableArtifacts {
+		pkg := availableArtifacts[packageIndex]
 		var isMatch bool
 
 		if exactMatch {
@@ -186,7 +186,7 @@ func runList(showInstalled, showAvailable bool) error {
 		showInstalled = true
 	}
 
-	var packages []PackageListItem
+	var packages []ArtifactListItem
 
 	// Load installed packages if requested
 	if showInstalled {
@@ -194,9 +194,9 @@ func runList(showInstalled, showAvailable bool) error {
 		if err != nil {
 			logger.Warn("Failed to load installed packages database", logrus.Fields{"error": err.Error()})
 		} else {
-			installedPackages := installedDB.GetInstalledPackages()
-			for _, installedPkg := range installedPackages {
-				packages = append(packages, PackageListItem{
+			installedArtifacts := installedDB.GetInstalledArtifacts()
+			for _, installedPkg := range installedArtifacts {
+				packages = append(packages, ArtifactListItem{
 					Name:        installedPkg.Name,
 					Version:     installedPkg.Version,
 					Description: installedPkg.Description,
@@ -224,13 +224,13 @@ func runList(showInstalled, showAvailable bool) error {
 				continue
 			}
 
-			repoPackages := index.GetPackages()
-			for pkgIdx := range repoPackages {
-				repoPkg := repoPackages[pkgIdx]
-				// Check if pkg is already installed
+			repoArtifacts := index.GetArtifacts()
+			for pkgIdx := range repoArtifacts {
+				repoPkg := repoArtifacts[pkgIdx]
+				// Check if artifact is already installed
 				var status string
 				if showInstalled {
-					// Check if we already have this pkg in our list (installed)
+					// Check if we already have this artifact in our list (installed)
 					found := false
 					for installedPkgIdx := range packages {
 						if packages[installedPkgIdx].Name == repoPkg.Name {
@@ -257,7 +257,7 @@ func runList(showInstalled, showAvailable bool) error {
 					arch = "any"
 				}
 
-				packages = append(packages, PackageListItem{
+				packages = append(packages, ArtifactListItem{
 					Name:        repoPkg.Name,
 					Version:     repoPkg.Version,
 					Description: repoPkg.Description,
@@ -276,14 +276,14 @@ func runList(showInstalled, showAvailable bool) error {
 	}
 
 	// Display results in table format
-	displayPackageList(packages)
-	logger.Info("Package listing completed", logrus.Fields{"total": len(packages)})
+	displayArtifactList(packages)
+	logger.Info("Artifact listing completed", logrus.Fields{"total": len(packages)})
 
 	return nil
 }
 
-// PackageListItem represents a pkg in the list output.
-type PackageListItem struct {
+// ArtifactListItem represents a artifact in the list output.
+type ArtifactListItem struct {
 	Name        string
 	Version     string
 	Description string
@@ -293,7 +293,7 @@ type PackageListItem struct {
 	Arch        string
 }
 
-func displayPackageList(packages []PackageListItem) {
+func displayArtifactList(packages []ArtifactListItem) {
 	tabWriter := tabwriter.NewWriter(os.Stdout, 0, 0, TabWidth, ' ', 0)
 	fmt.Fprintln(tabWriter, "NAME\tVERSION\tPLATFORM\tSTATUS\tREPOSITORY\tDESCRIPTION")
 

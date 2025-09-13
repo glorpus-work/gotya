@@ -10,9 +10,9 @@ import (
 func TestTengoExecutor(t *testing.T) {
 	executor := hooks.NewTengoExecutor()
 	ctx := hooks.HookContext{
-		PackageName:    "test-pkg",
-		PackageVersion: "1.0.0",
-		InstallPath:    "/test/install/path",
+		ArtifactName:    "test-artifact",
+		ArtifactVersion: "1.0.0",
+		InstallPath:     "/test/install/path",
 		Vars: map[string]interface{}{
 			"customVar": "customValue",
 		},

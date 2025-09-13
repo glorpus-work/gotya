@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPackage_MatchOs(t *testing.T) {
+func TestArtifact_MatchOs(t *testing.T) {
 	tests := []struct {
 		name     string
 		pkgOS    string
@@ -17,7 +17,7 @@ func TestPackage_MatchOs(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "empty pkg OS matches any OS",
+			name:     "empty artifact OS matches any OS",
 			pkgOS:    "",
 			testOS:   "linux",
 			expected: true,
@@ -44,14 +44,14 @@ func TestPackage_MatchOs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Package{OS: tt.pkgOS}
+			pkg := &Artifact{OS: tt.pkgOS}
 			result := pkg.MatchOs(tt.testOS)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestPackage_MatchArch(t *testing.T) {
+func TestArtifact_MatchArch(t *testing.T) {
 	tests := []struct {
 		name     string
 		pkgArch  string
@@ -59,7 +59,7 @@ func TestPackage_MatchArch(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "empty pkg arch matches any arch",
+			name:     "empty artifact arch matches any arch",
 			pkgArch:  "",
 			testArch: "amd64",
 			expected: true,
@@ -86,14 +86,14 @@ func TestPackage_MatchArch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Package{Arch: tt.pkgArch}
+			pkg := &Artifact{Arch: tt.pkgArch}
 			result := pkg.MatchArch(tt.testArch)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestPackage_MatchVersion(t *testing.T) {
+func TestArtifact_MatchVersion(t *testing.T) {
 	tests := []struct {
 		name       string
 		pkgVersion string
@@ -146,14 +146,14 @@ func TestPackage_MatchVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Package{Version: tt.pkgVersion}
+			pkg := &Artifact{Version: tt.pkgVersion}
 			result := pkg.MatchVersion(tt.constraint)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestPackage_GetVersion(t *testing.T) {
+func TestArtifact_GetVersion(t *testing.T) {
 	tests := []struct {
 		name     string
 		version  string
@@ -178,7 +178,7 @@ func TestPackage_GetVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Package{Version: tt.version}
+			pkg := &Artifact{Version: tt.version}
 			result := pkg.GetVersion()
 			if tt.expected == nil {
 				assert.Nil(t, result)
@@ -190,7 +190,7 @@ func TestPackage_GetVersion(t *testing.T) {
 	}
 }
 
-func TestPackage_GetOS(t *testing.T) {
+func TestArtifact_GetOS(t *testing.T) {
 	tests := []struct {
 		name     string
 		pkgOS    string
@@ -210,14 +210,14 @@ func TestPackage_GetOS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Package{OS: tt.pkgOS}
+			pkg := &Artifact{OS: tt.pkgOS}
 			result := pkg.GetOS()
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-func TestPackage_GetArch(t *testing.T) {
+func TestArtifact_GetArch(t *testing.T) {
 	tests := []struct {
 		name     string
 		pkgArch  string
@@ -237,7 +237,7 @@ func TestPackage_GetArch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Package{Arch: tt.pkgArch}
+			pkg := &Artifact{Arch: tt.pkgArch}
 			result := pkg.GetArch()
 			assert.Equal(t, tt.expected, result)
 		})

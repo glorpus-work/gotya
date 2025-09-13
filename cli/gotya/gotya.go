@@ -34,8 +34,8 @@ func main() {
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gotya",
-		Short: "A lightweight personal pkg manager",
-		Long: `gotya is a lightweight personal pkg manager (like apt) with:
+		Short: "A lightweight personal artifact manager",
+		Long: `gotya is a lightweight personal artifact manager (like apt) with:
 - CLI: install, update, search
 - Library: download index and packages
 - Tooling: create packages and manage repositories`,
@@ -48,7 +48,7 @@ func newRootCmd() *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
 	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "output format (json, yaml, table)")
 
-	// Set up CLI pkg variables
+	// Set up CLI artifact variables
 	cli.ConfigPath = &configPath
 	cli.Verbose = &verbose
 	cli.NoColor = &noColor
@@ -64,7 +64,7 @@ func newRootCmd() *cobra.Command {
 		cli.NewListCmd(),
 		cli.NewConfigCmd(),
 		cli.NewCacheCmd(),
-		cli.NewPackageCmd(),
+		cli.NewArtifactCmd(),
 		cli.NewVersionCmd(),
 	)
 

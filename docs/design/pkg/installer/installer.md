@@ -1,9 +1,9 @@
-# Installer Package Design
+# Installer Artifact Design
 
 ## Overview
 The `installer` package is responsible for managing the installation, update, and removal of packages in the Gotya package manager. It serves as the core component that coordinates between package repositories, file systems, and hook systems to ensure proper package management.
 
-## Package Structure
+## Artifact Structure
 
 ```
 pkg/installer/
@@ -37,7 +37,7 @@ type Installer struct {
   - `hookManager`: Hook manager instance
 - **Returns**: New Installer instance
 
-### InstallPackage(packageName string, force, skipDeps bool) error
+### InstallArtifact(packageName string, force, skipDeps bool) error
 - **Purpose**: Installs a package with the given name
 - **Parameters**:
   - `packageName`: Name of the package to install
@@ -53,7 +53,7 @@ type Installer struct {
   6. Update installed packages database
   7. Run post-install hooks
 
-### UpdatePackage(packageName string) (bool, error)
+### UpdateArtifact(packageName string) (bool, error)
 - **Purpose**: Updates a package to the latest version
 - **Parameters**:
   - `packageName`: Name of the package to update
@@ -76,11 +76,11 @@ type Installer struct {
 
 ~/.local/share/gotya/
 ├── installed/              # Installed package files
-│   └── <package_name>/     # Package installation directory
+│   └── <package_name>/     # Artifact installation directory
 │       └── ...             # Files from package's 'files' directory
-└── meta/                   # Package metadata
+└── meta/                   # Artifact metadata
     └── <package_name>/     # Per-package metadata
-        ├── manifest.json   # Package manifest
+        ├── manifest.json   # Artifact manifest
         └── checksums.sha256
 ```
 
@@ -93,7 +93,7 @@ type Installer struct {
 ~/Library/Application Support/gotya/
 ├── installed/              # Installed package files
 │   └── <package_name>/
-└── meta/                   # Package metadata
+└── meta/                   # Artifact metadata
     └── <package_name>/
 ```
 
@@ -105,7 +105,7 @@ type Installer struct {
 │       └── <package_name>_<version>.tar.gz
 ├── installed\             # Installed package files
 │   └── <package_name>\
-└── meta\                  # Package metadata
+└── meta\                  # Artifact metadata
     └── <package_name>\
 ```
 
@@ -120,10 +120,10 @@ type Installer struct {
   - macOS: `$HOME/Library/Application Support/gotya/`
   - Windows: `%LOCALAPPDATA%\gotya\`
 
-### installPackageFiles(pkg *repository.Package) error
+### installArtifactFiles(pkg *repository.Artifact) error
 - **Purpose**: Internal method to handle the actual file installation
 - **Parameters**:
-  - `pkg`: Package to install
+  - `pkg`: Artifact to install
 - **Returns**: Error if installation fails
 - **Workflow**:
   1. **Create target directories**:
@@ -153,12 +153,12 @@ type Installer struct {
        - Keep both versions (with `--keep` flag)
        - Abort installation (default)
 
-### runHooks(event, packageName string, pkg *repository.Package) error
+### runHooks(event, packageName string, pkg *repository.Artifact) error
 - **Purpose**: Executes hooks for a specific event
 - **Parameters**:
   - `event`: Hook event type (e.g., "pre-install", "post-update")
   - `packageName`: Name of the package
-  - `pkg`: Package details
+  - `pkg`: Artifact details
 - **Returns**: Error if hook execution fails
 
 ## Hook System
@@ -167,10 +167,10 @@ The installer supports the following hook events:
 
 ### Installation Hooks
 - `pre-install`: Runs before package installation
-  - **Context**: Package is about to be installed
+  - **Context**: Artifact is about to be installed
   - **Use Case**: Check system requirements, validate environment
 - `post-install`: Runs after successful installation
-  - **Context**: Package files are in place
+  - **Context**: Artifact files are in place
   - **Use Case**: Set up configurations, start services
 
 ### Update Hooks
@@ -183,10 +183,10 @@ The installer supports the following hook events:
 
 ### Uninstallation Hooks
 - `pre-uninstall`: Runs before package removal
-  - **Context**: Package is about to be removed
+  - **Context**: Artifact is about to be removed
   - **Use Case**: Stop services, backup user data
 - `post-uninstall`: Runs after package removal
-  - **Context**: Package files have been removed
+  - **Context**: Artifact files have been removed
   - **Use Case**: Clean up temporary files, remove user data (if confirmed)
 
 ## Error Handling
@@ -212,7 +212,7 @@ All errors are wrapped with context using `github.com/pkg/errors` to provide bet
    - Cache can be cleared using `gotya cache clean`
 
 3. **Installation Layout**:
-   - **Package Files**:
+   - **Artifact Files**:
      - Copied to platform-specific data directory under `installed/<package_name>/`
      - Original directory structure from package's `files/` directory is preserved
    - **Metadata**:
@@ -224,7 +224,7 @@ All errors are wrapped with context using `github.com/pkg/errors` to provide bet
 
 4. **State Management**:
    - `installed.db`: SQLite database tracking installed packages
-     - Package name, version, installation time, files
+     - Artifact name, version, installation time, files
    - Lock files prevent concurrent modifications
      - File-based locks in `<install_dir>/state/locks/`
      - Automatically released on process exit
@@ -235,7 +235,7 @@ All errors are wrapped with context using `github.com/pkg/errors` to provide bet
 - `github.com/cperrin88/gotya/pkg/errors`: Error handling utilities
 - `github.com/cperrin88/gotya/pkg/fsutil`: Filesystem utilities
 - `github.com/cperrin88/gotya/pkg/hook`: Hook management
-- `github.com/cperrin88/gotya/pkg/package`: Package management
+- `github.com/cperrin88/gotya/pkg/package`: Artifact management
 - `github.com/cperrin88/gotya/pkg/repository`: Repository management
 
 ## Concurrency Considerations
@@ -262,20 +262,20 @@ hookManager := hook.NewManager()
 // Create installer
 installer := installer.New(config, repoManager, hookManager)
 
-// Install a pkg
-err := installer.InstallPackage("example-pkg", false, false)
+// Install a artifact
+err := installer.InstallArtifact("example-artifact", false, false)
 if err != nil {
-    log.Fatalf("Failed to install pkg: %v", err)
+    log.Fatalf("Failed to install artifact: %v", err)
 }
 
-// Update a pkg
-updated, err := installer.UpdatePackage("example-pkg")
+// Update a artifact
+updated, err := installer.UpdateArtifact("example-artifact")
 if err != nil {
-    log.Fatalf("Failed to update pkg: %v", err)
+    log.Fatalf("Failed to update artifact: %v", err)
 }
 if updated {
-    log.Println("Package was updated")
+    log.Println("Artifact was updated")
 } else {
-    log.Println("Package was already up to date")
+    log.Println("Artifact was already up to date")
 }
 ```

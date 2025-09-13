@@ -97,8 +97,8 @@ func (hc *ClientImpl) DownloadIndex(ctx context.Context, repoURL *url.URL, fileP
 	return nil
 }
 
-// DownloadPackage downloads a pkg file from the index.
-func (hc *ClientImpl) DownloadPackage(ctx context.Context, packageURL *url.URL, filePath string) error {
+// DownloadArtifact downloads a artifact file from the index.
+func (hc *ClientImpl) DownloadArtifact(ctx context.Context, packageURL *url.URL, filePath string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, packageURL.String(), http.NoBody)
 	if err != nil {
 		return errors.Wrap(err, "failed to create request")
@@ -108,7 +108,7 @@ func (hc *ClientImpl) DownloadPackage(ctx context.Context, packageURL *url.URL, 
 
 	resp, err := hc.client.Do(req)
 	if err != nil {
-		return errors.Wrap(err, "failed to download pkg")
+		return errors.Wrap(err, "failed to download artifact")
 	}
 	defer resp.Body.Close()
 

@@ -1,4 +1,4 @@
-# Package Management Design Document
+# Artifact Management Design Document
 
 ## Overview
 
@@ -10,10 +10,10 @@ The `package.go` file implements core functionality for creating and managing so
 
 #### `Metadata`
 Represents package metadata with the following fields:
-- `Name`: Package name (required)
-- `Version`: Package version (required)
-- `Maintainer`: Package maintainer (optional)
-- `Description`: Package description
+- `Name`: Artifact name (required)
+- `Version`: Artifact version (required)
+- `Maintainer`: Artifact maintainer (optional)
+- `Description`: Artifact description
 - `Dependencies`: List of package dependencies
 - `Files`: List of files included in the package
 - `Hooks`: Map of hook names to script paths
@@ -27,7 +27,7 @@ Represents a file entry in the package metadata:
 
 ### 2. Core Functions
 
-#### `CreatePackage`
+#### `CreateArtifact`
 Main entry point for creating a new package. It:
 1. Validates input parameters
 2. Processes files in the source directory
@@ -37,14 +37,14 @@ Main entry point for creating a new package. It:
 
 ### File Processing Functions
 
-#### `validatePackageStructure`
+#### `validateArtifactStructure`
 Validates the package directory structure:
 - Verifies presence of required `files/` and `meta/` directories
 - Ensures no `package.json` exists in the source directory
 - Validates that `meta/` only contains allowed files
 - Returns an error if the structure is invalid
 
-#### `processPackageFiles`
+#### `processArtifactFiles`
 Processes all files in the `files/` directory:
 - Recursively walks through the directory
 - Calculates SHA256 hashes for all files
@@ -62,8 +62,8 @@ Processes hook scripts in the `meta/` directory:
 
 #### `processFiles` (orchestrator)
 Coordinates the file processing workflow:
-1. Calls `validatePackageStructure` to validate the directory structure
-2. Calls `processPackageFiles` to process the package files
+1. Calls `validateArtifactStructure` to validate the directory structure
+2. Calls `processArtifactFiles` to process the package files
 3. Calls `processHookScripts` to process hook scripts
 4. Combines all results into the package metadata
 5. Returns any errors that occur during processing
@@ -76,7 +76,7 @@ Creates a gzipped tarball from the source directory. It:
 4. Creates a gzipped tarball
 5. Cleans up temporary files
 
-#### `verifyPackage`
+#### `verifyArtifact`
 Verifies the integrity of a package file by:
 1. Checking file hashes
 2. Verifying file permissions and sizes
@@ -86,22 +86,22 @@ Verifies the integrity of a package file by:
 
 - `validatePath`: Validates that a path is absolute and exists
 - `calculateFileHash`: Calculates SHA256 hash of a file
-- `openPackageFile`: Opens a package file for reading
+- `openArtifactFile`: Opens a package file for reading
 - `createGzipReader`: Creates a gzip reader from a file
-- `processPackageContents`: Processes and verifies package contents
+- `processArtifactContents`: Processes and verifies package contents
 - `isRegularFile`: Checks if a tar header represents a regular file
 - `processFile`: Processes and verifies a single file from the package
 
-## Package Structure Requirements
+## Artifact Structure Requirements
 
 The package structure is strictly defined as follows:
 
 ```
 package-name/
 ├── files/                 # Required: Contains all package files
-│   └── ...               # Package files in their desired directory structure
+│   └── ...               # Artifact files in their desired directory structure
 └── meta/                  # Required: Contains package metadata and hooks
-    ├── package.json      # Required: Package metadata in JSON format
+    ├── package.json      # Required: Artifact metadata in JSON format
     └── *.tengo           # Optional: Hook scripts (e.g., post-install.tengo)
 ```
 
@@ -145,10 +145,10 @@ All functions return errors that implement the `error` interface. The package de
 ## Testing
 
 Tests are located in `package_test.go` and cover:
-- Package creation with various metadata
+- Artifact creation with various metadata
 - Error conditions
 - File processing
-- Package verification
+- Artifact verification
 
 ## Future Improvements
 

@@ -1,4 +1,4 @@
-package pkg
+package artifact
 
 import (
 	"context"
@@ -6,39 +6,39 @@ import (
 )
 
 type Manager interface {
-	InstallPackage(ctx context.Context, pkgName, version string, force bool) error
+	InstallArtifact(ctx context.Context, pkgName, version string, force bool) error
 }
 
 // InstalledManager defines the interface for managing installed packages.
 type InstalledManager interface {
 	LoadDatabase(dbPath string) error
 	SaveDatabase(dbPath string) error
-	FindPackage(name string) *InstalledPackage
-	IsPackageInstalled(name string) bool
-	AddPackage(pkg *InstalledPackage)
-	RemovePackage(name string) bool
-	GetInstalledPackages() []InstalledPackage
+	FindArtifact(name string) *InstalledArtifact
+	IsArtifactInstalled(name string) bool
+	AddArtifact(pkg *InstalledArtifact)
+	RemoveArtifact(name string) bool
+	GetInstalledArtifacts() []InstalledArtifact
 }
 
-// MetadataExtractor defines the interface for extracting pkg metadata.
+// MetadataExtractor defines the interface for extracting artifact metadata.
 type MetadataExtractor interface {
-	ExtractMetadata(packagePath string) (*PackageMetadata, error)
-	ValidatePackage(packagePath string) error
+	ExtractMetadata(packagePath string) (*ArtifactMetadata, error)
+	ValidateArtifact(packagePath string) error
 }
 
-// InstalledPackage represents an installed pkg with its files.
-type InstalledPackage struct {
+// InstalledArtifact represents an installed artifact with its files.
+type InstalledArtifact struct {
 	Name          string    `json:"name"`
 	Version       string    `json:"version"`
 	Description   string    `json:"description"`
 	InstalledAt   time.Time `json:"installed_at"`
 	InstalledFrom string    `json:"installed_from"` // URL or index where it was installed from
-	Files         []string  `json:"files"`          // List of files installed by this pkg
-	Checksum      string    `json:"checksum"`       // Checksum of the original pkg
+	Files         []string  `json:"files"`          // List of files installed by this artifact
+	Checksum      string    `json:"checksum"`       // Checksum of the original artifact
 }
 
-// PackageMetadata represents metadata about a pkg.
-type PackageMetadata struct {
+// ArtifactMetadata represents metadata about a artifact.
+type ArtifactMetadata struct {
 	Name         string            `json:"name"`
 	Version      string            `json:"version"`
 	Description  string            `json:"description"`

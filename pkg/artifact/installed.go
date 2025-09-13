@@ -1,4 +1,4 @@
-package pkg
+package artifact
 
 import (
 	"encoding/json"
@@ -13,14 +13,14 @@ import (
 
 // InstalledDatabase represents the database of installed packages.
 type InstalledDatabase struct {
-	FormatVersion string              `json:"format_version"`
-	LastUpdate    time.Time           `json:"last_update"`
-	Packages      []*InstalledPackage `json:"packages"`
+	FormatVersion string               `json:"format_version"`
+	LastUpdate    time.Time            `json:"last_update"`
+	Artifacts     []*InstalledArtifact `json:"packages"`
 }
 
 const (
-	// InitialPackageCapacity is the initial capacity for the installed packages slice.
-	InitialPackageCapacity = 100
+	// InitialArtifactCapacity is the initial capacity for the installed packages slice.
+	InitialArtifactCapacity = 100
 )
 
 // NewInstalledDatabase creates a new installed packages database.
@@ -28,7 +28,7 @@ func NewInstalledDatabase() *InstalledDatabase {
 	return &InstalledDatabase{
 		FormatVersion: "1.0",
 		LastUpdate:    time.Now(),
-		Packages:      make([]*InstalledPackage, 0, InitialPackageCapacity),
+		Artifacts:     make([]*InstalledArtifact, 0, InitialArtifactCapacity),
 	}
 }
 
@@ -58,9 +58,9 @@ func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
 
 // tempInstalledDatabase is used for JSON unmarshaling.
 type tempInstalledDatabase struct {
-	FormatVersion string             `json:"format_version"`
-	LastUpdate    time.Time          `json:"last_update"`
-	Packages      []InstalledPackage `json:"packages"`
+	FormatVersion string              `json:"format_version"`
+	LastUpdate    time.Time           `json:"last_update"`
+	Artifacts     []InstalledArtifact `json:"packages"`
 }
 
 // ParseInstalledDatabaseFromReader parses the database from an io.Reader.
@@ -80,13 +80,13 @@ func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, err
 	installedDB := &InstalledDatabase{
 		FormatVersion: tempDB.FormatVersion,
 		LastUpdate:    tempDB.LastUpdate,
-		Packages:      make([]*InstalledPackage, 0, len(tempDB.Packages)),
+		Artifacts:     make([]*InstalledArtifact, 0, len(tempDB.Artifacts)),
 	}
 
-	// Convert each pkg to a pointer
-	for i := range tempDB.Packages {
-		pkg := tempDB.Packages[i] // Create a copy in the loop
-		installedDB.Packages = append(installedDB.Packages, &pkg)
+	// Convert each artifact to a pointer
+	for i := range tempDB.Artifacts {
+		pkg := tempDB.Artifacts[i] // Create a copy in the loop
+		installedDB.Artifacts = append(installedDB.Artifacts, &pkg)
 	}
 
 	return installedDB, nil
@@ -148,9 +148,9 @@ func (installedDB *InstalledDatabase) Save(dbPath string) (err error) {
 	return nil
 }
 
-// FindPackage finds an installed pkg by name.
-func (installedDB *InstalledDatabase) FindPackage(name string) *InstalledPackage {
-	for _, pkg := range installedDB.Packages {
+// FindArtifact finds an installed artifact by name.
+func (installedDB *InstalledDatabase) FindArtifact(name string) *InstalledArtifact {
+	for _, pkg := range installedDB.Artifacts {
 		if pkg.Name == name {
 			return pkg
 		}
@@ -158,32 +158,32 @@ func (installedDB *InstalledDatabase) FindPackage(name string) *InstalledPackage
 	return nil
 }
 
-// IsPackageInstalled checks if a pkg is installed.
-func (installedDB *InstalledDatabase) IsPackageInstalled(name string) bool {
-	return installedDB.FindPackage(name) != nil
+// IsArtifactInstalled checks if a artifact is installed.
+func (installedDB *InstalledDatabase) IsArtifactInstalled(name string) bool {
+	return installedDB.FindArtifact(name) != nil
 }
 
-// AddPackage adds an installed pkg to the database.
-func (installedDB *InstalledDatabase) AddPackage(pkg *InstalledPackage) {
-	// Remove existing pkg with same name if it exists
-	for i, existingPkg := range installedDB.Packages {
+// AddArtifact adds an installed artifact to the database.
+func (installedDB *InstalledDatabase) AddArtifact(pkg *InstalledArtifact) {
+	// Remove existing artifact with same name if it exists
+	for i, existingPkg := range installedDB.Artifacts {
 		if existingPkg.Name == pkg.Name {
-			installedDB.Packages[i] = pkg
+			installedDB.Artifacts[i] = pkg
 			installedDB.LastUpdate = time.Now()
 			return
 		}
 	}
 
-	// Add new pkg
-	installedDB.Packages = append(installedDB.Packages, pkg)
+	// Add new artifact
+	installedDB.Artifacts = append(installedDB.Artifacts, pkg)
 	installedDB.LastUpdate = time.Now()
 }
 
-// RemovePackage removes an installed pkg from the database.
-func (installedDB *InstalledDatabase) RemovePackage(name string) bool {
-	for i, pkg := range installedDB.Packages {
+// RemoveArtifact removes an installed artifact from the database.
+func (installedDB *InstalledDatabase) RemoveArtifact(name string) bool {
+	for i, pkg := range installedDB.Artifacts {
 		if pkg.Name == name {
-			installedDB.Packages = append(installedDB.Packages[:i], installedDB.Packages[i+1:]...)
+			installedDB.Artifacts = append(installedDB.Artifacts[:i], installedDB.Artifacts[i+1:]...)
 			installedDB.LastUpdate = time.Now()
 			return true
 		}
@@ -191,7 +191,7 @@ func (installedDB *InstalledDatabase) RemovePackage(name string) bool {
 	return false
 }
 
-// GetInstalledPackages returns all installed packages.
-func (installedDB *InstalledDatabase) GetInstalledPackages() []*InstalledPackage {
-	return installedDB.Packages
+// GetInstalledArtifacts returns all installed packages.
+func (installedDB *InstalledDatabase) GetInstalledArtifacts() []*InstalledArtifact {
+	return installedDB.Artifacts
 }

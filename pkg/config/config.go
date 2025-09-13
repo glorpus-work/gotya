@@ -70,7 +70,7 @@ type Settings struct {
 	AutoSync bool          `yaml:"auto_sync"`
 
 	// Installation settings
-	InstallDir string `yaml:"install_dir,omitempty"` // Base directory for pkg installations
+	InstallDir string `yaml:"install_dir,omitempty"` // Base directory for artifact installations
 
 	// Network settings
 	HTTPTimeout   time.Duration `yaml:"http_timeout"`
@@ -416,7 +416,7 @@ func (c *Config) GetIndexDir() string {
 	return filepath.Join(c.Settings.CacheDir, "indexes")
 }
 
-func (c *Config) GetPackageCacheDir() string {
+func (c *Config) GetArtifactCacheDir() string {
 	return filepath.Join(c.Settings.CacheDir, "packages")
 }
 

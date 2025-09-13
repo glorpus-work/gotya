@@ -68,9 +68,9 @@ func (m *DefaultHookManager) HasHook(hookType HookType) bool {
 	return m.executor.HasScript(hookType)
 }
 
-// LoadHooksFromPackage loads hooks from a pkg directory.
-func (m *DefaultHookManager) LoadHooksFromPackage(packagePath string) error {
-	// Implementation for loading hooks from pkg directory
+// LoadHooksFromArtifact loads hooks from a artifact directory.
+func (m *DefaultHookManager) LoadHooksFromArtifact(packagePath string) error {
+	// Implementation for loading hooks from artifact directory
 	// This would typically look for hooks scripts in a specific directory structure
 	// For example: <packagePath>/hooks/pre-install.tengo
 	return nil

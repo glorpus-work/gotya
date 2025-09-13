@@ -90,8 +90,8 @@ func TestCleanAll(t *testing.T) {
 	_, err := os.Stat(filepath.Join(tempDir, "indexes", "test.index"))
 	require.NoError(t, err, "index file should exist before cleaning")
 
-	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.pkg"))
-	require.NoError(t, err, "pkg file should exist before cleaning")
+	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.artifact"))
+	require.NoError(t, err, "artifact file should exist before cleaning")
 
 	// Clean all
 	result, err := mgr.Clean(cache.CleanOptions{All: true})
@@ -102,13 +102,13 @@ func TestCleanAll(t *testing.T) {
 	_, err = os.Stat(filepath.Join(tempDir, "indexes", "test.index"))
 	assert.True(t, os.IsNotExist(err), "index file should be deleted")
 
-	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.pkg"))
-	assert.True(t, os.IsNotExist(err), "pkg file should be deleted")
+	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.artifact"))
+	assert.True(t, os.IsNotExist(err), "artifact file should be deleted")
 
 	// Verify the result contains the expected sizes
 	assert.Greater(t, result.IndexFreed, int64(0), "should have freed some index data")
-	assert.Greater(t, result.PackageFreed, int64(0), "should have freed some pkg data")
-	assert.Equal(t, result.IndexFreed+result.PackageFreed, result.TotalFreed, "total should be sum of index and pkg")
+	assert.Greater(t, result.ArtifactFreed, int64(0), "should have freed some artifact data")
+	assert.Equal(t, result.IndexFreed+result.ArtifactFreed, result.TotalFreed, "total should be sum of index and artifact")
 }
 
 func TestCleanIndexesOnly(t *testing.T) {
@@ -122,16 +122,16 @@ func TestCleanIndexesOnly(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	// Verify index was deleted but pkg still exists
+	// Verify index was deleted but artifact still exists
 	_, err = os.Stat(filepath.Join(tempDir, "indexes", "test.index"))
 	assert.True(t, os.IsNotExist(err), "index file should be deleted")
 
-	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.pkg"))
-	assert.NoError(t, err, "pkg file should still exist")
+	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.artifact"))
+	assert.NoError(t, err, "artifact file should still exist")
 
 	// Verify the result
 	assert.Greater(t, result.IndexFreed, int64(0), "should have freed some index data")
-	assert.Equal(t, int64(0), result.PackageFreed, "no pkg data should be freed")
+	assert.Equal(t, int64(0), result.ArtifactFreed, "no artifact data should be freed")
 	assert.Equal(t, result.IndexFreed, result.TotalFreed, "total should equal index freed")
 }
 
@@ -150,8 +150,8 @@ func TestCleanNone(t *testing.T) {
 	_, err = os.Stat(filepath.Join(tempDir, "indexes", "test.index"))
 	assert.True(t, os.IsNotExist(err), "index file should be deleted")
 
-	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.pkg"))
-	assert.True(t, os.IsNotExist(err), "pkg file should be deleted")
+	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.artifact"))
+	assert.True(t, os.IsNotExist(err), "artifact file should be deleted")
 }
 
 func TestCleanNonExistentDirectories(t *testing.T) {
@@ -165,22 +165,22 @@ func TestCleanNonExistentDirectories(t *testing.T) {
 	assert.Equal(t, int64(0), result.TotalFreed, "no data should be freed from non-existent directories")
 }
 
-func TestCleanPackagesOnly(t *testing.T) {
+func TestCleanArtifactsOnly(t *testing.T) {
 	tempDir := t.TempDir()
 	setupTestCache(t, tempDir)
 
 	mgr := cache.NewManager(tempDir)
 
-	// Test cleaning pkg cache only
-	result, err := mgr.Clean(cache.CleanOptions{Packages: true})
+	// Test cleaning artifact cache only
+	result, err := mgr.Clean(cache.CleanOptions{Artifacts: true})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Greater(t, result.PackageFreed, int64(0), "should have freed some pkg data")
+	assert.Greater(t, result.ArtifactFreed, int64(0), "should have freed some artifact data")
 	assert.Equal(t, int64(0), result.IndexFreed, "no index data should be freed")
 
-	// Verify pkg file was deleted
-	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.pkg"))
-	assert.True(t, os.IsNotExist(err), "pkg file should be deleted")
+	// Verify artifact file was deleted
+	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.artifact"))
+	assert.True(t, os.IsNotExist(err), "artifact file should be deleted")
 
 	// Verify index file still exists
 	_, err = os.Stat(filepath.Join(tempDir, "indexes", "test.index"))
@@ -201,9 +201,9 @@ func TestGetInfo(t *testing.T) {
 	assert.Equal(t, tempDir, info.Directory)
 	assert.Greater(t, info.TotalSize, int64(0))
 	assert.Greater(t, info.IndexSize, int64(0))
-	assert.Greater(t, info.PackageSize, int64(0))
+	assert.Greater(t, info.ArtifactSize, int64(0))
 	assert.Equal(t, 1, info.IndexFiles)
-	assert.Equal(t, 1, info.PackageFiles)
+	assert.Equal(t, 1, info.ArtifactFiles)
 	assert.False(t, info.LastCleaned.IsZero(), "LastCleaned should be set")
 }
 
@@ -219,9 +219,9 @@ func TestGetInfoEmptyCache(t *testing.T) {
 	assert.Equal(t, tempDir, info.Directory)
 	assert.Equal(t, int64(0), info.TotalSize)
 	assert.Equal(t, int64(0), info.IndexSize)
-	assert.Equal(t, int64(0), info.PackageSize)
+	assert.Equal(t, int64(0), info.ArtifactSize)
 	assert.Equal(t, 0, info.IndexFiles)
-	assert.Equal(t, 0, info.PackageFiles)
+	assert.Equal(t, 0, info.ArtifactFiles)
 }
 
 func TestGetInfoErrorCases(t *testing.T) {
@@ -255,8 +255,8 @@ func setupTestCache(t *testing.T, baseDir string) {
 	require.NoError(t, err)
 
 	err = os.WriteFile(
-		filepath.Join(baseDir, "packages", "test.pkg"),
-		[]byte("test pkg data"),
+		filepath.Join(baseDir, "packages", "test.artifact"),
+		[]byte("test artifact data"),
 		0o644,
 	)
 	require.NoError(t, err)

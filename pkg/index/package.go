@@ -7,7 +7,7 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-type Package struct {
+type Artifact struct {
 	Name         string            `json:"name"`
 	Version      string            `json:"version"`
 	Description  string            `json:"description"`
@@ -20,15 +20,15 @@ type Package struct {
 	Metadata     map[string]string `json:"metadata,omitempty"`
 }
 
-func (pkg *Package) MatchOs(os string) bool {
+func (pkg *Artifact) MatchOs(os string) bool {
 	return pkg.OS == "" || pkg.OS == os || pkg.OS == platform.AnyOS
 }
 
-func (pkg *Package) MatchArch(arch string) bool {
+func (pkg *Artifact) MatchArch(arch string) bool {
 	return pkg.Arch == "" || pkg.Arch == arch || pkg.Arch == platform.AnyArch
 }
 
-func (pkg *Package) MatchVersion(versionConstraint string) bool {
+func (pkg *Artifact) MatchVersion(versionConstraint string) bool {
 	constraint, err := version.NewConstraint(versionConstraint)
 	if err != nil {
 		return false
@@ -40,7 +40,7 @@ func (pkg *Package) MatchVersion(versionConstraint string) bool {
 	return constraint.Check(v)
 }
 
-func (pkg *Package) GetVersion() *version.Version {
+func (pkg *Artifact) GetVersion() *version.Version {
 	v, err := version.NewVersion(pkg.Version)
 	if err != nil {
 		return nil
@@ -48,21 +48,21 @@ func (pkg *Package) GetVersion() *version.Version {
 	return v
 }
 
-func (pkg *Package) GetOS() string {
+func (pkg *Artifact) GetOS() string {
 	if pkg.OS == "" {
 		return platform.AnyOS
 	}
 	return pkg.OS
 }
 
-func (pkg *Package) GetArch() string {
+func (pkg *Artifact) GetArch() string {
 	if pkg.Arch == "" {
 		return platform.AnyArch
 	}
 	return pkg.Arch
 }
 
-func (pkg *Package) GetURL() *url.URL {
+func (pkg *Artifact) GetURL() *url.URL {
 	parse, err := url.Parse(pkg.URL)
 	if err != nil {
 		return nil

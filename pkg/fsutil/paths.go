@@ -66,9 +66,9 @@ func GetDataDir() (string, error) {
 	return filepath.Join(baseDir, AppName), nil
 }
 
-// GetPackageCacheDir returns the directory for storing downloaded pkg archives
+// GetArtifactCacheDir returns the directory for storing downloaded artifact archives
 // Format: <cache_dir>/packages/
-func GetPackageCacheDir() (string, error) {
+func GetArtifactCacheDir() (string, error) {
 	cacheDir, err := GetCacheDir()
 	if err != nil {
 		return "", err
@@ -86,7 +86,7 @@ func GetInstalledDir() (string, error) {
 	return filepath.Join(dataDir, "installed"), nil
 }
 
-// GetMetaDir returns the directory for pkg metadata
+// GetMetaDir returns the directory for artifact metadata
 // Format: <data_dir>/meta/
 func GetMetaDir() (string, error) {
 	dataDir, err := GetDataDir()
@@ -99,7 +99,7 @@ func GetMetaDir() (string, error) {
 // EnsureDirs creates all necessary directories if they don't exist
 func EnsureDirs() error {
 	dirs := []func() (string, error){
-		GetPackageCacheDir,
+		GetArtifactCacheDir,
 		GetInstalledDir,
 		GetMetaDir,
 	}

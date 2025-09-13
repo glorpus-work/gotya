@@ -41,7 +41,7 @@ func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
 	result := &CleanResult{}
 
 	// Default to cleaning all if no specific flags are set
-	if !options.Indexes && !options.Packages {
+	if !options.Indexes && !options.Artifacts {
 		options.All = true
 	}
 
@@ -54,12 +54,12 @@ func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
 		result.TotalFreed += size
 	}
 
-	if options.All || options.Packages {
-		size, err := cm.cleanPackageCache()
+	if options.All || options.Artifacts {
+		size, err := cm.cleanArtifactCache()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to clean pkg cache")
+			return nil, errors.Wrapf(err, "failed to clean artifact cache")
 		}
-		result.PackageFreed = size
+		result.ArtifactFreed = size
 		result.TotalFreed += size
 	}
 
@@ -82,17 +82,17 @@ func (cm *CacheManager) GetInfo() (*Info, error) {
 	info.IndexSize = indexSize
 	info.IndexFiles = indexFiles
 
-	// Get pkg cache info
+	// Get artifact cache info
 	pkgDir := filepath.Join(cm.directory, "packages")
 	pkgSize, pkgFiles, err := getDirSizeAndFiles(pkgDir)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, errors.Wrapf(err, "failed to get pkg cache info")
+		return nil, errors.Wrapf(err, "failed to get artifact cache info")
 	}
-	info.PackageSize = pkgSize
-	info.PackageFiles = pkgFiles
+	info.ArtifactSize = pkgSize
+	info.ArtifactFiles = pkgFiles
 
 	// Calculate total size
-	info.TotalSize = info.IndexSize + info.PackageSize
+	info.TotalSize = info.IndexSize + info.ArtifactSize
 
 	return info, nil
 }
@@ -117,8 +117,8 @@ func (cm *CacheManager) cleanIndexCache() (int64, error) {
 	return cleanDirectory(indexDir)
 }
 
-// cleanPackageCache removes all pkg cache files.
-func (cm *CacheManager) cleanPackageCache() (int64, error) {
+// cleanArtifactCache removes all artifact cache files.
+func (cm *CacheManager) cleanArtifactCache() (int64, error) {
 	packageDir := filepath.Join(cm.directory, "packages")
 	return cleanDirectory(packageDir)
 }

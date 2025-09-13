@@ -1,4 +1,4 @@
-package pkg
+package artifact
 
 import (
 	"archive/tar"
@@ -21,7 +21,7 @@ type testFile struct {
 	isDir   bool
 }
 
-func prepareTestPackage(t *testing.T, packageName string, files []*testFile) string {
+func prepareTestArtifact(t *testing.T, packageName string, files []*testFile) string {
 	t.Helper()
 
 	tempDir := t.TempDir()
@@ -50,9 +50,9 @@ func prepareTestPackage(t *testing.T, packageName string, files []*testFile) str
 	return tempDir
 }
 
-// verifyPackageFiles verifies that all expected files exist in the pkg archive and have the correct content.
+// verifyArtifactFiles verifies that all expected files exist in the artifact archive and have the correct content.
 // It returns an error if any file is missing, has incorrect content, or if there are extra files.
-func verifyPackageFiles(t *testing.T, pkgPath string, expectedFiles []*testFile) error {
+func verifyArtifactFiles(t *testing.T, pkgPath string, expectedFiles []*testFile) error {
 	t.Helper()
 
 	// Track which files we've found
@@ -66,10 +66,10 @@ func verifyPackageFiles(t *testing.T, pkgPath string, expectedFiles []*testFile)
 		}
 	}
 
-	// Open the pkg file
+	// Open the artifact file
 	file, err := os.Open(pkgPath)
 	if err != nil {
-		return fmt.Errorf("failed to open pkg file: %w", err)
+		return fmt.Errorf("failed to open artifact file: %w", err)
 	}
 	defer file.Close()
 
@@ -115,21 +115,21 @@ func verifyPackageFiles(t *testing.T, pkgPath string, expectedFiles []*testFile)
 			foundFiles[header.Name] = true
 		} else if !strings.HasPrefix(header.Name, "meta/") {
 			// Skip files in meta directory, but check others
-			return fmt.Errorf("unexpected file found in pkg: %s", header.Name)
+			return fmt.Errorf("unexpected file found in artifact: %s", header.Name)
 		}
 	}
 
 	// Verify all expected files were found
 	for pkgFilePath, _ := range expectedFileMap {
 		if !foundFiles[pkgFilePath] {
-			return fmt.Errorf("expected file not found in pkg: %s", pkgFilePath)
+			return fmt.Errorf("expected file not found in artifact: %s", pkgFilePath)
 		}
 	}
 
 	return nil
 }
 
-func TestCreatePackage(t *testing.T) {
+func TestCreateArtifact(t *testing.T) {
 	tests := []struct {
 		name         string
 		files        []*testFile
@@ -140,24 +140,24 @@ func TestCreatePackage(t *testing.T) {
 		wantErr      bool
 		errContains  string
 	}{{
-		name: "successful pkg creation with all metadata",
+		name: "successful artifact creation with all metadata",
 		files: []*testFile{
 			{path: "files/foo/bar.txt", content: "test content"},
 			{path: "meta/post-install.tengo", content: "test content"},
 		},
 		maintainer:   "test@example.com",
-		description:  "Test pkg description",
+		description:  "Test artifact description",
 		dependencies: []string{"dep1", "dep2"},
 		hooks:        map[string]string{"post-install": "post-install.tengo"},
 		wantErr:      false,
 	}, {
-		name:    "successful pkg creation with minimal metadata",
+		name:    "successful artifact creation with minimal metadata",
 		files:   []*testFile{{path: "files/foo/bar.txt", content: "test content"}},
 		wantErr: false,
 	}, {
 		name:        "error on empty source directory",
 		wantErr:     true,
-		errContains: "invalid pkg structure",
+		errContains: "invalid artifact structure",
 	}, {
 		name: "unreferenced hooks script",
 		files: []*testFile{
@@ -175,13 +175,13 @@ func TestCreatePackage(t *testing.T) {
 		wantErr:     true,
 		errContains: "hooks are defined but meta directory",
 	}, {
-		name: "pkg.json present",
+		name: "artifact.json present",
 		files: []*testFile{
-			{path: "meta/pkg.json", content: "stuff"},
+			{path: "meta/artifact.json", content: "stuff"},
 			{path: "files/foo/bar.txt", content: "test content"},
 		},
 		wantErr:     true,
-		errContains: "invalid file in meta directory: pkg.json",
+		errContains: "invalid file in meta directory: artifact.json",
 	}, {
 		name: "file in wrong folder",
 		files: []*testFile{
@@ -225,12 +225,12 @@ func TestCreatePackage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			pkgName := fmt.Sprintf("test%d", i)
 
-			tempDir := prepareTestPackage(t, pkgName, tt.files)
+			tempDir := prepareTestArtifact(t, pkgName, tt.files)
 
 			outputDir := filepath.Join(tempDir, "output")
 			sourceDir := filepath.Join(tempDir, pkgName)
 
-			packagePath, err := CreatePackage(
+			packagePath, err := CreateArtifact(
 				sourceDir,
 				outputDir,
 				pkgName,
@@ -249,14 +249,14 @@ func TestCreatePackage(t *testing.T) {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				require.NoError(t, err, "CreatePackage should not return an error")
+				require.NoError(t, err, "CreateArtifact should not return an error")
 
-				// Verify the pkg file exists
-				expectedPackagePath := filepath.Join(outputDir, pkgName+"_1.0.0_linux_amd64.tar.gz")
-				require.NoErrorf(t, err, "Package file %s should exist", expectedPackagePath)
+				// Verify the artifact file exists
+				expectedArtifactPath := filepath.Join(outputDir, pkgName+"_1.0.0_linux_amd64.tar.gz")
+				require.NoErrorf(t, err, "Artifact file %s should exist", expectedArtifactPath)
 				require.FileExists(t, packagePath)
-				require.Equal(t, expectedPackagePath, packagePath)
-				err := verifyPackageFiles(t, packagePath, tt.files)
+				require.Equal(t, expectedArtifactPath, packagePath)
+				err := verifyArtifactFiles(t, packagePath, tt.files)
 				require.NoError(t, err)
 			}
 		})

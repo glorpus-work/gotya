@@ -1,8 +1,8 @@
-package pkg
+package artifact
 
 import "github.com/cperrin88/gotya/pkg/fsutil"
 
-// Re-export file permission constants from fsutil pkg for backward compatibility.
+// Re-export file permission constants from fsutil artifact for backward compatibility.
 const (
 	// File mode masks.
 	FileModeMask = fsutil.FileModeMask
@@ -24,9 +24,9 @@ const (
 
 // File type constants.
 const (
-	// Package file names.
+	// Artifact file names.
 	MetadataFileName = "metadata.json"
-	PackageFileName  = "pkg.json"
+	ArtifactFileName = "artifact.json"
 
 	// Directory names.
 	FilesDirName   = "files"
@@ -54,8 +54,8 @@ const (
 
 // Validation constants.
 const (
-	// Minimum pkg size in bytes (smallest possible gzip file is ~20 bytes).
-	MinPackageSize = 50
+	// Minimum artifact size in bytes (smallest possible gzip file is ~20 bytes).
+	MinArtifactSize = 50
 
 	// Maximum file size for in-memory operations (10MB).
 	MaxInMemoryFileSize = 10 << 20

@@ -1,4 +1,4 @@
-# Gotya Package Manager - Design Document
+# Gotya Artifact Manager - Design Document
 
 ## Overview
 Gotya is a lightweight, cross-platform personal package manager designed for managing software packages in a simple and efficient manner. It supports multiple repositories, platform-specific packages, and efficient dependency resolution.
@@ -16,7 +16,7 @@ Gotya is a lightweight, cross-platform personal package manager designed for man
 ```
 repositories/
   <repo-name>/
-    index.json       # Package index
+    index.json       # Artifact index
     packages/        # Cached package files
 ```
 
@@ -27,13 +27,13 @@ repositories/
 type IndexImpl struct {
     FormatVersion string    `json:"format_version"`
     LastUpdate    time.Time `json:"last_update"`
-    Packages      []Package `json:"packages"`
+    Artifacts      []Artifact `json:"packages"`
 }
 ```
 
-#### Index Package Structure
+#### Index Artifact Structure
 ```go
-type Package struct {
+type Artifact struct {
     Name         string            `json:"name"`
     Version      string            `json:"version"`
     Description  string            `json:"description"`
@@ -47,7 +47,7 @@ type Package struct {
 }
 ```
 
-## Package Management
+## Artifact Management
 
 ### Configuration
 
@@ -99,32 +99,32 @@ logging:
 - Support for platform-specific packages
 - Cross-platform package resolution
 
-#### Platform-Specific Packages
+#### Platform-Specific Artifacts
 
-## Package Format
+## Artifact Format
 
 Gotya packages are distributed as `.tar.gz` archives with a specific internal structure. This section defines the package format and structure.
 
-### Package Structure
+### Artifact Structure
 
 ```
 <package-name>_<version>_<os>_<arch>/
 ├── meta/
-│   ├── package.json        # Package metadata
+│   ├── package.json        # Artifact metadata
 │   └── <hook_script>.tengo # Optional hook script (e.g. pre-install.tengo)
-└── files/                  # Package contents
+└── files/                  # Artifact contents
     └── ...                 # Files to be installed
 ```
 
-### Package Metadata (package.json)
+### Artifact Metadata (package.json)
 
 ```json
 {
-  "name": "string",           // Package name (required)
-  "version": "string",        // Package version (required)
-  "maintainer": "string",     // Package maintainer (optional)
-  "description": "string",    // Package description (required)
-  "dependencies": [           // List of pkg dependencies (optional)
+  "name": "string",           // Artifact name (required)
+  "version": "string",        // Artifact version (required)
+  "maintainer": "string",     // Artifact maintainer (optional)
+  "description": "string",    // Artifact description (required)
+  "dependencies": [           // List of artifact dependencies (optional)
     "package1>=1.0.0",
     "package2<2.0.0"
   ],
@@ -145,7 +145,7 @@ Gotya packages are distributed as `.tar.gz` archives with a specific internal st
 
 ### Installation Directories
 
-Packages are installed in the following locations by default:
+Artifacts are installed in the following locations by default:
 
 - **Linux/Unix**: `~/.local/share/gotya/packages/`
 - **macOS**: `~/Library/Application Support/gotya/packages/`
@@ -156,21 +156,21 @@ Packages are installed in the following locations by default:
 - **Pre-install**: Executed before files are extracted
 - **Post-install**: Executed after files are extracted
 
-## Package Creation Tool
+## Artifact Creation Tool
 
 The `gotya package create` command is used to create packages from a source directory.
 
-### Creating a Package
+### Creating a Artifact
 
 ```bash
 # Basic usage
-gotya pkg create --source ./pkg-src --output ./output-dir
+gotya artifact create --source ./artifact-src --output ./output-dir
 
 # With version and platform overrides
-gotya pkg create --source ./pkg-src --version 1.0.0 --os linux --arch amd64
+gotya artifact create --source ./artifact-src --version 1.0.0 --os linux --arch amd64
 ```
 
-### Package Creation Process
+### Artifact Creation Process
 
 1. Validate package metadata
 2. Calculate checksums for all files
@@ -179,16 +179,16 @@ gotya pkg create --source ./pkg-src --version 1.0.0 --os linux --arch amd64
 5. Compress with bzip2
 6. Generate package checksum
 
-### Package Installation
+### Artifact Installation
 
 ```bash
-# Install a pkg
-gotya install <pkg-file>.tar.gz
+# Install a artifact
+gotya install <artifact-file>.tar.gz
 
 # Install with custom installation directory
-gotya install --prefix ~/my-packages <pkg-file>.tar.gz
+gotya install --prefix ~/my-packages <artifact-file>.tar.gz
 ```
-- Packages can specify target OS/architecture
+- Artifacts can specify target OS/architecture
 - Fallback to platform-agnostic packages
 - Support for platform-specific dependencies
 
@@ -225,7 +225,7 @@ gotya install --prefix ~/my-packages <pkg-file>.tar.gz
 
 ### Security
 
-#### Package Verification
+#### Artifact Verification
 - Checksum verification for downloaded packages
 - Optional package signing
 - Repository signature verification

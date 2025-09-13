@@ -19,8 +19,8 @@ func TestNewHookManager(t *testing.T) {
 func TestAddAndExecuteHook(t *testing.T) {
 	manager := hooks.NewHookManager()
 	ctx := hooks.HookContext{
-		PackageName:    "test-pkg",
-		PackageVersion: "1.0.0",
+		ArtifactName:    "test-artifact",
+		ArtifactVersion: "1.0.0",
 		Vars: map[string]interface{}{
 			"testVar": "testValue",
 		},
@@ -104,7 +104,7 @@ func TestRemoveHook(t *testing.T) {
 	assert.False(t, manager.HasHook(hooks.PreInstall), "Should not have hooks after removal")
 }
 
-func TestLoadHooksFromPackageDir(t *testing.T) {
+func TestLoadHooksFromArtifactDir(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 	hooksDir := filepath.Join(tempDir, ".gotya", "hooks")
@@ -118,8 +118,8 @@ func TestLoadHooksFromPackageDir(t *testing.T) {
 
 	// Test loading hooks
 	manager := hooks.NewHookManager()
-	err = hooks.LoadHooksFromPackageDir(manager, tempDir)
-	require.NoError(t, err, "LoadHooksFromPackageDir should not return an error")
+	err = hooks.LoadHooksFromArtifactDir(manager, tempDir)
+	require.NoError(t, err, "LoadHooksFromArtifactDir should not return an error")
 
 	// Verify the hooks was loaded
 	assert.True(t, manager.HasHook(hooks.PreInstall), "Should have loaded the pre-install hooks")

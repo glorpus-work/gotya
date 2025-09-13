@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"path/filepath"
 
+	pkg "github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/hooks"
 	"github.com/cperrin88/gotya/pkg/logger"
-	pkg "github.com/cperrin88/gotya/pkg/pkg"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -44,9 +44,9 @@ By default, pre-remove and post-remove hooks will be executed.`,
 				return fmt.Errorf("failed to load installed packages database: %w", err)
 			}
 
-			// Process each pkg
+			// Process each artifact
 			for _, pkgName := range args {
-				if err := uninstallPackage(cfg, installedDB, pkgName, skipHooks, force); err != nil {
+				if err := uninstallArtifact(cfg, installedDB, pkgName, skipHooks, force); err != nil {
 					return fmt.Errorf("failed to uninstall %s: %w", pkgName, err)
 				}
 			}
@@ -67,37 +67,37 @@ By default, pre-remove and post-remove hooks will be executed.`,
 	return cmd
 }
 
-// uninstallPackage uninstalls a single pkg with hooks support.
-func uninstallPackage(cfg *config.Config, installedDB *pkg.InstalledDatabase, packageName string, skipHooks, force bool) error {
-	// Find the installed pkg
-	pkgInfo := installedDB.FindPackage(packageName)
+// uninstallArtifact uninstalls a single artifact with hooks support.
+func uninstallArtifact(cfg *config.Config, installedDB *pkg.InstalledDatabase, packageName string, skipHooks, force bool) error {
+	// Find the installed artifact
+	pkgInfo := installedDB.FindArtifact(packageName)
 	if pkgInfo == nil {
 		if force {
-			logger.Warn("Package not installed, skipping", logrus.Fields{"pkg": packageName})
+			logger.Warn("Artifact not installed, skipping", logrus.Fields{"artifact": packageName})
 			return nil
 		}
-		return fmt.Errorf("pkg %s is not installed", packageName)
+		return fmt.Errorf("artifact %s is not installed", packageName)
 	}
 
 	// Create hooks manager
 	hookManager := hooks.NewHookManager()
 
-	// Try to load hooks from the pkg if it's still available
+	// Try to load hooks from the artifact if it's still available
 	packagePath := filepath.Join(cfg.Settings.InstallDir, pkgInfo.Name)
 	if !skipHooks {
-		if err := hooks.LoadHooksFromPackageDir(hookManager, packagePath); err != nil {
-			logger.Warn("Failed to load hooks from pkg", logrus.Fields{
-				"pkg":   packageName,
-				"error": err.Error(),
+		if err := hooks.LoadHooksFromArtifactDir(hookManager, packagePath); err != nil {
+			logger.Warn("Failed to load hooks from artifact", logrus.Fields{
+				"artifact": packageName,
+				"error":    err.Error(),
 			})
 		}
 	}
 
 	// Create hooks context
 	hookCtx := hooks.HookContext{
-		PackageName:    pkgInfo.Name,
-		PackageVersion: pkgInfo.Version,
-		InstallPath:    packagePath, // Use packagePath instead of installPath
+		ArtifactName:    pkgInfo.Name,
+		ArtifactVersion: pkgInfo.Version,
+		InstallPath:     packagePath, // Use packagePath instead of installPath
 		Vars: map[string]interface{}{
 			"force": force,
 		},
@@ -105,39 +105,39 @@ func uninstallPackage(cfg *config.Config, installedDB *pkg.InstalledDatabase, pa
 
 	// Execute pre-remove hooks if available and not skipped
 	if !skipHooks && hookManager.HasHook(hooks.PreRemove) {
-		logger.Debug("Running pre-remove hooks", logrus.Fields{"pkg": packageName})
+		logger.Debug("Running pre-remove hooks", logrus.Fields{"artifact": packageName})
 		if err := hookManager.Execute(hooks.PreRemove, hookCtx); err != nil && !force {
 			return fmt.Errorf("pre-remove hooks failed: %w", err)
 		}
 	}
 
-	// Remove pkg files (simplified - in a real implementation, we would remove actual files)
-	logger.Debug("Removing pkg files", logrus.Fields{
-		"pkg":  packageName,
-		"path": packagePath, // Use packagePath instead of installPath
+	// Remove artifact files (simplified - in a real implementation, we would remove actual files)
+	logger.Debug("Removing artifact files", logrus.Fields{
+		"artifact": packageName,
+		"path":     packagePath, // Use packagePath instead of installPath
 	})
 
 	// In a real implementation, we would:
-	// 1. Remove all files listed in the pkg's file manifest
+	// 1. Remove all files listed in the artifact's file manifest
 	// 2. Remove empty directories
 	// 3. Handle any errors appropriately
 
 	// Execute post-remove hooks if available and not skipped
 	if !skipHooks && hookManager.HasHook(hooks.PostRemove) {
-		logger.Debug("Running post-remove hooks", logrus.Fields{"pkg": packageName})
+		logger.Debug("Running post-remove hooks", logrus.Fields{"artifact": packageName})
 		if err := hookManager.Execute(hooks.PostRemove, hookCtx); err != nil && !force {
 			// If post-remove fails and we're not forcing, we should stop
 			return fmt.Errorf("post-remove hooks failed: %w", err)
 		}
 	}
 
-	// Remove the pkg from the database
-	if !installedDB.RemovePackage(packageName) {
-		return fmt.Errorf("failed to remove pkg from database: pkg not found")
+	// Remove the artifact from the database
+	if !installedDB.RemoveArtifact(packageName) {
+		return fmt.Errorf("failed to remove artifact from database: artifact not found")
 	}
 
-	logger.Info("Successfully uninstalled pkg", logrus.Fields{
-		"pkg": packageName,
+	logger.Info("Successfully uninstalled artifact", logrus.Fields{
+		"artifact": packageName,
 	})
 
 	return nil

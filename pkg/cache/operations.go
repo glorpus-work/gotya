@@ -24,21 +24,21 @@ func NewCacheOperation(manager Manager) *CacheOperation {
 // Clean cleans the cache based on the provided options.
 func (op *CacheOperation) Clean(all, indexes, packages bool) (string, error) {
 	options := CleanOptions{
-		All:      all,
-		Indexes:  indexes,
-		Packages: packages,
+		All:       all,
+		Indexes:   indexes,
+		Artifacts: packages,
 	}
 
 	// If no specific option is set, clean both indexes and packages
 	if !all && !indexes && !packages {
 		options.Indexes = true
-		options.Packages = true
+		options.Artifacts = true
 	}
 
 	logger.Debug("Cleaning cache", logrus.Fields{
 		"all":      options.All,
 		"indexes":  options.Indexes,
-		"packages": options.Packages,
+		"packages": options.Artifacts,
 	})
 
 	result, err := op.manager.Clean(options)
@@ -53,8 +53,8 @@ func (op *CacheOperation) Clean(all, indexes, packages bool) (string, error) {
 		if result.IndexFreed > 0 {
 			msg += fmt.Sprintf("\n- Indexes: %s", formatBytes(result.IndexFreed))
 		}
-		if result.PackageFreed > 0 {
-			msg += fmt.Sprintf("\n- Packages: %s", formatBytes(result.PackageFreed))
+		if result.ArtifactFreed > 0 {
+			msg += fmt.Sprintf("\n- Artifacts: %s", formatBytes(result.ArtifactFreed))
 		}
 	} else {
 		msg = "No files were removed from the cache."
@@ -79,14 +79,14 @@ func (op *CacheOperation) GetInfo() (string, error) {
   Directory:    %s
   Total Size:   %s
   Indexes:      %s (%d files)
-  Packages:     %s (%d files)
+  Artifacts:     %s (%d files)
   Last Cleaned: %s`,
 		info.Directory,
 		formatBytes(info.TotalSize),
 		formatBytes(info.IndexSize),
 		info.IndexFiles,
-		formatBytes(info.PackageSize),
-		info.PackageFiles,
+		formatBytes(info.ArtifactSize),
+		info.ArtifactFiles,
 		lastCleaned,
 	), nil
 }

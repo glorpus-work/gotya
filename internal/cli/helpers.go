@@ -3,15 +3,15 @@ package cli
 import (
 	"fmt"
 
+	"github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/http"
 	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/logger"
-	"github.com/cperrin88/gotya/pkg/pkg"
 	"github.com/cperrin88/gotya/pkg/repository"
 )
 
-// These variables will be set by the main pkg.
+// These variables will be set by the main artifact.
 var (
 	ConfigPath   *string
 	Verbose      *bool
@@ -73,8 +73,8 @@ func loadIndexManager(config *config.Config, httpClient http.Client) index.Manag
 	return index.NewManager(httpClient, repositories, config.GetIndexDir(), config.Settings.CacheTTL)
 }
 
-func loadPackageManager(config *config.Config, indexManager index.Manager, httpClient http.Client) pkg.Manager {
-	return pkg.NewManager(indexManager, httpClient, config.Settings.Platform.OS, config.Settings.Platform.Arch, config.GetPackageCacheDir())
+func loadArtifactManager(config *config.Config, indexManager index.Manager, httpClient http.Client) artifact.Manager {
+	return artifact.NewManager(indexManager, httpClient, config.Settings.Platform.OS, config.Settings.Platform.Arch, config.GetArtifactCacheDir())
 }
 
 func loadHTTPClient(config *config.Config) http.Client {

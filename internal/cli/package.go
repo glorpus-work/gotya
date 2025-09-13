@@ -6,25 +6,25 @@ import (
 
 	"github.com/spf13/cobra"
 
-	pkgpkg "github.com/cperrin88/gotya/pkg/pkg"
+	pkgpkg "github.com/cperrin88/gotya/pkg/artifact"
 )
 
-// NewPackageCmd creates a new pkg command.
-func NewPackageCmd() *cobra.Command {
+// NewArtifactCmd creates a new artifact command.
+func NewArtifactCmd() *cobra.Command {
 	pkgCmd := &cobra.Command{
-		Use:   "pkg",
-		Short: "Package management commands",
+		Use:   "artifact",
+		Short: "Artifact management commands",
 		Long:  "Commands for creating and managing gotya packages",
 	}
 
 	// Add subcommands
-	pkgCmd.AddCommand(newPackageCreateCommand())
+	pkgCmd.AddCommand(newArtifactCreateCommand())
 
 	return pkgCmd
 }
 
-// newPackageCreateCommand creates the 'pkg create' command.
-func newPackageCreateCommand() *cobra.Command {
+// newArtifactCreateCommand creates the 'artifact create' command.
+func newArtifactCreateCommand() *cobra.Command {
 	// Command line flags
 	var (
 		sourceDir    string
@@ -41,12 +41,12 @@ func newPackageCreateCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "create",
-		Short: "Create a new pkg",
-		Long: `Create a new gotya pkg from a source directory.
-The source directory should contain a 'meta/pkg.json' file and a 'files/' directory.`,
+		Short: "Create a new artifact",
+		Long: `Create a new gotya artifact from a source directory.
+The source directory should contain a 'meta/artifact.json' file and a 'files/' directory.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			// Delegate to the pkg implementation
-			_, err := pkgpkg.CreatePackage(
+			// Delegate to the artifact implementation
+			_, err := pkgpkg.CreateArtifact(
 				sourceDir,
 				outputDir,
 				pkgName,
@@ -59,23 +59,23 @@ The source directory should contain a 'meta/pkg.json' file and a 'files/' direct
 				hooks,
 			)
 			if err != nil {
-				return fmt.Errorf("failed to create pkg: %w", err)
+				return fmt.Errorf("failed to create artifact: %w", err)
 			}
 			return nil
 		},
 	}
 
 	// Add flags with descriptions and defaults
-	cmd.Flags().StringVarP(&sourceDir, "source", "s", ".", "Source directory containing pkg files (required)")
-	cmd.Flags().StringVarP(&outputDir, "output", "o", ".", "Output directory for the created pkg")
-	cmd.Flags().StringVar(&pkgName, "name", "", "Package name (required, overrides name in pkg.json)")
-	cmd.Flags().StringVar(&pkgVer, "version", "0.1.0", "Package version (e.g., 1.0.0, overrides version in pkg.json)")
+	cmd.Flags().StringVarP(&sourceDir, "source", "s", ".", "Source directory containing artifact files (required)")
+	cmd.Flags().StringVarP(&outputDir, "output", "o", ".", "Output directory for the created artifact")
+	cmd.Flags().StringVar(&pkgName, "name", "", "Artifact name (required, overrides name in artifact.json)")
+	cmd.Flags().StringVar(&pkgVer, "version", "0.1.0", "Artifact version (e.g., 1.0.0, overrides version in artifact.json)")
 	cmd.Flags().StringVar(&pkgOS, "os", runtime.GOOS, "Target operating system")
 	cmd.Flags().StringVar(&pkgArch, "arch", runtime.GOARCH, "Target architecture")
-	cmd.Flags().StringVar(&maintainer, "maintainer", "", "Package maintainer (name <email>)")
-	cmd.Flags().StringVar(&description, "description", "", "Package description")
-	cmd.Flags().StringSliceVar(&dependencies, "depends", nil, "Package dependencies (comma-separated)")
-	cmd.Flags().StringToStringVar(&hooks, "hooks", nil, "Package hooks in format 'hooks=script.tengo' (comma-separated)")
+	cmd.Flags().StringVar(&maintainer, "maintainer", "", "Artifact maintainer (name <email>)")
+	cmd.Flags().StringVar(&description, "description", "", "Artifact description")
+	cmd.Flags().StringSliceVar(&dependencies, "depends", nil, "Artifact dependencies (comma-separated)")
+	cmd.Flags().StringToStringVar(&hooks, "hooks", nil, "Artifact hooks in format 'hooks=script.tengo' (comma-separated)")
 
 	// Mark required flags
 	_ = cmd.MarkFlagRequired("source")

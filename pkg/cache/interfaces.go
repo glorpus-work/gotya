@@ -12,25 +12,25 @@ type Manager interface {
 
 // CleanOptions specifies what to clean from the cache.
 type CleanOptions struct {
-	All      bool
-	Indexes  bool
-	Packages bool
+	All       bool
+	Indexes   bool
+	Artifacts bool
 }
 
 // CleanResult contains information about what was cleaned.
 type CleanResult struct {
-	TotalFreed   int64
-	IndexFreed   int64
-	PackageFreed int64
+	TotalFreed    int64
+	IndexFreed    int64
+	ArtifactFreed int64
 }
 
 // Info represents cache information.
 type Info struct {
-	Directory    string
-	TotalSize    int64
-	IndexSize    int64
-	IndexFiles   int
-	PackageSize  int64
-	PackageFiles int
-	LastCleaned  time.Time
+	Directory     string
+	TotalSize     int64
+	IndexSize     int64
+	IndexFiles    int
+	ArtifactSize  int64
+	ArtifactFiles int
+	LastCleaned   time.Time
 }

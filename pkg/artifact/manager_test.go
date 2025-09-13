@@ -1,4 +1,4 @@
-package pkg
+package artifact
 
 import (
 	"context"
@@ -27,7 +27,7 @@ func TestNewManager(t *testing.T) {
 	assert.Equal(t, mockIndexMgr, mgr.indexManager)
 }
 
-func TestInstallPackage_Success(t *testing.T) {
+func TestInstallArtifact_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -39,7 +39,7 @@ func TestInstallPackage_Success(t *testing.T) {
 	pkgURL := "https://example.com/pkg/test-package-1.0.0-linux-amd64.tar.gz"
 
 	// Create mocks
-	mockPkg := &index.Package{
+	mockPkg := &index.Artifact{
 		Name:    pkgName,
 		Version: version,
 		OS:      os,
@@ -52,12 +52,12 @@ func TestInstallPackage_Success(t *testing.T) {
 
 	// Set up expectations
 	mockIndexMgr.EXPECT().
-		ResolvePackage(pkgName, version, os, arch).
+		ResolveArtifact(pkgName, version, os, arch).
 		Return(mockPkg, nil)
 
 	parsedURL, _ := url.Parse(pkgURL)
 	mockHTTPClient.EXPECT().
-		DownloadPackage(gomock.Any(), parsedURL, "").
+		DownloadArtifact(gomock.Any(), parsedURL, "").
 		Return(nil)
 
 	// Create manager with mocks
@@ -69,13 +69,13 @@ func TestInstallPackage_Success(t *testing.T) {
 	}
 
 	// Test
-	err := mgr.InstallPackage(context.Background(), pkgName, version, false)
+	err := mgr.InstallArtifact(context.Background(), pkgName, version, false)
 
 	// Assert
 	assert.NoError(t, err)
 }
 
-func TestInstallPackage_ResolveError(t *testing.T) {
+func TestInstallArtifact_ResolveError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -87,7 +87,7 @@ func TestInstallPackage_ResolveError(t *testing.T) {
 
 	// Set up expectations
 	mockIndexMgr.EXPECT().
-		ResolvePackage("invalid-pkg", "1.0.0", "linux", "amd64").
+		ResolveArtifact("invalid-artifact", "1.0.0", "linux", "amd64").
 		Return(nil, expectedErr)
 
 	// Create manager with mocks
@@ -99,13 +99,13 @@ func TestInstallPackage_ResolveError(t *testing.T) {
 	}
 
 	// Test
-	err := mgr.InstallPackage(context.Background(), "invalid-pkg", "1.0.0", false)
+	err := mgr.InstallArtifact(context.Background(), "invalid-artifact", "1.0.0", false)
 
 	// Assert
 	assert.EqualError(t, err, expectedErr.Error())
 }
 
-func TestInstallPackage_DownloadError(t *testing.T) {
+func TestInstallArtifact_DownloadError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -118,7 +118,7 @@ func TestInstallPackage_DownloadError(t *testing.T) {
 	downloadErr := errors.New("download failed")
 
 	// Create mocks
-	mockPkg := &index.Package{
+	mockPkg := &index.Artifact{
 		Name:    pkgName,
 		Version: version,
 		OS:      os,
@@ -131,12 +131,12 @@ func TestInstallPackage_DownloadError(t *testing.T) {
 
 	// Set up expectations
 	mockIndexMgr.EXPECT().
-		ResolvePackage(pkgName, version, os, arch).
+		ResolveArtifact(pkgName, version, os, arch).
 		Return(mockPkg, nil)
 
 	parsedURL, _ := url.Parse(pkgURL)
 	mockHTTPClient.EXPECT().
-		DownloadPackage(gomock.Any(), parsedURL, "").
+		DownloadArtifact(gomock.Any(), parsedURL, "").
 		Return(downloadErr)
 
 	// Create manager with mocks
@@ -148,7 +148,7 @@ func TestInstallPackage_DownloadError(t *testing.T) {
 	}
 
 	// Test
-	err := mgr.InstallPackage(context.Background(), pkgName, version, false)
+	err := mgr.InstallArtifact(context.Background(), pkgName, version, false)
 
 	// Assert
 	assert.EqualError(t, err, downloadErr.Error())

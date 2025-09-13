@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	// InitialPackageCapacity is the initial capacity for the packages slice.
-	InitialPackageCapacity = 100
+	// InitialArtifactCapacity is the initial capacity for the packages slice.
+	InitialArtifactCapacity = 100
 )
 
 // NewIndex creates a new index with the current timestamp.
@@ -20,7 +20,7 @@ func NewIndex(formatVersion string) *Index {
 	return &Index{
 		FormatVersion: formatVersion,
 		LastUpdate:    time.Now(),
-		Packages:      make([]*Package, 0, InitialPackageCapacity),
+		Artifacts:     make([]*Artifact, 0, InitialArtifactCapacity),
 	}
 }
 
@@ -34,9 +34,9 @@ func (idx *Index) GetLastUpdate() string {
 	return idx.LastUpdate.Format(time.RFC3339)
 }
 
-// GetPackages returns all packages.
-func (idx *Index) GetPackages() []*Package {
-	return idx.Packages
+// GetArtifacts returns all packages.
+func (idx *Index) GetArtifacts() []*Artifact {
+	return idx.Artifacts
 }
 
 // ParseIndex parses an index from JSON data.
@@ -82,9 +82,9 @@ func (idx *Index) ToJSON() ([]byte, error) {
 	return data, nil
 }
 
-func (idx *Index) FindPackages(name string) []*Package {
-	packages := make([]*Package, 0, 5)
-	for _, pkg := range idx.Packages {
+func (idx *Index) FindArtifacts(name string) []*Artifact {
+	packages := make([]*Artifact, 0, 5)
+	for _, pkg := range idx.Artifacts {
 		if pkg.Name == name {
 			packages = append(packages, pkg)
 		}
@@ -93,27 +93,27 @@ func (idx *Index) FindPackages(name string) []*Package {
 	return packages
 }
 
-// AddPackage adds a pkg to the index.
-func (idx *Index) AddPackage(pkg *Package) {
-	// Remove existing pkg with same name if it exists
-	for i := range idx.Packages {
-		if idx.Packages[i].Name == pkg.Name {
-			idx.Packages[i] = pkg
+// AddArtifact adds a artifact to the index.
+func (idx *Index) AddArtifact(pkg *Artifact) {
+	// Remove existing artifact with same name if it exists
+	for i := range idx.Artifacts {
+		if idx.Artifacts[i].Name == pkg.Name {
+			idx.Artifacts[i] = pkg
 			idx.LastUpdate = time.Now()
 			return
 		}
 	}
 
-	// Add new pkg
-	idx.Packages = append(idx.Packages, pkg)
+	// Add new artifact
+	idx.Artifacts = append(idx.Artifacts, pkg)
 	idx.LastUpdate = time.Now()
 }
 
-// RemovePackage removes a pkg from the index.
-func (idx *Index) RemovePackage(name string) bool {
-	for i := range idx.Packages {
-		if idx.Packages[i].Name == name {
-			idx.Packages = append(idx.Packages[:i], idx.Packages[i+1:]...)
+// RemoveArtifact removes a artifact from the index.
+func (idx *Index) RemoveArtifact(name string) bool {
+	for i := range idx.Artifacts {
+		if idx.Artifacts[i].Name == name {
+			idx.Artifacts = append(idx.Artifacts[:i], idx.Artifacts[i+1:]...)
 			idx.LastUpdate = time.Now()
 			return true
 		}

@@ -1,4 +1,4 @@
-package pkg
+package artifact
 
 import (
 	"archive/tar"
@@ -14,28 +14,28 @@ import (
 	"github.com/cperrin88/gotya/pkg/fsutil"
 )
 
-// Package pkg provides functionality for working with pkg files and metadata.
-// It handles pkg creation, extraction, and management with support for various
-// archive formats and pkg metadata.
+// Artifact artifact provides functionality for working with artifact files and metadata.
+// It handles artifact creation, extraction, and management with support for various
+// archive formats and artifact metadata.
 
-// PackageStructure represents the expected structure of a pkg.
-type PackageStructure struct {
-	FilesDir   string           `json:"files_dir"`   // Directory containing files to install.
-	ScriptsDir string           `json:"scripts_dir"` // Directory containing pre/post install scripts.
-	Metadata   *PackageMetadata `json:"metadata"`    // Package metadata.
+// ArtifactStructure represents the expected structure of a artifact.
+type ArtifactStructure struct {
+	FilesDir   string            `json:"files_dir"`   // Directory containing files to install.
+	ScriptsDir string            `json:"scripts_dir"` // Directory containing pre/post install scripts.
+	Metadata   *ArtifactMetadata `json:"metadata"`    // Artifact metadata.
 }
 
-// ExtractPackage extracts an archive pkg and returns its structure.
-func ExtractPackage(packagePath, extractDir string) (*PackageStructure, error) {
+// ExtractArtifact extracts an archive artifact and returns its structure.
+func ExtractArtifact(packagePath, extractDir string) (*ArtifactStructure, error) {
 	// Extract the archive using the appropriate method
 	if err := ExtractArchive(packagePath, extractDir); err != nil {
 		return nil, fmt.Errorf("failed to extract archive: %w", err)
 	}
 
-	// Parse the pkg structure
-	structure, err := parsePackageStructure(extractDir)
+	// Parse the artifact structure
+	structure, err := parseArtifactStructure(extractDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse pkg structure: %w", err)
+		return nil, fmt.Errorf("failed to parse artifact structure: %w", err)
 	}
 
 	return structure, nil
@@ -333,15 +333,15 @@ func extractTar(reader io.Reader, extractDir string) error {
 	return nil
 }
 
-// LoadMetadata loads pkg metadata from a file.
-func LoadMetadata(metadataPath string) (*PackageMetadata, error) {
+// LoadMetadata loads artifact metadata from a file.
+func LoadMetadata(metadataPath string) (*ArtifactMetadata, error) {
 	file, err := os.Open(metadataPath)
 	if err != nil {
 		return nil, fmt.Errorf("open metadata file: %w", err)
 	}
 	defer file.Close()
 
-	var metadata PackageMetadata
+	var metadata ArtifactMetadata
 	if err := json.NewDecoder(file).Decode(&metadata); err != nil {
 		return nil, fmt.Errorf("decode metadata: %w", err)
 	}
@@ -349,13 +349,13 @@ func LoadMetadata(metadataPath string) (*PackageMetadata, error) {
 	return &metadata, nil
 }
 
-// parsePackageStructure parses the extracted pkg directory structure.
-func parsePackageStructure(extractDir string) (*PackageStructure, error) {
-	// Look for metadata file in meta/pkg.json
-	metadataPath := filepath.Join(extractDir, "meta", "pkg.json")
+// parseArtifactStructure parses the extracted artifact directory structure.
+func parseArtifactStructure(extractDir string) (*ArtifactStructure, error) {
+	// Look for metadata file in meta/artifact.json
+	metadataPath := filepath.Join(extractDir, "meta", "artifact.json")
 	if _, err := os.Stat(metadataPath); os.IsNotExist(err) {
-		// Fall back to pkg.json for backward compatibility
-		metadataPath = filepath.Join(extractDir, "pkg.json")
+		// Fall back to artifact.json for backward compatibility
+		metadataPath = filepath.Join(extractDir, "artifact.json")
 		if _, err := os.Stat(metadataPath); os.IsNotExist(err) {
 			return nil, ErrMetadataNotFound
 		} else if err != nil {
@@ -368,11 +368,11 @@ func parsePackageStructure(extractDir string) (*PackageStructure, error) {
 	// Load metadata
 	metadata, err := LoadMetadata(metadataPath)
 	if err != nil {
-		return nil, fmt.Errorf("error loading pkg metadata: %w", err)
+		return nil, fmt.Errorf("error loading artifact metadata: %w", err)
 	}
 
-	// Determine pkg structure
-	structure := &PackageStructure{
+	// Determine artifact structure
+	structure := &ArtifactStructure{
 		Metadata: metadata,
 	}
 

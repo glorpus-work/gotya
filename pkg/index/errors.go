@@ -6,6 +6,6 @@ import (
 
 // Common index errors.
 var (
-	// ErrPackageNotFound is returned when a pkg is not found in any index.
-	ErrPackageNotFound = fmt.Errorf("pkg not found")
+	// ErrArtifactNotFound is returned when a artifact is not found in any index.
+	ErrArtifactNotFound = fmt.Errorf("artifact not found")
 )

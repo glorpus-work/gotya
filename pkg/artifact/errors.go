@@ -1,41 +1,41 @@
-package pkg
+package artifact
 
 import (
 	"fmt"
 )
 
-// Common pkg errors.
+// Common artifact errors.
 var (
 	// Path and file related errors.
 	ErrInvalidSourceDirectory = fmt.Errorf("invalid source directory")
 	ErrDirectoryStatFailed    = fmt.Errorf("failed to get directory info")
 	ErrDirectoryNotWritable   = fmt.Errorf("directory is not writable")
 
-	// Package validation errors.
-	ErrInvalidVersion       = fmt.Errorf("invalid version")
-	ErrPackageAlreadyExists = fmt.Errorf("pkg already exists")
+	// Artifact validation errors.
+	ErrInvalidVersion        = fmt.Errorf("invalid version")
+	ErrArtifactAlreadyExists = fmt.Errorf("artifact already exists")
 
 	// I/O and processing errors.
 	ErrReadFailed      = fmt.Errorf("read failed")
 	ErrWriteFailed     = fmt.Errorf("write failed")
-	ErrInvalidMetadata = fmt.Errorf("invalid pkg metadata")
+	ErrInvalidMetadata = fmt.Errorf("invalid artifact metadata")
 
-	// Package installation errors.
-	// ErrPackageInvalid is imported from pkg/errors/errors.go.
-	ErrSourceDirEmpty      = fmt.Errorf("source directory path cannot be empty")
-	ErrOutputDirEmpty      = fmt.Errorf("output directory path cannot be empty")
-	ErrPackageNameEmpty    = fmt.Errorf("pkg name cannot be empty")
-	ErrPackageVersionEmpty = fmt.Errorf("pkg version cannot be empty")
-	ErrNotADirectory       = fmt.Errorf("path is not a directory")
-	ErrNoFilesFound        = fmt.Errorf("no files found to pkg")
-	ErrOutputFileExists    = fmt.Errorf("output file already exists")
-	ErrPackageTooSmall     = fmt.Errorf("pkg file is too small to be valid")
-	ErrDescriptionRequired = fmt.Errorf("pkg description is required")
+	// Artifact installation errors.
+	// ErrArtifactInvalid is imported from artifact/errors/errors.go.
+	ErrSourceDirEmpty       = fmt.Errorf("source directory path cannot be empty")
+	ErrOutputDirEmpty       = fmt.Errorf("output directory path cannot be empty")
+	ErrArtifactNameEmpty    = fmt.Errorf("artifact name cannot be empty")
+	ErrArtifactVersionEmpty = fmt.Errorf("artifact version cannot be empty")
+	ErrNotADirectory        = fmt.Errorf("path is not a directory")
+	ErrNoFilesFound         = fmt.Errorf("no files found to artifact")
+	ErrOutputFileExists     = fmt.Errorf("output file already exists")
+	ErrArtifactTooSmall     = fmt.Errorf("artifact file is too small to be valid")
+	ErrDescriptionRequired  = fmt.Errorf("artifact description is required")
 
 	// Metadata related errors.
-	ErrMetadataMissing      = fmt.Errorf("pkg is missing required metadata (pkg.json)")
-	ErrMetadataFileNotFound = fmt.Errorf("pkg metadata file not found")
-	ErrMetadataNotFound     = fmt.Errorf("metadata not found in pkg")
+	ErrMetadataMissing      = fmt.Errorf("artifact is missing required metadata (artifact.json)")
+	ErrMetadataFileNotFound = fmt.Errorf("artifact metadata file not found")
+	ErrMetadataNotFound     = fmt.Errorf("metadata not found in artifact")
 
 	// Archive and extraction errors.
 	ErrUnsupportedArchiveFormat = fmt.Errorf("unsupported archive format (only .tar.gz and .tgz files are supported)")
@@ -45,15 +45,15 @@ var (
 	ErrUnsupportedFileType      = fmt.Errorf("unsupported file type in archive")
 )
 
-// Package installation error functions.
+// Artifact installation error functions.
 var (
-	// ErrPackageAlreadyInstalled returns an error for when a pkg is already installed.
-	ErrPackageAlreadyInstalled = func(pkgName string) error {
-		return fmt.Errorf("pkg %s is already installed (use --force to reinstall)", pkgName)
+	// ErrArtifactAlreadyInstalled returns an error for when a artifact is already installed.
+	ErrArtifactAlreadyInstalled = func(pkgName string) error {
+		return fmt.Errorf("artifact %s is already installed (use --force to reinstall)", pkgName)
 	}
-	// ErrPackageNotInstalled returns an error for when a pkg is not installed.
-	ErrPackageNotInstalled = func(pkgName string) error {
-		return fmt.Errorf("pkg %s is not installed", pkgName)
+	// ErrArtifactNotInstalled returns an error for when a artifact is not installed.
+	ErrArtifactNotInstalled = func(pkgName string) error {
+		return fmt.Errorf("artifact %s is not installed", pkgName)
 	}
 )
 
@@ -70,8 +70,8 @@ type (
 		Path string
 	}
 
-	// PackageVerificationError is returned when pkg verification fails.
-	PackageVerificationError struct {
+	// ArtifactVerificationError is returned when artifact verification fails.
+	ArtifactVerificationError struct {
 		ExpectedName    string
 		ExpectedVersion string
 		ActualName      string
@@ -109,9 +109,9 @@ func (e *PathTraversalError) Error() string {
 	return fmt.Sprintf("path traversal attempt detected: %s.", e.Path)
 }
 
-// Error implements the error interface for PackageVerificationError.
-func (e *PackageVerificationError) Error() string {
-	return fmt.Sprintf("pkg verification failed: expected %s@%s, got %s@%s.",
+// Error implements the error interface for ArtifactVerificationError.
+func (e *ArtifactVerificationError) Error() string {
+	return fmt.Sprintf("artifact verification failed: expected %s@%s, got %s@%s.",
 		e.ExpectedName, e.ExpectedVersion, e.ActualName, e.ActualVersion)
 }
 
@@ -130,9 +130,9 @@ func NewPathTraversalError(path string) error {
 	return &PathTraversalError{Path: path}
 }
 
-// NewPackageVerificationError creates a new PackageVerificationError.
-func NewPackageVerificationError(expectedName, expectedVersion, actualName, actualVersion string) error {
-	return &PackageVerificationError{
+// NewArtifactVerificationError creates a new ArtifactVerificationError.
+func NewArtifactVerificationError(expectedName, expectedVersion, actualName, actualVersion string) error {
+	return &ArtifactVerificationError{
 		ExpectedName:    expectedName,
 		ExpectedVersion: expectedVersion,
 		ActualName:      actualName,

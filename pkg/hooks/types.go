@@ -19,11 +19,11 @@ type Hook struct {
 
 // HookContext contains information passed to hooks.
 type HookContext struct {
-	PackageName    string
-	PackageVersion string
-	PackagePath    string
-	InstallPath    string
-	Vars           map[string]interface{}
+	ArtifactName    string
+	ArtifactVersion string
+	ArtifactPath    string
+	InstallPath     string
+	Vars            map[string]interface{}
 }
 
 // HookManager defines the interface for managing hooks.

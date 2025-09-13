@@ -25,7 +25,7 @@ Dependencies will be automatically resolved and installed unless --skip-deps is 
 		},
 	}
 
-	cmd.Flags().BoolVar(&force, "force", false, "Force installation even if pkg already exists")
+	cmd.Flags().BoolVar(&force, "force", false, "Force installation even if artifact already exists")
 	cmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency resolution")
 
 	return cmd
@@ -61,11 +61,11 @@ func runInstall(packages []string, force, skipDeps bool) error {
 	}
 	httpClient := loadHTTPClient(cfg)
 	indexManager := loadIndexManager(cfg, httpClient)
-	pkgManger := loadPackageManager(cfg, indexManager, httpClient)
+	pkgManger := loadArtifactManager(cfg, indexManager, httpClient)
 
-	// Process each pkg
+	// Process each artifact
 	for _, pkgName := range packages {
-		if err := pkgManger.InstallPackage(context.Background(), pkgName, ">= 0.0.0", force); err != nil {
+		if err := pkgManger.InstallArtifact(context.Background(), pkgName, ">= 0.0.0", force); err != nil {
 			return fmt.Errorf("failed to install %s: %w", pkgName, err)
 		}
 	}
@@ -93,8 +93,8 @@ func runUpdate(packages []string, all bool) error {
 			return fmt.Errorf("failed to load installed packages database: %w", err)
 		}
 		// Get list of installed packages
-		for _, pkg := range installedDB.Packages {
-			packagesToUpdate = append(packagesToUpdate, pkg.Name)
+		for _, artifact := range installedDB.Artifacts {
+			packagesToUpdate = append(packagesToUpdate, artifact.Name)
 		}
 	case len(packages) > 0:
 		packagesToUpdate = packages
@@ -102,10 +102,10 @@ func runUpdate(packages []string, all bool) error {
 		return fmt.Errorf("no packages specified and --all flag not used")
 	}
 
-	// Process each pkg
+	// Process each artifact
 	updated := false
 	for _, pkgName := range packagesToUpdate {
-		wasUpdated, err := pkgInstaller.UpdatePackage(pkgName)
+		wasUpdated, err := pkgInstaller.UpdateArtifact(pkgName)
 		if err != nil {
 			logger.Warnf("Failed to update %s: %v", pkgName, err)
 			continue

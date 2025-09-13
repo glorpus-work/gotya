@@ -9,15 +9,15 @@ Refactor the `internal/cli` package to move reusable components to appropriate p
    - Move `setConfigValue()` and `getConfigValue()` to `pkg/config/helpers.go`
    - Update imports and references
 
-## Phase 2: Package Installation Logic
-1. **Create New Package**
+## Phase 2: Artifact Installation Logic
+1. **Create New Artifact**
    - Create `pkg/installer/installer.go`
    - Move core installation logic from `internal/cli/install.go`
    - Include functions:
-     - `InstallPackage()`
-     - `UpdatePackage()`
-     - `InstallSinglePackage()`
-     - `UpdateSinglePackage()`
+     - `InstallArtifact()`
+     - `UpdateArtifact()`
+     - `InstallSingleArtifact()`
+     - `UpdateSingleArtifact()`
 
 ## Phase 3: Repository Management
 1. **Move Repository Logic**

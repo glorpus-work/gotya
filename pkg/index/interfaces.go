@@ -9,9 +9,9 @@ import (
 )
 
 type Index struct {
-	FormatVersion string     `json:"format_version"`
-	LastUpdate    time.Time  `json:"last_update"`
-	Packages      []*Package `json:"packages"`
+	FormatVersion string      `json:"format_version"`
+	LastUpdate    time.Time   `json:"last_update"`
+	Artifacts     []*Artifact `json:"packages"`
 }
 
 // Info represents index information.
@@ -36,11 +36,11 @@ type Manager interface {
 	// GetCacheAge returns the age of the cache for a repository
 	GetCacheAge(name string) (time.Duration, error)
 
-	// FindPackages searches for packages by name across all repositories
-	FindPackages(name string) (map[string][]*Package, error)
+	// FindArtifacts searches for packages by name across all repositories
+	FindArtifacts(name string) (map[string][]*Artifact, error)
 
-	// ResolvePackage finds a specific package with the given name, version, OS and architecture
-	ResolvePackage(name, version, os, arch string) (*Package, error)
+	// ResolveArtifact finds a specific package with the given name, version, OS and architecture
+	ResolveArtifact(name, version, os, arch string) (*Artifact, error)
 
 	// GetIndex retrieves an index by name
 	GetIndex(name string) (*Index, error)

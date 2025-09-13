@@ -183,7 +183,7 @@ func createTestIndexFile(t *testing.T, dir, repoName string) string {
   "last_updated": "2024-08-16T10:00:00Z",
   "packages": [
     {
-      "name": "test-pkg",
+      "name": "test-artifact",
       "version": "1.0.0",
       "description": "A simple test package for testing",
       "author": "Test Author",
@@ -203,7 +203,7 @@ func createTestIndexFile(t *testing.T, dir, repoName string) string {
 	return indexPath
 }
 
-func TestManager_ResolvePackage(t *testing.T) {
+func TestManager_ResolveArtifact(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -230,7 +230,7 @@ func TestManager_ResolvePackage(t *testing.T) {
 	}{
 		{
 			name:      "find latest version",
-			pkgName:   "test-pkg",
+			pkgName:   "test-artifact",
 			version:   ">= 0.0.0",
 			os:        "linux",
 			arch:      "amd64",
@@ -238,7 +238,7 @@ func TestManager_ResolvePackage(t *testing.T) {
 		},
 		{
 			name:      "find specific version",
-			pkgName:   "test-pkg",
+			pkgName:   "test-artifact",
 			version:   "1.0.0",
 			os:        "darwin",
 			arch:      "amd64",
@@ -251,7 +251,7 @@ func TestManager_ResolvePackage(t *testing.T) {
 			os:          "linux",
 			arch:        "amd64",
 			expectErr:   true,
-			expectErrAs: errors.ErrPackageNotFound,
+			expectErrAs: errors.ErrArtifactNotFound,
 		},
 	}
 
@@ -265,7 +265,7 @@ func TestManager_ResolvePackage(t *testing.T) {
 				indexes:      make(map[string]*Index, 1),
 			}
 
-			pkg, err := manager.ResolvePackage(tt.pkgName, tt.version, tt.os, tt.arch)
+			pkg, err := manager.ResolveArtifact(tt.pkgName, tt.version, tt.os, tt.arch)
 			if tt.expectErr {
 				assert.Error(t, err)
 				if tt.expectErrAs != nil {

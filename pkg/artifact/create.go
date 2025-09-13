@@ -1,4 +1,4 @@
-package pkg
+package artifact
 
 import (
 	"archive/tar"
@@ -36,7 +36,7 @@ var (
 	versionRegex     = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.+_-]*$`)
 )
 
-// in the pkg meta directory.
+// in the artifact meta directory.
 type Metadata struct {
 	Name         string            `json:"name"`
 	Version      string            `json:"version"`
@@ -47,7 +47,7 @@ type Metadata struct {
 	Hooks        map[string]string `json:"hooks,omitempty"`
 }
 
-// File represents a file entry in the pkg metadata.
+// File represents a file entry in the artifact metadata.
 type File struct {
 	Path   string `json:"path"`
 	Size   int64  `json:"size"`
@@ -83,12 +83,12 @@ func validatePath(path string) (string, error) {
 	return cleanPath, nil
 }
 
-// validatePackageStructure validates the pkg directory structure.
+// validateArtifactStructure validates the artifact directory structure.
 // It ensures that:
 // - The source directory contains a 'files' subdirectory
-// - No pkg.json exists in the source directory
+// - No artifact.json exists in the source directory
 // - If a meta directory exists, it only contains allowed files (*.tengo hooks scripts)
-func validatePackageStructure(sourceDir string) error {
+func validateArtifactStructure(sourceDir string) error {
 	// Check for required files directory
 	filesDir := filepath.Join(sourceDir, "files")
 	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
@@ -97,11 +97,11 @@ func validatePackageStructure(sourceDir string) error {
 		return errors.Wrapf(err, "failed to access files directory")
 	}
 
-	// Check for pkg.json in source directory (shouldn't exist yet)
-	if _, err := os.Stat(filepath.Join(sourceDir, "pkg.json")); err == nil {
-		return errors.Wrapf(errors.ErrInvalidPath, "pkg.json already exists in source directory")
+	// Check for artifact.json in source directory (shouldn't exist yet)
+	if _, err := os.Stat(filepath.Join(sourceDir, "artifact.json")); err == nil {
+		return errors.Wrapf(errors.ErrInvalidPath, "artifact.json already exists in source directory")
 	} else if !os.IsNotExist(err) {
-		return errors.Wrap(err, "failed to check for pkg.json")
+		return errors.Wrap(err, "failed to check for artifact.json")
 	}
 
 	// Check if meta directory exists
@@ -135,13 +135,13 @@ func validatePackageStructure(sourceDir string) error {
 	return nil
 }
 
-// processPackageFiles processes all files in the files/ directory of a pkg.
+// processArtifactFiles processes all files in the files/ directory of a artifact.
 // It returns a slice of File structs containing metadata about each file.
 // The function will return an error if:
 // - The files directory is empty
 // - Any file cannot be read or hashed
 // - Any symlink points outside the files directory
-func processPackageFiles(filesDir string) ([]File, error) {
+func processArtifactFiles(filesDir string) ([]File, error) {
 	// Verify the files directory exists and is accessible
 	if _, err := os.Stat(filesDir); os.IsNotExist(err) {
 		return nil, errors.Wrapf(errors.ErrFileNotFound, "files directory not found: %s", filesDir)
@@ -345,27 +345,27 @@ func calculateFileHash(path string) (string, error) {
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// processFiles orchestrates the processing of pkg files and hooks scripts.
-// It validates the pkg structure and processes files according to the pkg design.
+// processFiles orchestrates the processing of artifact files and hooks scripts.
+// It validates the artifact structure and processes files according to the artifact design.
 // The function will return an error if:
-// - The pkg structure is invalid
-// - No files are found in the pkg
+// - The artifact structure is invalid
+// - No files are found in the artifact
 // - Any file processing fails
 // - Any hooks script validation fails
 func processFiles(sourceDir string, meta *Metadata) error {
 	// Clear existing files
 	meta.Files = []File{}
 
-	// 1. Validate pkg structure first
-	if err := validatePackageStructure(sourceDir); err != nil {
-		return errors.Wrap(err, "invalid pkg structure")
+	// 1. Validate artifact structure first
+	if err := validateArtifactStructure(sourceDir); err != nil {
+		return errors.Wrap(err, "invalid artifact structure")
 	}
 
-	// 2. Process pkg files from the 'files' directory
+	// 2. Process artifact files from the 'files' directory
 	filesDir := filepath.Join(sourceDir, "files")
-	files, err := processPackageFiles(filesDir)
+	files, err := processArtifactFiles(filesDir)
 	if err != nil {
-		return errors.Wrapf(err, "failed to process pkg files in %s", filesDir)
+		return errors.Wrapf(err, "failed to process artifact files in %s", filesDir)
 	}
 	meta.Files = files
 
@@ -382,42 +382,42 @@ func processFiles(sourceDir string, meta *Metadata) error {
 		meta.Files = append(meta.Files, hookFile)
 	}
 
-	// 4. Ensure we have at least one file in the pkg
+	// 4. Ensure we have at least one file in the artifact
 	if len(meta.Files) == 0 {
-		return goerrors.New("pkg must contain at least one file")
+		return goerrors.New("artifact must contain at least one file")
 	}
 
 	return nil
 }
 
-// CreatePackage creates a new pkg from the source directory.
-// It validates input parameters, processes files, and creates a verified pkg.
-// The pkg will be created in the output directory with the specified name, version, OS, and architecture.
+// CreateArtifact creates a new artifact from the source directory.
+// It validates input parameters, processes files, and creates a verified artifact.
+// The artifact will be created in the output directory with the specified name, version, OS, and architecture.
 // Additional metadata like maintainer, description, and dependencies can be provided.
-func CreatePackage(
+func CreateArtifact(
 	sourceDir, outputDir, pkgName, pkgVer, pkgOS, pkgArch string,
 	maintainer string,
 	description string,
 	dependencies []string,
 	hooks map[string]string,
 ) (string, error) {
-	// Validate pkg name and version
+	// Validate artifact name and version
 	switch {
 	case pkgName == "":
-		return "", errors.Wrapf(errors.ErrNameRequired, "pkg name cannot be empty")
+		return "", errors.Wrapf(errors.ErrNameRequired, "artifact name cannot be empty")
 	case !packageNameRegex.MatchString(pkgName):
 		return "", errors.Wrapf(
-			errors.ErrInvalidPackageName,
-			"invalid pkg name: %s - must match %s",
+			errors.ErrInvalidArtifactName,
+			"invalid artifact name: %s - must match %s",
 			pkgName,
 			packageNameRegex.String(),
 		)
 	case pkgVer == "":
-		return "", errors.Wrapf(errors.ErrVersionRequired, "pkg version cannot be empty")
+		return "", errors.Wrapf(errors.ErrVersionRequired, "artifact version cannot be empty")
 	case !versionRegex.MatchString(pkgVer):
 		return "", errors.Wrapf(
 			errors.ErrInvalidVersionString,
-			"invalid pkg version: %s - must match %s",
+			"invalid artifact version: %s - must match %s",
 			pkgVer,
 			versionRegex.String(),
 		)
@@ -452,7 +452,7 @@ func CreatePackage(
 
 	// Initialize metadata with provided values or defaults
 	if description == "" {
-		description = fmt.Sprintf("Package %s version %s", pkgName, pkgVer)
+		description = fmt.Sprintf("Artifact %s version %s", pkgName, pkgVer)
 	}
 
 	meta := &Metadata{
@@ -470,24 +470,24 @@ func CreatePackage(
 		return "", errors.Wrapf(err, "failed to process files in %s", cleanSourceDir)
 	}
 
-	// Create output filename and pkg
+	// Create output filename and artifact
 	outputFile := filepath.Join(outputDir, fmt.Sprintf("%s_%s_%s_%s.tar.gz", pkgName, pkgVer, pkgOS, pkgArch))
 
 	// Create and verify the tarball
 	if err := createTarball(cleanSourceDir, outputFile, meta); err != nil {
 		// Clean up the output file if it was partially created
 		if removeErr := os.Remove(outputFile); removeErr != nil && !os.IsNotExist(removeErr) {
-			return "", errors.Wrapf(removeErr, "failed to clean up partially created pkg file %s", outputFile)
+			return "", errors.Wrapf(removeErr, "failed to clean up partially created artifact file %s", outputFile)
 		}
-		return "", errors.Wrapf(err, "failed to create pkg %s", outputFile)
+		return "", errors.Wrapf(err, "failed to create artifact %s", outputFile)
 	}
 
-	// Verify the created pkg
-	if err := verifyPackage(outputFile, meta); err != nil {
+	// Verify the created artifact
+	if err := verifyArtifact(outputFile, meta); err != nil {
 		if removeErr := os.Remove(outputFile); removeErr != nil && !os.IsNotExist(removeErr) {
-			return "", errors.Wrapf(removeErr, "failed to clean up pkg file after verification failure %s", outputFile)
+			return "", errors.Wrapf(removeErr, "failed to clean up artifact file after verification failure %s", outputFile)
 		}
-		return "", errors.Wrapf(err, "pkg verification failed for %s", outputFile)
+		return "", errors.Wrapf(err, "artifact verification failed for %s", outputFile)
 	}
 
 	return outputFile, nil
@@ -588,7 +588,7 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 	metaJSON = append(metaJSON, '\n')
 
 	header := &tar.Header{
-		Name:    "meta/pkg.json",
+		Name:    "meta/artifact.json",
 		Size:    int64(len(metaJSON)),
 		Mode:    DefaultFileMode,
 		ModTime: time.Now(),
@@ -605,11 +605,11 @@ func createTarball(sourceDir, outputPath string, meta *Metadata) error {
 	return nil
 }
 
-// openPackageFile opens the pkg file and returns a reader.
-func openPackageFile(pkgPath string) (*os.File, error) {
+// openArtifactFile opens the artifact file and returns a reader.
+func openArtifactFile(pkgPath string) (*os.File, error) {
 	file, err := os.Open(pkgPath)
 	if err != nil {
-		return nil, errors.WrapFileError(err, "open pkg file", pkgPath)
+		return nil, errors.WrapFileError(err, "open artifact file", pkgPath)
 	}
 	return file, nil
 }
@@ -623,16 +623,16 @@ func createGzipReader(file *os.File) (*gzip.Reader, error) {
 	return gzipReader, nil
 }
 
-// verifyPackage verifies the integrity of a pkg file.
-func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
+// verifyArtifact verifies the integrity of a artifact file.
+func verifyArtifact(pkgPath string, expectedMeta *Metadata) error {
 	if expectedMeta == nil {
 		return errors.Wrap(errors.ErrValidationFailed, "metadata cannot be nil")
 	}
 
-	logger.Debugf("Starting verification of pkg: %s", pkgPath)
+	logger.Debugf("Starting verification of artifact: %s", pkgPath)
 
-	// Open the pkg file
-	file, err := openPackageFile(pkgPath)
+	// Open the artifact file
+	file, err := openArtifactFile(pkgPath)
 	if err != nil {
 		return err
 	}
@@ -645,22 +645,22 @@ func verifyPackage(pkgPath string, expectedMeta *Metadata) error {
 	}
 	defer gzipReader.Close()
 
-	// Process the pkg contents
-	foundFiles, err := processPackageContents(gzipReader, expectedMeta)
+	// Process the artifact contents
+	foundFiles, err := processArtifactContents(gzipReader, expectedMeta)
 	if err != nil {
-		return errors.Wrap(err, "failed to process pkg contents")
+		return errors.Wrap(err, "failed to process artifact contents")
 	}
 
 	// Verify all expected files were found
 	if err := verifyExpectedFiles(foundFiles, expectedMeta.Files); err != nil {
-		return errors.Wrap(err, "pkg verification failed")
+		return errors.Wrap(err, "artifact verification failed")
 	}
 
 	return nil
 }
 
-// processPackageContents processes the contents of a pkg file and verifies each file.
-func processPackageContents(reader io.Reader, expectedMeta *Metadata) (map[string]bool, error) {
+// processArtifactContents processes the contents of a artifact file and verifies each file.
+func processArtifactContents(reader io.Reader, expectedMeta *Metadata) (map[string]bool, error) {
 	tarReader := tar.NewReader(reader)
 	foundFiles := make(map[string]bool)
 	expectedFiles, err := createExpectedFilesMap(expectedMeta)
@@ -697,7 +697,7 @@ func isRegularFile(flag byte) bool {
 	return flag == tar.TypeReg || flag == tar.TypeRegA
 }
 
-// processFile processes and verifies a single file from the pkg.
+// processFile processes and verifies a single file from the artifact.
 func processFile(header *tar.Header, reader io.Reader, expectedFiles map[string]File, foundFiles map[string]bool) error {
 	// Normalize the path for comparison
 	normalizedPath := filepath.ToSlash(header.Name)
@@ -793,7 +793,7 @@ func createExpectedFilesMap(meta *Metadata) (map[string]File, error) {
 	return expectedFiles, nil
 }
 
-// addMetadataFile adds the pkg metadata file to the expected files map.
+// addMetadataFile adds the artifact metadata file to the expected files map.
 // It generates the metadata in memory without writing to disk.
 func addMetadataFile(expectedFiles map[string]File, meta *Metadata) error {
 	// Marshal the metadata to JSON with indentation for consistent hashing
@@ -810,8 +810,8 @@ func addMetadataFile(expectedFiles map[string]File, meta *Metadata) error {
 	hexHash := hex.EncodeToString(hash[:])
 
 	// Add the metadata file to expected files
-	expectedFiles["meta/pkg.json"] = File{
-		Path:   "meta/pkg.json",
+	expectedFiles["meta/artifact.json"] = File{
+		Path:   "meta/artifact.json",
 		Size:   int64(len(jsonData)),
 		Mode:   DefaultFileMode,
 		Digest: hexHash,
@@ -820,7 +820,7 @@ func addMetadataFile(expectedFiles map[string]File, meta *Metadata) error {
 	return nil
 }
 
-// verifyExpectedFiles verifies that all expected files were found in the pkg.
+// verifyExpectedFiles verifies that all expected files were found in the artifact.
 func verifyExpectedFiles(foundFiles map[string]bool, expectedFiles []File) error {
 	for _, file := range expectedFiles {
 		if !foundFiles[file.Path] {

@@ -21,7 +21,7 @@ go install github.com/cperrin88/gotya@latest
 
 ## Features
 
-- **Package Management**: Install, update, and remove packages
+- **Artifact Management**: Install, update, and remove packages
 - **Repository Support**: Multiple repository sources with priority support
 - **Dependency Resolution**: Automatic handling of package dependencies
 - **Hooks**: Pre- and post-installation hooks for custom actions
@@ -31,12 +31,12 @@ go install github.com/cperrin88/gotya@latest
 
 gotya is organized into several packages, each with a specific responsibility:
 
-### Core Packages
+### Core Artifacts
 
 - `pkg/config`: Configuration management with support for multiple backends
-- `pkg/cache`: Package and index caching system
+- `pkg/cache`: Artifact and index caching system
 - `pkg/repository`: Repository management and package resolution
-- `pkg/installer`: Package installation and update logic
+- `pkg/installer`: Artifact installation and update logic
 - `pkg/hook`: Hooks system for custom actions
 
 ### CLI Commands

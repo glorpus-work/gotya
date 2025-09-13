@@ -1,4 +1,4 @@
-package pkg
+package artifact
 
 import (
 	"context"
@@ -25,12 +25,12 @@ func NewManager(indexManager index.Manager, httpClient http.Client, os, arch, pa
 	}
 }
 
-func (m ManagerImpl) InstallPackage(ctx context.Context, pkgName, version string, force bool) error {
-	pkg, err := m.indexManager.ResolvePackage(pkgName, version, m.os, m.arch)
+func (m ManagerImpl) InstallArtifact(ctx context.Context, pkgName, version string, force bool) error {
+	pkg, err := m.indexManager.ResolveArtifact(pkgName, version, m.os, m.arch)
 	if err != nil {
 		return err
 	}
-	if err := m.httpClient.DownloadPackage(ctx, pkg.GetURL(), ""); err != nil {
+	if err := m.httpClient.DownloadArtifact(ctx, pkg.GetURL(), ""); err != nil {
 		return err
 	}
 

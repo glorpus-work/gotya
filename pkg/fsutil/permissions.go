@@ -1,4 +1,4 @@
-// Package fsutil provides utility functions and constants for file system operations.
+// Artifact fsutil provides utility functions and constants for file system operations.
 package fsutil
 
 // File and directory permission constants.

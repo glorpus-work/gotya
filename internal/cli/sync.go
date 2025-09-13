@@ -12,9 +12,9 @@ import (
 func NewSyncCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",
-		Short: "Synchronize pkg index indexes",
-		Long: `Synchronize pkg index indexes by downloading the latest
-pkg lists from configured repositories.`,
+		Short: "Synchronize artifact index indexes",
+		Long: `Synchronize artifact index indexes by downloading the latest
+artifact lists from configured repositories.`,
 		RunE: runSync,
 	}
 

@@ -15,7 +15,7 @@ var HookFileExtensions = map[string]bool{
 }
 
 // - <packageDir>/hooks/<hooks-type>.<ext>.
-func LoadHooksFromPackageDir(manager HookManager, packageDir string) error {
+func LoadHooksFromArtifactDir(manager HookManager, packageDir string) error {
 	// Try .gotya/hooks directory first
 	hooksDir := filepath.Join(packageDir, ".gotya", "hooks")
 	if _, err := os.Stat(hooksDir); err == nil {
@@ -87,12 +87,12 @@ func HookTemplate(hookType HookType) string {
 	switch hookType {
 	case PreInstall:
 		return `// Pre-install hooks
-// This script runs before pkg installation
+// This script runs before artifact installation
 // Available variables:
-// - packageName: string - name of the pkg being installed
-// - packageVersion: string - version of the pkg
-// - installPath: string - path where the pkg will be installed
-// - packagePath: string - path to the pkg file
+// - packageName: string - name of the artifact being installed
+// - packageVersion: string - version of the artifact
+// - installPath: string - path where the artifact will be installed
+// - packagePath: string - path to the artifact file
 // - vars: map - custom variables passed to the hooks
 
 // Example: Check if a required directory exists
@@ -105,7 +105,7 @@ if !os.exists(requiredDir) {
 
 	case PostInstall:
 		return `// Post-install hooks
-// This script runs after pkg installation
+// This script runs after artifact installation
 // Available variables: same as pre-install hooks
 
 // Example: Create a symlink after installation
@@ -119,7 +119,7 @@ if !os.exists(link) {
 
 	case PreRemove:
 		return `// Pre-remove hooks
-// This script runs before pkg removal
+// This script runs before artifact removal
 // Available variables: same as pre-install hooks
 
 // Example: Stop a service before removal
@@ -130,7 +130,7 @@ os.exec("systemctl stop " + service)
 
 	case PostRemove:
 		return `// Post-remove hooks
-// This script runs after pkg removal
+// This script runs after artifact removal
 // Available variables: same as pre-install hooks
 
 // Example: Clean up temporary files
