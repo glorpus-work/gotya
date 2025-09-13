@@ -2,6 +2,7 @@ package index
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -38,7 +39,10 @@ func TestManager_Sync(t *testing.T) {
 				},
 			},
 			setupMocks: func(mockClient *mockHttp.MockClient, indexPath string) {
-				expectedURL, _ := url.Parse("https://example.com/")
+				expectedURL, err := url.Parse("https://example.com/")
+				if err != nil {
+					panic(fmt.Sprintf("failed to parse test URL: %v", err))
+				}
 				mockClient.EXPECT().
 					DownloadIndex(gomock.Any(), expectedURL, gomock.Any()).
 					Return(nil)
@@ -255,8 +259,8 @@ func TestManager_ResolveArtifact(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, testExec := range tests {
+		t.Run(testExec.name, func(t *testing.T) {
 			manager := &ManagerImpl{
 				httpClient:   nil, // Not used in this test
 				repositories: []*Repository{repo},
@@ -265,18 +269,18 @@ func TestManager_ResolveArtifact(t *testing.T) {
 				indexes:      make(map[string]*Index, 1),
 			}
 
-			pkg, err := manager.ResolveArtifact(tt.pkgName, tt.version, tt.os, tt.arch)
-			if tt.expectErr {
+			pkg, err := manager.ResolveArtifact(testExec.pkgName, testExec.version, testExec.os, testExec.arch)
+			if testExec.expectErr {
 				assert.Error(t, err)
-				if tt.expectErrAs != nil {
-					assert.ErrorContains(t, err, tt.expectErrAs.Error())
+				if testExec.expectErrAs != nil {
+					assert.ErrorContains(t, err, testExec.expectErrAs.Error())
 				}
 				return
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.pkgName, pkg.Name)
-			assert.Equal(t, tt.expectVer, pkg.Version)
+			assert.Equal(t, testExec.pkgName, pkg.Name)
+			assert.Equal(t, testExec.expectVer, pkg.Version)
 		})
 	}
 }
@@ -345,8 +349,14 @@ func TestManager_SyncAll(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	repo1URL, _ := url.Parse("https://example.com/repo1/index.json")
-	repo2URL, _ := url.Parse("https://example.com/repo2/index.json")
+	repo1URL, err := url.Parse("https://example.com/repo1/index.json")
+	if err != nil {
+		t.Fatalf("failed to parse repo1 URL: %v", err)
+	}
+	repo2URL, err := url.Parse("https://example.com/repo2/index.json")
+	if err != nil {
+		t.Fatalf("failed to parse repo2 URL: %v", err)
+	}
 
 	repos := []*Repository{
 		{

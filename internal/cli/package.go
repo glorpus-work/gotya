@@ -78,8 +78,14 @@ The source directory should contain a 'meta/artifact.json' file and a 'files/' d
 	cmd.Flags().StringToStringVar(&hooks, "hooks", nil, "Artifact hooks in format 'hooks=script.tengo' (comma-separated)")
 
 	// Mark required flags
-	_ = cmd.MarkFlagRequired("source")
-	_ = cmd.MarkFlagRequired("name")
+	if err := cmd.MarkFlagRequired("source"); err != nil {
+		// This should never happen since we control the flag names
+		panic(fmt.Sprintf("failed to mark source as required: %v", err))
+	}
+	if err := cmd.MarkFlagRequired("name"); err != nil {
+		// This should never happen since we control the flag names
+		panic(fmt.Sprintf("failed to mark name as required: %v", err))
+	}
 
 	return cmd
 }

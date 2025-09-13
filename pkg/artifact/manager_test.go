@@ -55,7 +55,10 @@ func TestInstallArtifact_Success(t *testing.T) {
 		ResolveArtifact(pkgName, version, os, arch).
 		Return(mockPkg, nil)
 
-	parsedURL, _ := url.Parse(pkgURL)
+	parsedURL, err := url.Parse(pkgURL)
+	if err != nil {
+		t.Fatalf("failed to parse package URL: %v", err)
+	}
 	mockHTTPClient.EXPECT().
 		DownloadArtifact(gomock.Any(), parsedURL, "").
 		Return(nil)
@@ -69,7 +72,7 @@ func TestInstallArtifact_Success(t *testing.T) {
 	}
 
 	// Test
-	err := mgr.InstallArtifact(context.Background(), pkgName, version, false)
+	err = mgr.InstallArtifact(context.Background(), pkgName, version, false)
 
 	// Assert
 	assert.NoError(t, err)
@@ -134,7 +137,10 @@ func TestInstallArtifact_DownloadError(t *testing.T) {
 		ResolveArtifact(pkgName, version, os, arch).
 		Return(mockPkg, nil)
 
-	parsedURL, _ := url.Parse(pkgURL)
+	parsedURL, err := url.Parse(pkgURL)
+	if err != nil {
+		t.Fatalf("failed to parse package URL: %v", err)
+	}
 	mockHTTPClient.EXPECT().
 		DownloadArtifact(gomock.Any(), parsedURL, "").
 		Return(downloadErr)
@@ -148,7 +154,7 @@ func TestInstallArtifact_DownloadError(t *testing.T) {
 	}
 
 	// Test
-	err := mgr.InstallArtifact(context.Background(), pkgName, version, false)
+	err = mgr.InstallArtifact(context.Background(), pkgName, version, false)
 
 	// Assert
 	assert.EqualError(t, err, downloadErr.Error())

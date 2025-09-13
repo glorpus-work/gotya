@@ -27,7 +27,7 @@ tasks:
     env:
       CGO_ENABLED: "0"
     cmds:
-      - go test -v -coverprofile={{.COVER_PROFILE}} ./...
+      - go test ./...
 
   test-cover:
     desc: Run tests and show coverage
@@ -119,3 +119,7 @@ tasks:
   # Alias for convenience
   test-local: act-integration-test
   test-local-all: act-integration-test-all
+
+  check:
+    desc: Run all checks (lint, test, build)
+    deps: [lint, test]

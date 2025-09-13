@@ -219,7 +219,13 @@ func getConfigPath() string {
 		return *ConfigPath
 	}
 
-	defaultPath, _ := config.GetDefaultConfigPath()
+	defaultPath, err := config.GetDefaultConfigPath()
+	if err != nil {
+		// If we can't get the default path, use an empty string which will cause a more descriptive error later
+		// when the config file is actually being read/written
+		logger.Warn("Failed to get default config path, using empty path", logger.Fields{"error": err})
+		return ""
+	}
 	return defaultPath
 }
 

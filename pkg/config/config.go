@@ -88,8 +88,17 @@ type Settings struct {
 // DefaultConfig returns a configuration with sensible defaults.
 func DefaultConfig() *Config {
 	// Get the default install directory (usually ~/.local/share/gotya/install on Linux)
-	installDir, _ := fsutil.GetInstalledDir()
-	cacheDir, _ := fsutil.GetCacheDir()
+	installDir, err := fsutil.GetInstalledDir()
+	if err != nil {
+		// Fall back to a reasonable default if we can't determine the install dir
+		installDir = "/usr/local/share/gotya/install"
+	}
+
+	cacheDir, err := fsutil.GetCacheDir()
+	if err != nil {
+		// Fall back to a reasonable default if we can't determine the cache dir
+		cacheDir = "/var/cache/gotya"
+	}
 
 	return &Config{
 		Repositories: []*RepositoryConfig{},

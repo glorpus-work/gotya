@@ -23,12 +23,6 @@ linters-settings:
     min-complexity: 10
   goimports:
     local-prefixes: github.com/cperrin88/gotya
-  gosec:
-    excludes:
-      - G204 # Subprocess launched with variable
-      - G304 # Potential file inclusion via variable
-  lll:
-    line-length: 120
   maligned:
     suggest-new: true
   misspell:
@@ -41,74 +35,7 @@ linters-settings:
     check-exported: true
 
 linters:
-  enable:
-    - asasalint
-    - asciicheck
-    - bodyclose
-    - containedctx
-    - contextcheck
-    - decorder
-    - dogsled
-    - dupl
-    - durationcheck
-    - errcheck
-    - errchkjson
-    - errname
-    - errorlint
-    - exhaustive
-    - copyloopvar
-    - gci
-    - gocognit
-    - goconst
-    - gocritic
-    - gocyclo
-    - godot
-    - err113
-    - gofmt
-    - gofumpt
-    - goheader
-    - goimports
-    - gomoddirectives
-    - goprintffuncname
-    - gosec
-    - gosimple
-    - govet
-    - importas
-    - ineffassign
-    - interfacebloat
-    - ireturn
-    - lll
-    - loggercheck
-    - makezero
-    - misspell
-    - mnd
-    - musttag
-    - nakedret
-    - nilerr
-    - nilnil
-    - noctx
-    - nolintlint
-    - nosprintfhostport
-    - prealloc
-    - predeclared
-    - promlinter
-    - reassign
-    - revive
-    - rowserrcheck
-    - sqlclosecheck
-    - staticcheck
-    - stylecheck
-    - tparallel
-    - typecheck
-    - unconvert
-    - unparam
-    - unused
-    - usestdlibvars
-    - varnamelen
-    - wastedassign
-    - whitespace
-  disable-all: true
-  fast: false
+  default: all
 
 issues:
   exclude-rules:

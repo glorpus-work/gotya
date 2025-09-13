@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cperrin88/gotya/pkg/fsutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,23 +26,23 @@ func prepareTestArtifact(t *testing.T, packageName string, files []*testFile) st
 	t.Helper()
 
 	tempDir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(tempDir, packageName), DirModeSecure); err != nil {
+	if err := os.MkdirAll(filepath.Join(tempDir, packageName), fsutil.DirModeSecure); err != nil {
 		return ""
 	}
 	for _, file := range files {
 		fullPath := path.Join(tempDir, packageName, file.path)
 		if file.isDir {
-			if err := os.MkdirAll(fullPath, DirModeSecure); err != nil {
+			if err := os.MkdirAll(fullPath, fsutil.DirModeSecure); err != nil {
 				return ""
 			}
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(fullPath), DirModeSecure); err != nil {
+		if err := os.MkdirAll(filepath.Dir(fullPath), fsutil.DirModeSecure); err != nil {
 			return ""
 		}
 
-		if err := os.WriteFile(fullPath, []byte(file.content), FileModeSecure); err != nil {
+		if err := os.WriteFile(fullPath, []byte(file.content), fsutil.FileModeSecure); err != nil {
 			return ""
 		}
 
