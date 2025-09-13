@@ -1,63 +1,23 @@
+version: "2"
 run:
-  timeout: 5m
   tests: true
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-    check-errors: true
-  govet:
-    settings:
-      printf:
-        funcs: ["(*log.Logger).Fatal", "(*log.Logger).Fatalf", "(*log.Logger).Panic", "(*log.Logger).Panicf", "(*testing.T).Fatal", "(*testing.T).Fatalf"]
-  gocritic:
-    enabled: true
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - style
-      - performance
-  gocyclo:
-    min-complexity: 10
-  goimports:
-    local-prefixes: github.com/cperrin88/gotya
-  maligned:
-    suggest-new: true
-  misspell:
-    locale: US
-  prealloc:
-    simple: true
-    range-loops: true
-    for-loops: true
-  unused:
-    check-exported: true
-
 linters:
-  default: all
-
-issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - gomnd
-        - gosec
-        - gocognit
-        - gocyclo
-    - linters:
-        - gosec
-      text: "G204: Subprocess launching should be audited"
-    - linters:
-        - gosec
-      text: "G304: Potential file inclusion via variable"
-    - linters:
-        - gosec
-      text: "G307: Deferring unsafe method"
-  max-issues-per-linter: 0
-  max-same-issues: 0
-  exclude-dirs:
-    - .git
-    - vendor
-severity:
-  default-severity: error
+  default: standard
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
