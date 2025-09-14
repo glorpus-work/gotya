@@ -7,8 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
-    name: Build and Test
+  test:
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
@@ -18,11 +18,34 @@ jobs:
           check-latest: true
           cache: true
 
+      - name: Install Task
+        run: go install github.com/go-task/task/v3/cmd/task@latest
+
       - name: Check out code
         uses: actions/checkout@v5
 
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+        run: task test
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+          cache: true
+
+      - name: Install Task
+        run: go install github.com/go-task/task/v3/cmd/task@latest
+
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Run tests
+        run: task test-integration
 
   lint:
     name: Lint

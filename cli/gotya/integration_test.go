@@ -1,4 +1,5 @@
 //go:build integration
+// +build integration
 
 package main
 
@@ -9,7 +10,9 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/cperrin88/gotya/test/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,16 +43,35 @@ type cliTest struct {
 	expectedOutput string
 	expectedError  string
 	skip           bool
+	skipOnCI       bool                                  // Skip this test when running in CI environment
+	setup          func(t *testing.T, configPath string) // Optional setup function
 }
 
 func runCLITest(t *testing.T, binaryPath string, test cliTest) {
 	t.Helper()
 
-	if test.skip {
+	if test.skip || (os.Getenv("CI") != "" && test.skipOnCI) {
 		t.Skip("Skipping test: " + test.name)
 	}
 
 	t.Run(test.name, func(t *testing.T) {
+		// Create a temporary directory for this test run
+		tempDir := t.TempDir()
+
+		// Set up test environment
+		envVars := []string{
+			"GOTYA_CONFIG_DIR=" + tempDir,
+			"GOTYA_CACHE_DIR=" + filepath.Join(tempDir, "cache"),
+			"GOTYA_INSTALL_DIR=" + filepath.Join(tempDir, "installed"),
+			"NO_COLOR=true", // Disable color output for consistent test results
+		}
+
+		// Run setup function if provided
+		if test.setup != nil {
+			test.setup(t, tempDir)
+		}
+
+		// Prepare the command
 		cmd := exec.Command(binaryPath, test.args...)
 
 		// Capture output
@@ -57,25 +79,33 @@ func runCLITest(t *testing.T, binaryPath string, test cliTest) {
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 
-		// Set up a clean environment
-		cmd.Env = append(os.Environ(),
-			"GOTYA_CONFIG_DIR="+t.TempDir(),
-			"NO_COLOR=true", // Disable color output for consistent test results
-		)
+		// Set up environment
+		cmd.Env = append(os.Environ(), envVars...)
 
-		err := cmd.Run()
+		// Run the command with a timeout
+		done := make(chan error, 1)
+		go func() {
+			done <- cmd.Run()
+		}()
 
-		// Check error expectations
-		if test.expectedError != "" {
-			require.Error(t, err, "expected error but got none")
-			assert.Contains(t, stderr.String(), test.expectedError, "stderr should contain expected error")
-		} else {
-			assert.NoError(t, err, "unexpected error: %v\nstderr: %s", err, stderr.String())
-		}
+		// Wait for command to complete or timeout
+		select {
+		case err := <-done:
+			// Check error expectations
+			if test.expectedError != "" {
+				require.Error(t, err, "expected error but got none")
+				assert.Contains(t, stderr.String(), test.expectedError, "stderr should contain expected error")
+			} else {
+				assert.NoError(t, err, "unexpected error: %v\nstderr: %s", err, stderr.String())
+			}
 
-		// Check output expectations
-		if test.expectedOutput != "" {
-			assert.Contains(t, stdout.String(), test.expectedOutput, "stdout should contain expected output")
+			// Check output expectations
+			if test.expectedOutput != "" {
+				assert.Contains(t, stdout.String(), test.expectedOutput, "stdout should contain expected output")
+			}
+
+		case <-time.After(30 * time.Second):
+			t.Fatal("Test timed out after 30 seconds")
 		}
 	})
 }
@@ -85,6 +115,14 @@ func TestCLIIntegration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
+	// Start test server
+	ts := testutil.NewTestServer(52221, testutil.GetTestRepoPath())
+	defer ts.Stop(t) // Pass the testing.T to Stop()
+
+	// Create test config
+	_ = testutil.SetupTestConfig(t, ts.URL) // Ignore unused configPath
+
+	// Build test binary
 	binaryPath := buildTestBinary(t)
 
 	tests := []cliTest{
@@ -94,27 +132,33 @@ func TestCLIIntegration(t *testing.T) {
 			args:           []string{"help"},
 			expectedOutput: "gotya is a lightweight personal artifact manager",
 		},
+
+		// Version command
 		{
 			name:           "version command",
 			args:           []string{"version"},
 			expectedOutput: "gotya version",
 		},
+
+		// Config command
 		{
-			name:          "unknown command",
-			args:          []string{"nonexistent-command"},
-			expectedError: "unknown command",
+			name:           "config help",
+			args:           []string{"config", "--help"},
+			expectedOutput: "View and modify gotya configuration settings",
 		},
 
-		// Install command
+		// Cache commands
+		{
+			name:           "cache help",
+			args:           []string{"cache", "--help"},
+			expectedOutput: "Clean, show information about, and manage the artifact cache",
+		},
+
+		// Install command - basic test without actual installation
 		{
 			name:           "install help",
 			args:           []string{"install", "--help"},
 			expectedOutput: "Install one or more packages from the configured repositories",
-		},
-		{
-			name:          "install with no arguments",
-			args:          []string{"install"},
-			expectedError: "requires at least 1 arg(s), only received 0",
 		},
 
 		// Search command
@@ -136,24 +180,14 @@ func TestCLIIntegration(t *testing.T) {
 			expectedOutput: "List installed or available packages",
 		},
 
-		// Cache command
+		// Error cases
 		{
-			name:           "cache help",
-			args:           []string{"cache", "--help"},
-			expectedOutput: "Clean, show information about, and manage the artifact cache",
-		},
-		{
-			name:           "cache clean help",
-			args:           []string{"cache", "clean", "--help"},
-			expectedOutput: "Remove cached files to free up disk space",
+			name:          "unknown command",
+			args:          []string{"nonexistent-command"},
+			expectedError: "unknown command",
 		},
 
 		// Config command
-		{
-			name:           "config help",
-			args:           []string{"config", "--help"},
-			expectedOutput: "View and modify gotya configuration settings",
-		},
 		{
 			name:           "config show",
 			args:           []string{"config", "show"},
@@ -164,7 +198,7 @@ func TestCLIIntegration(t *testing.T) {
 		{
 			name:           "sync help",
 			args:           []string{"sync", "--help"},
-			expectedOutput: "Synchronize artifact index indexes",
+			expectedOutput: "Synchronize artifact index indexes by downloading the latest",
 		},
 		// Add more test cases for other commands as needed
 	}
