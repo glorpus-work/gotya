@@ -27,7 +27,20 @@ tasks:
     env:
       CGO_ENABLED: "0"
     cmds:
-      - go test ./...
+      - go test -short ./...
+
+  test-integration:
+    desc: Run integration tests
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go test -tags=integration ./...
+
+  test-all:
+    desc: Run all tests including integration tests
+    cmds:
+      - task: test
+      - task: test-integration
 
   test-cover:
     desc: Run tests and show coverage
