@@ -3,6 +3,7 @@ package artifact
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -19,6 +20,7 @@ import (
 	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
+	"github.com/mholt/archives"
 )
 
 // Common validation patterns.
@@ -464,6 +466,10 @@ func CreateArtifact(
 
 	// Create output filename and artifact
 	outputFile := filepath.Join(outputDir, fmt.Sprintf("%s_%s_%s_%s.tar.gz", pkgName, pkgVer, pkgOS, pkgArch))
+	artifactFileName := filepath.Join(cleanSourceDir, "meta", "artifact.json")
+	if err := createMetadataFile(meta, artifactFileName); err != nil {
+		return "", errors.Wrapf(err, "failed to create metadata file %s", artifactFileName)
+	}
 
 	// Create and verify the tarball
 	if err := createTarball(cleanSourceDir, outputFile, meta); err != nil {
@@ -504,94 +510,57 @@ func verifyDirectoryWritable(dirPath string) error {
 	return nil
 }
 
-// createTarball creates a gzipped tarball from the source directory.
-func createTarball(sourceDir, outputPath string, meta *Metadata) error {
-	// Create the output file
-	file, err := os.Create(outputPath)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create output file %s", outputPath)
-	}
-	defer file.Close()
-
-	// Create a gzip writer
-	gzWriter := gzip.NewWriter(file)
-	defer gzWriter.Close()
-
-	// Create a tar writer
-	tarWriter := tar.NewWriter(gzWriter)
-	defer tarWriter.Close()
-
-	// Walk through the source directory and add files to the tarball
-	err = filepath.Walk(sourceDir, func(filePath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return errors.Wrapf(err, "error walking to %s", filePath)
-		}
-
-		// Get the relative path
-		relPath, err := filepath.Rel(sourceDir, filePath)
-		if err != nil {
-			return errors.Wrapf(err, "error getting relative path for %s", filePath)
-		}
-
-		// Skip the output file if it's in the source directory
-		if relPath == filepath.Base(outputPath) {
-			return nil
-		}
-
-		// Create a new tar header
-		header, err := tar.FileInfoHeader(info, "")
-		if err != nil {
-			return errors.Wrapf(err, "error creating tar header for %s", filePath)
-		}
-
-		// Update the header name to use forward slashes and relative path
-		header.Name = filepath.ToSlash(relPath)
-
-		// Write the header to the tarball
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return errors.Wrapf(err, "error writing header for %s", filePath)
-		}
-
-		// If it's a regular file, write its content
-		if info.Mode().IsRegular() {
-			file, err := os.Open(filePath)
-			if err != nil {
-				return errors.Wrapf(err, "error opening file %s", filePath)
-			}
-			defer file.Close()
-
-			if _, err := io.Copy(tarWriter, file); err != nil {
-				return errors.Wrapf(err, "error writing file content for %s", filePath)
-			}
-		}
-
-		return nil
-	})
-	if err != nil {
-		return errors.Wrap(err, "error walking source directory")
+func createMetadataFile(meta *Metadata, outputPath string) error {
+	if err := fsutil.EnsureFileDir(outputPath); err != nil {
+		return errors.Wrapf(err, "failed to ensure metadata file directory %s", outputPath)
 	}
 
-	// Add the metadata file to the tarball
 	metaJSON, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
-		return errors.Wrap(err, "error marshaling metadata to JSON")
+		return errors.Wrapf(err, "failed to marshal metadata")
 	}
 
 	metaJSON = append(metaJSON, '\n')
 
-	header := &tar.Header{
-		Name:    "meta/artifact.json",
-		Size:    int64(len(metaJSON)),
-		Mode:    fsutil.FileModeDefault,
-		ModTime: time.Now(),
+	file, err := os.OpenFile(outputPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, fsutil.FileModeDefault)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create metadata file %s", outputPath)
+	}
+	defer file.Close()
+
+	if _, err := file.Write(metaJSON); err != nil {
+		return errors.Wrapf(err, "failed to write metadata to file %s", outputPath)
 	}
 
-	if err := tarWriter.WriteHeader(header); err != nil {
-		return errors.Wrap(err, "error writing metadata header")
+	return nil
+}
+
+// createTarball creates a gzipped tarball from the source directory.
+func createTarball(sourceDir, outputFile string, meta *Metadata) error {
+	ctx := context.Background()
+
+	archiveFiles, err := archives.FilesFromDisk(ctx, nil, map[string]string{
+		sourceDir + "/": "",
+	})
+	if err != nil {
+		return errors.Wrapf(err, "failed to read files from disk")
+	}
+	// Create the output file
+	file, err := os.Create(outputFile)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create output file %s", outputFile)
+	}
+	defer file.Close()
+
+	format := archives.CompressedArchive{
+		Compression: archives.Gz{},
+		Archival:    archives.Tar{},
 	}
 
-	if _, err := tarWriter.Write(metaJSON); err != nil {
-		return errors.Wrap(err, "error writing metadata content")
+	// create the archive
+	err = format.Archive(ctx, file, archiveFiles)
+	if err != nil {
+		return err
 	}
 
 	return nil
