@@ -44,7 +44,7 @@ type RepositoryConfig struct {
 	Name     string `yaml:"name"`
 	URL      string `yaml:"url"`
 	Enabled  bool   `yaml:"enabled"`
-	Priority int    `yaml:"priority"`
+	Priority uint   `yaml:"priority"`
 }
 
 // PlatformConfig represents platform-specific configuration.

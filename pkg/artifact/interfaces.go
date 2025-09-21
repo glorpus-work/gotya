@@ -20,12 +20,6 @@ type InstalledManager interface {
 	GetInstalledArtifacts() []InstalledArtifact
 }
 
-// MetadataExtractor defines the interface for extracting artifact metadata.
-type MetadataExtractor interface {
-	ExtractMetadata(packagePath string) (*ArtifactMetadata, error)
-	ValidateArtifact(packagePath string) error
-}
-
 // InstalledArtifact represents an installed artifact with its files.
 type InstalledArtifact struct {
 	Name          string    `json:"name"`
@@ -35,20 +29,4 @@ type InstalledArtifact struct {
 	InstalledFrom string    `json:"installed_from"` // URL or index where it was installed from
 	Files         []string  `json:"files"`          // List of files installed by this artifact
 	Checksum      string    `json:"checksum"`       // Checksum of the original artifact
-}
-
-// ArtifactMetadata represents metadata about a artifact.
-type ArtifactMetadata struct {
-	Name         string            `json:"name"`
-	Version      string            `json:"version"`
-	Description  string            `json:"description"`
-	Author       string            `json:"author,omitempty"`
-	Homepage     string            `json:"homepage,omitempty"`
-	License      string            `json:"license,omitempty"`
-	Dependencies []string          `json:"dependencies,omitempty"`
-	Conflicts    []string          `json:"conflicts,omitempty"`
-	Provides     []string          `json:"provides,omitempty"`
-	Architecture string            `json:"architecture,omitempty"`
-	Metadata     map[string]string `json:"metadata,omitempty"`
-	CreatedAt    time.Time         `json:"created_at"`
 }

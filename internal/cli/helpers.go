@@ -65,7 +65,7 @@ func loadIndexManager(config *config.Config, httpClient http.Client) index.Manag
 		repositories = append(repositories, &index.Repository{
 			Name:     repo.Name,
 			URL:      repo.GetURL(),
-			Priority: uint(repo.Priority),
+			Priority: repo.Priority,
 			Enabled:  repo.Enabled,
 		})
 	}
