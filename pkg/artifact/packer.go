@@ -180,6 +180,9 @@ func (p *Packer) copyInputDir() error {
 		}
 
 		relPath, err := filepath.Rel(absInputDir, path)
+		if err != nil {
+			return errors.Wrapf(err, "error getting relative path of %s", path)
+		}
 		tempPath := filepath.Join(p.tempDir, relPath)
 		switch d.Type() & os.ModeType {
 		case os.ModeDir:

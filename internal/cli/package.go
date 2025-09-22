@@ -45,10 +45,7 @@ func newArtifactCreateCommand() *cobra.Command {
 		Long: `Create a new gotya artifact from a source directory.
 The source directory should contain a 'meta/artifact.json' file and a 'files/' directory.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			// Delegate to the artifact implementation
-			_, err := pkgpkg.CreateArtifact(
-				sourceDir,
-				outputDir,
+			packer := pkgpkg.NewPacker(
 				pkgName,
 				pkgVer,
 				pkgOS,
@@ -57,8 +54,10 @@ The source directory should contain a 'meta/artifact.json' file and a 'files/' d
 				description,
 				dependencies,
 				hooks,
+				sourceDir,
+				outputDir,
 			)
-			if err != nil {
+			if err := packer.Pack(); err != nil {
 				return fmt.Errorf("failed to create artifact: %w", err)
 			}
 			return nil
