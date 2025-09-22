@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/errors"
+	"github.com/cperrin88/gotya/pkg/model"
 )
 
 const (
@@ -20,7 +21,7 @@ func NewIndex(formatVersion string) *Index {
 	return &Index{
 		FormatVersion: formatVersion,
 		LastUpdate:    time.Now(),
-		Artifacts:     make([]*Artifact, 0, InitialArtifactCapacity),
+		Artifacts:     make([]*model.IndexArtifactDescriptor, 0, InitialArtifactCapacity),
 	}
 }
 
@@ -35,7 +36,7 @@ func (idx *Index) GetLastUpdate() string {
 }
 
 // GetArtifacts returns all packages.
-func (idx *Index) GetArtifacts() []*Artifact {
+func (idx *Index) GetArtifacts() []*model.IndexArtifactDescriptor {
 	return idx.Artifacts
 }
 
@@ -82,8 +83,8 @@ func (idx *Index) ToJSON() ([]byte, error) {
 	return data, nil
 }
 
-func (idx *Index) FindArtifacts(name string) []*Artifact {
-	packages := make([]*Artifact, 0, 5)
+func (idx *Index) FindArtifacts(name string) []*model.IndexArtifactDescriptor {
+	packages := make([]*model.IndexArtifactDescriptor, 0, 5)
 	for _, pkg := range idx.Artifacts {
 		if pkg.Name == name {
 			packages = append(packages, pkg)
@@ -94,7 +95,7 @@ func (idx *Index) FindArtifacts(name string) []*Artifact {
 }
 
 // AddArtifact adds a artifact to the index.
-func (idx *Index) AddArtifact(pkg *Artifact) {
+func (idx *Index) AddArtifact(pkg *model.IndexArtifactDescriptor) {
 	// Remove existing artifact with same name if it exists
 	for i := range idx.Artifacts {
 		if idx.Artifacts[i].Name == pkg.Name {

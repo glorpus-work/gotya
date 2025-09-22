@@ -1,4 +1,4 @@
-package index
+package model
 
 import (
 	"testing"
@@ -44,7 +44,7 @@ func TestArtifact_MatchOs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Artifact{OS: tt.pkgOS}
+			pkg := &IndexArtifactDescriptor{OS: tt.pkgOS}
 			result := pkg.MatchOs(tt.testOS)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -86,7 +86,7 @@ func TestArtifact_MatchArch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Artifact{Arch: tt.pkgArch}
+			pkg := &IndexArtifactDescriptor{Arch: tt.pkgArch}
 			result := pkg.MatchArch(tt.testArch)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -146,7 +146,7 @@ func TestArtifact_MatchVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Artifact{Version: tt.pkgVersion}
+			pkg := &IndexArtifactDescriptor{Version: tt.pkgVersion}
 			result := pkg.MatchVersion(tt.constraint)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -178,7 +178,7 @@ func TestArtifact_GetVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Artifact{Version: tt.version}
+			pkg := &IndexArtifactDescriptor{Version: tt.version}
 			result := pkg.GetVersion()
 			if tt.expected == nil {
 				assert.Nil(t, result)
@@ -210,7 +210,7 @@ func TestArtifact_GetOS(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Artifact{OS: tt.pkgOS}
+			pkg := &IndexArtifactDescriptor{OS: tt.pkgOS}
 			result := pkg.GetOS()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -237,7 +237,7 @@ func TestArtifact_GetArch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := &Artifact{Arch: tt.pkgArch}
+			pkg := &IndexArtifactDescriptor{Arch: tt.pkgArch}
 			result := pkg.GetArch()
 			assert.Equal(t, tt.expected, result)
 		})

@@ -13,6 +13,7 @@ import (
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/http"
 	"github.com/cperrin88/gotya/pkg/index"
+	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/mholt/archives"
 )
 
@@ -25,13 +26,14 @@ type ManagerImpl struct {
 	artifactInstallDir string
 }
 
-func NewManager(indexManager index.Manager, httpClient http.Client, os, arch, packageCacheDir string) *ManagerImpl {
+func NewManager(indexManager index.Manager, httpClient http.Client, os, arch, artifactCacheDir, artifactInstallDir string) *ManagerImpl {
 	return &ManagerImpl{
-		indexManager:     indexManager,
-		httpClient:       httpClient,
-		os:               os,
-		arch:             arch,
-		artifactCacheDir: packageCacheDir,
+		indexManager:       indexManager,
+		httpClient:         httpClient,
+		os:                 os,
+		arch:               arch,
+		artifactCacheDir:   artifactCacheDir,
+		artifactInstallDir: artifactInstallDir,
 	}
 }
 
@@ -43,23 +45,20 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, pkgName, version strin
 	if err := m.DownloadArtifact(ctx, artifact); err != nil {
 		return err
 	}
-
 	if err := m.VerifyArtifact(ctx, artifact); err != nil {
 		return err
 	}
-
 	return nil
 }
 
-func (m ManagerImpl) DownloadArtifact(ctx context.Context, artifact *index.Artifact) error {
+func (m ManagerImpl) DownloadArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
 	if err := m.httpClient.DownloadArtifact(ctx, artifact.GetURL(), m.getArtifactCacheFilePath(artifact)); err != nil {
 		return err
 	}
-
 	return nil
 }
 
-func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *index.Artifact) error {
+func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
 	filePath := m.getArtifactCacheFilePath(artifact)
 	if _, err := os.Stat(filePath); err != nil {
 		return errors.ErrArtifactNotFound
@@ -82,7 +81,9 @@ func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *index.Artifac
 	}
 
 	if metadata.Name != artifact.Name || metadata.Version != artifact.Version || metadata.GetOS() != artifact.GetOS() || metadata.GetArch() != artifact.GetArch() {
-		return errors.ErrArtifactInvalid
+		return errors.Wrapf(errors.ErrArtifactInvalid, "metadata mismatch - expected Name: %s, Version: %s, OS: %s, Arch: %s but got Name: %s, Version: %s, OS: %s, Arch: %s",
+			artifact.Name, artifact.Version, artifact.GetOS(), artifact.GetArch(),
+			metadata.Name, metadata.Version, metadata.GetOS(), metadata.GetArch())
 	}
 
 	dataDir, err := fsys.Open(artifactDataDir)
@@ -102,15 +103,15 @@ func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *index.Artifac
 			if !entry.Type().IsRegular() {
 				continue
 			}
-
-			val, ok := metadata.Hashes[filepath.Join(artifactDataDir, entry.Name())]
+			artifactFile := filepath.Join(artifactDataDir, entry.Name())
+			val, ok := metadata.Hashes[artifactFile]
 			if !ok {
-				return errors.ErrArtifactInvalid
+				return errors.Wrapf(errors.ErrArtifactInvalid, "hash for file %s not found", artifactFile)
 			}
 
 			h := sha256.New()
 
-			file, err := fsys.Open(filepath.Join(artifactDataDir, entry.Name()))
+			file, err := fsys.Open(artifactFile)
 			if err != nil {
 				return errors.Wrap(err, "failed to open file")
 			}
@@ -132,6 +133,6 @@ func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *index.Artifac
 	return nil
 }
 
-func (m ManagerImpl) getArtifactCacheFilePath(artifact *index.Artifact) string {
+func (m ManagerImpl) getArtifactCacheFilePath(artifact *model.IndexArtifactDescriptor) string {
 	return filepath.Join(m.artifactCacheDir, fmt.Sprintf("%s_%s_%s_%s.gotya", artifact.Name, artifact.Version, artifact.OS, artifact.Arch))
 }

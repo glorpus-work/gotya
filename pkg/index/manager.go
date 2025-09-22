@@ -12,6 +12,7 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/http"
+	"github.com/cperrin88/gotya/pkg/model"
 )
 
 type UintSlice []uint
@@ -87,19 +88,19 @@ func (rm *ManagerImpl) GetCacheAge(name string) (time.Duration, error) {
 	return time.Since(stat.ModTime()), nil
 }
 
-func (rm *ManagerImpl) FindArtifacts(name string) (map[string][]*Artifact, error) {
+func (rm *ManagerImpl) FindArtifacts(name string) (map[string][]*model.IndexArtifactDescriptor, error) {
 	indexes, err := rm.getIndexes()
 	if err != nil {
 		return nil, err
 	}
 
-	packages := make(map[string][]*Artifact, 10)
+	packages := make(map[string][]*model.IndexArtifactDescriptor, 10)
 
 	for idxName, idx := range indexes {
 		pkg := idx.FindArtifacts(name)
 		if pkg != nil {
 			if packages[idxName] != nil {
-				packages[idxName] = make([]*Artifact, 0, 5)
+				packages[idxName] = make([]*model.IndexArtifactDescriptor, 0, 5)
 			}
 			packages[idxName] = pkg
 		}
@@ -111,13 +112,13 @@ func (rm *ManagerImpl) FindArtifacts(name string) (map[string][]*Artifact, error
 	return packages, nil
 }
 
-func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*Artifact, error) {
+func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.IndexArtifactDescriptor, error) {
 	repoArtifacts, err := rm.FindArtifacts(name)
 	if err != nil {
 		return nil, err
 	}
 
-	repoPrioArtifacts := make(map[uint][]*Artifact)
+	repoPrioArtifacts := make(map[uint][]*model.IndexArtifactDescriptor)
 
 	for idxName, pkgs := range repoArtifacts {
 		for _, pkg := range pkgs {
@@ -136,7 +137,7 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*Artifac
 				return nil, errors.ErrRepositoryNotFound(idxName)
 			}
 			if repoPrioArtifacts[repo.Priority] == nil {
-				repoPrioArtifacts[repo.Priority] = make([]*Artifact, 5)
+				repoPrioArtifacts[repo.Priority] = make([]*model.IndexArtifactDescriptor, 5)
 			}
 			repoPrioArtifacts[repo.Priority] = append(repoPrioArtifacts[repo.Priority], pkg)
 		}
@@ -148,7 +149,7 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*Artifac
 	prios := slices.Collect(maps.Keys(repoPrioArtifacts))
 	sort.Sort(sort.Reverse(UintSlice(prios)))
 
-	var finalArtifact *Artifact
+	var finalArtifact *model.IndexArtifactDescriptor
 	for _, prio := range prios {
 		for _, pkg := range repoPrioArtifacts[prio] {
 			if finalArtifact == nil || pkg.GetVersion().GreaterThanOrEqual(finalArtifact.GetVersion()) {
@@ -157,7 +158,23 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*Artifac
 		}
 	}
 
-	return finalArtifact, nil
+	if finalArtifact == nil {
+		return nil, ErrArtifactNotFound
+	}
+
+	desc := &model.IndexArtifactDescriptor{
+		Name:         finalArtifact.Name,
+		Version:      finalArtifact.Version,
+		Description:  finalArtifact.Description,
+		URL:          finalArtifact.URL,
+		Checksum:     finalArtifact.Checksum,
+		Size:         finalArtifact.Size,
+		OS:           finalArtifact.GetOS(),
+		Arch:         finalArtifact.GetArch(),
+		Dependencies: finalArtifact.Dependencies,
+		Metadata:     finalArtifact.Metadata,
+	}
+	return desc, nil
 }
 
 func (rm *ManagerImpl) GetIndex(name string) (*Index, error) {

@@ -4,12 +4,14 @@ package index
 import (
 	"context"
 	"time"
+
+	"github.com/cperrin88/gotya/pkg/model"
 )
 
 type Index struct {
-	FormatVersion string      `json:"format_version"`
-	LastUpdate    time.Time   `json:"last_update"`
-	Artifacts     []*Artifact `json:"packages"`
+	FormatVersion string                           `json:"format_version"`
+	LastUpdate    time.Time                        `json:"last_update"`
+	Artifacts     []*model.IndexArtifactDescriptor `json:"packages"`
 }
 
 // Info represents index information.
@@ -35,10 +37,10 @@ type Manager interface {
 	GetCacheAge(name string) (time.Duration, error)
 
 	// FindArtifacts searches for packages by name across all repositories
-	FindArtifacts(name string) (map[string][]*Artifact, error)
+	FindArtifacts(name string) (map[string][]*model.IndexArtifactDescriptor, error)
 
 	// ResolveArtifact finds a specific package with the given name, version, OS and architecture
-	ResolveArtifact(name, version, os, arch string) (*Artifact, error)
+	ResolveArtifact(name, version, os, arch string) (*model.IndexArtifactDescriptor, error)
 
 	// GetIndex retrieves an index by name
 	GetIndex(name string) (*Index, error)

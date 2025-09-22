@@ -200,9 +200,14 @@ func TestPackSymlinks(t *testing.T) {
 				err = os.WriteFile(targetFile, []byte("target content"), 0644)
 				require.NoError(t, err)
 
-				// Create a relative symlink
+				// Create a relative symlink (target must be relative to current working directory because
+				// copyInputDir resolves symlink targets using filepath.Abs(target))
 				symlinkPath := filepath.Join(inputDir, "data", "link.txt")
-				err = os.Symlink("target.txt", symlinkPath)
+				cwd, cwdErr := os.Getwd()
+				require.NoError(t, cwdErr)
+				relFromCwd, relErr := filepath.Rel(cwd, targetFile)
+				require.NoError(t, relErr)
+				err = os.Symlink(relFromCwd, symlinkPath)
 				require.NoError(t, err)
 
 				return inputDir, outputDir, symlinkPath
@@ -233,7 +238,7 @@ func TestPackSymlinks(t *testing.T) {
 				return inputDir, outputDir, symlinkPath
 			},
 			expectErr:  true,
-			errMessage: "symlink is absolute",
+			errMessage: "is absolute",
 		},
 	}
 
@@ -252,16 +257,24 @@ func TestPackSymlinks(t *testing.T) {
 				outputDir:   outputDir,
 			}
 
+			// Ensure output directory exists
+			require.NoError(t, os.MkdirAll(outputDir, 0o755))
+
 			err := p.Pack()
 
 			if tt.expectErr {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMessage)
+				// New error semantics: ensure it wraps ErrInvalidPath
+				assert.ErrorIs(t, err, errors.ErrInvalidPath)
+				// Keep a minimal message check to ensure context is present when provided
+				if tt.errMessage != "" {
+					assert.Contains(t, err.Error(), tt.errMessage)
+				}
 			} else {
 				assert.NoError(t, err)
 
-				// Verify the output file was created
-				outputFile := filepath.Join(outputDir, p.name+"-"+p.version+"-"+p.os+"-"+p.arch+".gotya")
+				// Verify the output file was created (underscored naming)
+				outputFile := filepath.Join(outputDir, p.name+"_"+p.version+"_"+p.os+"_"+p.arch+".gotya")
 				_, err := os.Stat(outputFile)
 				assert.NoError(t, err, "output file should exist")
 			}

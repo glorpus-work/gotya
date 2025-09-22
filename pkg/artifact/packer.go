@@ -15,7 +15,7 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
-	"github.com/cperrin88/gotya/pkg/index"
+	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/mholt/archives"
 )
 
@@ -108,13 +108,13 @@ func (p *Packer) verify() error {
 		p.arch,
 		p.outputDir,
 	)
-	indexArtifact := &index.Artifact{
+	desc := &model.IndexArtifactDescriptor{
 		Name:    p.name,
 		Version: p.version,
 		OS:      p.os,
 		Arch:    p.arch,
 	}
-	if err := manager.VerifyArtifact(context.Background(), indexArtifact); err != nil {
+	if err := manager.VerifyArtifact(context.Background(), desc); err != nil {
 		return err
 	}
 	return nil
