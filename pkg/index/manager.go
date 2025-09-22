@@ -172,7 +172,6 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 		OS:           finalArtifact.GetOS(),
 		Arch:         finalArtifact.GetArch(),
 		Dependencies: finalArtifact.Dependencies,
-		Metadata:     finalArtifact.Metadata,
 	}
 	return desc, nil
 }

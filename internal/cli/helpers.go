@@ -73,7 +73,7 @@ func loadIndexManager(config *config.Config, httpClient http.Client) index.Manag
 }
 
 func loadArtifactManager(config *config.Config, indexManager index.Manager, httpClient http.Client) artifact.Manager {
-	return artifact.NewManager(indexManager, httpClient, config.Settings.Platform.OS, config.Settings.Platform.Arch, config.GetArtifactCacheDir())
+	return artifact.NewManager(indexManager, httpClient, config.Settings.Platform.OS, config.Settings.Platform.Arch, config.GetArtifactCacheDir(), config.Settings.InstallDir)
 }
 
 func loadHTTPClient(config *config.Config) http.Client {
