@@ -25,7 +25,7 @@ func TestNewManager(t *testing.T) {
 	mockIndexMgr := mockindex.NewMockManager(ctrl)
 	mockHttpClient := mockhttp.NewMockClient(ctrl)
 
-	mgr := NewManager(mockIndexMgr, mockHttpClient, platform.OSLinux, platform.ArchAMD64, t.TempDir())
+	mgr := NewManager(mockIndexMgr, mockHttpClient, platform.OSLinux, platform.ArchAMD64, t.TempDir(), "")
 
 	assert.NotNil(t, mgr)
 	assert.Equal(t, mockIndexMgr, mgr.indexManager)

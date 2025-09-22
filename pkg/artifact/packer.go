@@ -107,6 +107,7 @@ func (p *Packer) verify() error {
 		p.os,
 		p.arch,
 		p.outputDir,
+		"",
 	)
 	desc := &model.IndexArtifactDescriptor{
 		Name:    p.name,
