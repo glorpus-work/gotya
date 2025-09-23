@@ -85,7 +85,6 @@ func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, err
 
 	// Convert each artifact to a pointer
 	for i := range tempDB.Artifacts {
-		break
 		pkg := tempDB.Artifacts[i] // Create a copy in the loop
 		installedDB.Artifacts = append(installedDB.Artifacts, &pkg)
 	}

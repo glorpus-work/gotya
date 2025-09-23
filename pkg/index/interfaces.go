@@ -1,4 +1,3 @@
-//go:generate mockgen -destination=./mocks/index.go . Manager
 package index
 
 import (

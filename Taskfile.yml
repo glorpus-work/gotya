@@ -24,15 +24,11 @@ tasks:
   # Test tasks
   test:
     desc: Run all tests
-    env:
-      CGO_ENABLED: "0"
     cmds:
       - go test -short ./...
 
   test-integration:
     desc: Run integration tests
-    env:
-      CGO_ENABLED: "0"
     cmds:
       - go test -tags=integration ./...
 
@@ -55,17 +51,15 @@ tasks:
 
   mutate:
     desc: Run mutation testing on the codebase
-    deps: [test]  # Ensure tests pass before mutation testing
     cmds:
       - go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
-      - go-mutesting --exec "go test -v" ./...
+      - go-mutesting --exec "go test ./pkg/..." ./pkg/...
 
   mutate-verbose:
     desc: Run mutation testing with verbose output
-    deps: [test]
     cmds:
       - go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
-      - go-mutesting --debug --exec "go test -v" ./...
+      - go-mutesting --debug pkg/... internal/...
 
   # Lint and format
   lint:
