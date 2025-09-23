@@ -31,14 +31,17 @@ import (
 //
 // Minimal public API intended to be used by CLI or other packages.
 
+const (
+	// CurrentFormatVersion is the current version of the index format.
+	CurrentFormatVersion = "1"
+)
+
 type Generator struct {
 	// Dir is the root directory containing artifact files (.gotya). It can
 	// contain subdirectories; all .gotya files will be discovered recursively.
 	Dir string
 	// OutputPath is the full path of the index file to write (e.g., "/repo/index.json").
 	OutputPath string
-	// FormatVersion to set on the Index (e.g., "1").
-	FormatVersion string
 	// BasePath is an optional prefix to apply to artifact URLs in the index.
 	// The resulting URL is path.Join(BasePath, relPathFromIndexDirToArtifact).
 	BasePath string
@@ -52,12 +55,8 @@ func (g *Generator) Generate(ctx context.Context) error { //nolint:revive // ctx
 	if g.OutputPath == "" {
 		return errors.Wrapf(errors.ErrInvalidPath, "output index path is required")
 	}
-	if g.FormatVersion == "" {
-		g.FormatVersion = "1"
-	}
-
 	index := &Index{
-		FormatVersion: g.FormatVersion,
+		FormatVersion: CurrentFormatVersion,
 		LastUpdate:    time.Now(),
 		Artifacts:     make([]*model.IndexArtifactDescriptor, 0, InitialArtifactCapacity),
 	}

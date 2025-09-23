@@ -1,3 +1,8 @@
+// Package config provides configuration management for the gotya package manager.
+// It handles loading, validating, and managing application settings, index repositories,
+// and platform-specific configurations. The package supports YAML configuration files
+// and provides sensible defaults while allowing for customization through configuration files
+// and environment variables.
 package config
 
 import (

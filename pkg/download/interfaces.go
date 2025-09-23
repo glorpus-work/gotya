@@ -1,3 +1,8 @@
+// Package download provides a high-level API for downloading remote artifacts in the gotya package manager.
+// It offers concurrent downloads, caching, checksum verification, and retry mechanisms for reliable
+// and efficient file downloads. The package is designed to be testable and supports both single
+// and batch download operations with configurable concurrency and caching strategies.
+//
 //go:generate mockgen -destination=./mocks/index.go . Manager
 package download
 

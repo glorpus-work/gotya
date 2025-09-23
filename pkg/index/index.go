@@ -1,3 +1,10 @@
+// Package index provides functionality for working with package indexes in the gotya package manager.
+// It handles the creation, parsing, and querying of package indexes, which contain metadata
+// about available packages, their versions, and platform-specific artifacts. The package
+// supports versioning, filtering, and serialization of index data in JSON format.
+//
+// The index package is a core component that enables package discovery, version resolution,
+// and dependency management in the gotya ecosystem.
 package index
 
 import (
