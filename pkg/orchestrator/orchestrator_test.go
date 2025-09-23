@@ -11,7 +11,10 @@ import (
 	"github.com/cperrin88/gotya/pkg/download"
 	dlmocks "github.com/cperrin88/gotya/pkg/download/mocks"
 	"github.com/cperrin88/gotya/pkg/index"
+	"github.com/cperrin88/gotya/pkg/model"
 	ocmocks "github.com/cperrin88/gotya/pkg/orchestrator/mocks"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -28,27 +31,24 @@ func TestSyncAll_Success(t *testing.T) {
 	dl := dlmocks.NewMockManager(ctrl)
 	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, items []download.Item, opts download.Options) (map[string]string, error) {
-			if len(items) != 2 {
-				t.Fatalf("expected 2 items, got %d", len(items))
-			}
-			if items[0].ID != "repo1" || items[0].Filename != "repo1.json" {
-				t.Fatalf("unexpected first item: %+v", items[0])
-			}
-			if items[1].ID != "repo2" || items[1].Filename != "repo2.json" {
-				t.Fatalf("unexpected second item: %+v", items[1])
-			}
-			if opts.Dir != expectedDir {
-				t.Fatalf("expected dir %s, got %s", expectedDir, opts.Dir)
-			}
-			return map[string]string{"repo1": filepath.Join(expectedDir, "repo1.json"), "repo2": filepath.Join(expectedDir, "repo2.json")}, nil
+			assert.Len(t, items, 2, "should have 2 items to fetch")
+			assert.Equal(t, "repo1", items[0].ID, "first item ID should be 'repo1'")
+			assert.Equal(t, "repo1.json", items[0].Filename, "first item filename should be 'repo1.json'")
+			assert.Equal(t, "repo2", items[1].ID, "second item ID should be 'repo2'")
+			assert.Equal(t, "repo2.json", items[1].Filename, "second item filename should be 'repo2.json'")
+			assert.Equal(t, expectedDir, opts.Dir, "download directory should match")
+
+			return map[string]string{
+				"repo1": filepath.Join(expectedDir, "repo1.json"),
+				"repo2": filepath.Join(expectedDir, "repo2.json"),
+			}, nil
 		},
 	).Times(1)
 
 	orch := &Orchestrator{DL: dl}
 
-	if err := orch.SyncAll(context.Background(), repos, expectedDir, Options{Concurrency: 3}); err != nil {
-		t.Fatalf("SyncAll failed: %v", err)
-	}
+	err := orch.SyncAll(context.Background(), repos, expectedDir, Options{Concurrency: 3})
+	require.NoError(t, err, "SyncAll should not return an error")
 }
 
 func TestSyncAll_NoReposOrNilURL(t *testing.T) {
@@ -56,24 +56,29 @@ func TestSyncAll_NoReposOrNilURL(t *testing.T) {
 	defer ctrl.Finish()
 
 	dl := dlmocks.NewMockManager(ctrl)
+	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).Times(0) // No fetch should happen
+
 	orch := &Orchestrator{DL: dl}
 
-	// No repos
-	if err := orch.SyncAll(context.Background(), nil, t.TempDir(), Options{}); err != nil {
-		t.Fatalf("expected nil error for nil repos, got %v", err)
-	}
-	// Repos with nil URLs
-	repos := []*index.Repository{{Name: "r1", URL: nil}}
-	if err := orch.SyncAll(context.Background(), repos, t.TempDir(), Options{}); err != nil {
-		t.Fatalf("expected nil error for repos with nil URL, got %v", err)
-	}
+	// Test with nil repos
+	t.Run("nil repos", func(t *testing.T) {
+		err := orch.SyncAll(context.Background(), nil, t.TempDir(), Options{})
+		assert.NoError(t, err, "should not return error for nil repos")
+	})
+
+	// Test with repos containing nil URL
+	t.Run("nil URL in repos", func(t *testing.T) {
+		repos := []*index.Repository{{Name: "r1", URL: nil}}
+		err := orch.SyncAll(context.Background(), repos, t.TempDir(), Options{})
+		assert.NoError(t, err, "should not return error for repos with nil URL")
+	})
 }
 
 func TestSyncAll_NoDownloadManager(t *testing.T) {
-	orch := &Orchestrator{}
-	if err := orch.SyncAll(context.Background(), nil, t.TempDir(), Options{}); err == nil {
-		t.Fatalf("expected error when DL is nil")
-	}
+	orch := &Orchestrator{} // DL is nil
+	err := orch.SyncAll(context.Background(), nil, t.TempDir(), Options{})
+	require.Error(t, err, "should return error when DL is nil")
+	assert.Contains(t, err.Error(), "download manager is not configured", "error message should indicate missing download manager")
 }
 
 func TestSyncAll_DownloadError(t *testing.T) {
@@ -81,55 +86,124 @@ func TestSyncAll_DownloadError(t *testing.T) {
 	defer ctrl.Finish()
 
 	dl := dlmocks.NewMockManager(ctrl)
-	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("download failed")).Times(1)
+	expectedErr := fmt.Errorf("download failed")
+	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, expectedErr).
+		Times(1)
 
 	orch := &Orchestrator{DL: dl}
 	u, _ := url.Parse("https://example.com/repo/index.json")
-	err := orch.SyncAll(context.Background(), []*index.Repository{{Name: "repo", URL: u}}, t.TempDir(), Options{})
-	if err == nil || err.Error() != "download failed" {
-		t.Fatalf("expected download error, got: %v", err)
-	}
+	err := orch.SyncAll(
+		context.Background(),
+		[]*index.Repository{{Name: "repo", URL: u}},
+		t.TempDir(),
+		Options{},
+	)
+
+	require.Error(t, err, "should return error when download fails")
+	// Since we're not using a custom error type, we can just check the error message
+	assert.ErrorIs(t, err, expectedErr, "should return the expected error")
 }
 
 func TestSyncAll_EmptyRepos(t *testing.T) {
-	orch := &Orchestrator{DL: dlmocks.NewMockManager(gomock.NewController(t))}
-	if err := orch.SyncAll(context.Background(), []*index.Repository{}, t.TempDir(), Options{}); err != nil {
-		t.Fatalf("expected no error for empty repos, got: %v", err)
-	}
+	ctrl := gomock.NewController(t)
+	dl := dlmocks.NewMockManager(ctrl)
+	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	orch := &Orchestrator{DL: dl}
+	err := orch.SyncAll(
+		context.Background(),
+		[]*index.Repository{},
+		t.TempDir(),
+		Options{},
+	)
+
+	assert.NoError(t, err, "should not return error for empty repos")
 }
 
 func TestInstall_DryRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
-	orch := &Orchestrator{Index: idx}
-
-	// plan with two steps
+	// Setup test data
 	s1url, _ := url.Parse("https://example.com/a.tgz")
-	plan := index.InstallPlan{Steps: []index.InstallStep{
-		{ID: "pkgA@1.0.0", Name: "pkgA", Version: "1.0.0", OS: "linux", Arch: "amd64", SourceURL: s1url, Checksum: "abc"},
-		{ID: "pkgB@2.0.0", Name: "pkgB", Version: "2.0.0", OS: "linux", Arch: "amd64"},
-	}}
-
-	req := index.InstallRequest{Name: "pkgA", Version: ">= 0.0.0", OS: "linux", Arch: "amd64"}
-
-	idx.EXPECT().Plan(gomock.Any(), req).Return(plan, nil).Times(1)
-
-	var phases []string
-	var msgs []string
-	hooks := Hooks{OnEvent: func(e Event) {
-		phases = append(phases, e.Phase)
-		msgs = append(msgs, e.Msg)
-	}}
-
-	if err := orch.Install(context.Background(), req, Options{DryRun: true}, hooks); err != nil {
-		t.Fatalf("Install dry-run failed: %v", err)
+	req := index.InstallRequest{
+		Name:    "pkgA",
+		Version: ">= 0.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
 	}
 
-	// Expect planning, planning (steps), done
-	if len(phases) < 3 || phases[0] != "planning" || phases[len(phases)-1] != "done" {
-		t.Fatalf("unexpected events: phases=%v msgs=%v", phases, msgs)
+	plan := index.InstallPlan{
+		Steps: []index.InstallStep{
+			{
+				ID:        "pkgA@1.0.0",
+				Name:      "pkgA",
+				Version:   "1.0.0",
+				OS:        "linux",
+				Arch:      "amd64",
+				SourceURL: s1url,
+				Checksum:  "abc",
+			},
+			{
+				ID:      "pkgB@2.0.0",
+				Name:    "pkgB",
+				Version: "2.0.0",
+				OS:      "linux",
+				Arch:    "amd64",
+			},
+		},
+	}
+
+	// Setup mocks
+	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx.EXPECT().
+		Plan(gomock.Any(), req).
+		Return(plan, nil).
+		Times(1)
+
+	orch := &Orchestrator{Index: idx}
+
+	// Setup hooks to capture events
+	var events []Event
+	hooks := Hooks{
+		OnEvent: func(e Event) {
+			events = append(events, e)
+		},
+	}
+
+	// Execute dry run
+	err := orch.Install(
+		context.Background(),
+		req,
+		Options{DryRun: true},
+		hooks,
+	)
+
+	// Verify results
+	require.NoError(t, err, "Install dry-run should not return an error")
+	require.GreaterOrEqual(t, len(events), 3, "should have at least 3 events (planning, steps, done)")
+
+	// Check first event is planning
+	assert.Equal(t, "planning", events[0].Phase, "first event should be planning phase")
+	assert.Equal(t, req.Name, events[0].Msg, "planning message should include package name")
+
+	// Check last event is done
+	lastEvent := events[len(events)-1]
+	assert.Equal(t, "done", lastEvent.Phase, "last event should be done phase")
+	assert.Equal(t, "dry-run", lastEvent.Msg, "done message should indicate dry run")
+
+	// Check that we have events for each step
+	stepEvents := events[1 : len(events)-1] // Exclude first and last events
+	assert.Len(t, stepEvents, len(plan.Steps), "should have one event per step")
+
+	for i, step := range plan.Steps {
+		event := stepEvents[i]
+		expectedMsg := fmt.Sprintf("%s@%s", step.Name, step.Version)
+
+		assert.Equal(t, "planning", event.Phase, "step event should be in planning phase")
+		assert.Equal(t, step.ID, event.ID, "step event ID should match step ID")
+		assert.Equal(t, expectedMsg, event.Msg, "step event message should include name and version")
 	}
 }
 
@@ -137,105 +211,374 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
-	art := ocmocks.NewMockArtifactInstaller(ctrl)
-
-	tmp := t.TempDir() // absolute
-	dl := dlmocks.NewMockManager(ctrl)
-	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, items []download.Item, opts download.Options) (map[string]string, error) {
-			if len(items) != 1 || items[0].ID != "pkgA@1.0.0" {
-				t.Fatalf("unexpected items: %+v", items)
-			}
-			if opts.Dir != tmp || opts.Concurrency != 2 {
-				t.Fatalf("unexpected opts: %+v", opts)
-			}
-			return map[string]string{items[0].ID: filepath.Join(tmp, "pkgA-1.0.0.tgz")}, nil
-		},
-	).Times(1)
-
-	orch := &Orchestrator{Index: idx, DL: dl, Artifact: art}
-
+	// Setup test data
+	tmp := t.TempDir()
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	step := index.InstallStep{ID: "pkgA@1.0.0", Name: "pkgA", Version: "1.0.0", OS: "linux", Arch: "amd64", SourceURL: sURL, Checksum: "deadbeef"}
+	req := index.InstallRequest{
+		Name:    "pkgA",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	step := index.InstallStep{
+		ID:        "pkgA@1.0.0",
+		Name:      "pkgA",
+		Version:   "1.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL,
+		Checksum:  "deadbeef",
+	}
 	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
-	req := index.InstallRequest{Name: "pkgA", Version: "1.0.0", OS: "linux", Arch: "amd64"}
 
-	idx.EXPECT().Plan(gomock.Any(), req).Return(plan, nil).Times(1)
+	// Setup mocks
+	dl := dlmocks.NewMockManager(ctrl)
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, items []download.Item, opts download.Options) (map[string]string, error) {
+			require.Len(t, items, 1, "should have one item to fetch")
+			assert.Equal(t, step.ID, items[0].ID, "item ID should match step ID")
+			assert.Equal(t, tmp, opts.Dir, "cache directory should match")
+			assert.Equal(t, 2, opts.Concurrency, "concurrency should be 2")
 
-	art.EXPECT().InstallArtifact(gomock.Any(), gomock.Any(), filepath.Join(tmp, "pkgA-1.0.0.tgz")).Return(nil).Times(1)
+			return map[string]string{
+				items[0].ID: filepath.Join(tmp, "pkgA-1.0.0.tgz"),
+			}, nil
+		}).
+		Times(1)
+
+	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx.EXPECT().
+		Plan(gomock.Any(), req).
+		Return(plan, nil).
+		Times(1)
+
+	art := ocmocks.NewMockArtifactInstaller(ctrl)
+	expectedArtifactPath := filepath.Join(tmp, "pkgA-1.0.0.tgz")
+	art.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), expectedArtifactPath).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string) error {
+			assert.Equal(t, step.Name, desc.Name, "artifact name should match")
+			assert.Equal(t, step.Version, desc.Version, "artifact version should match")
+			assert.Equal(t, step.OS, desc.OS, "artifact OS should match")
+			assert.Equal(t, step.Arch, desc.Arch, "artifact arch should match")
+			assert.Equal(t, step.Checksum, desc.Checksum, "artifact checksum should match")
+			assert.Equal(t, sURL.String(), desc.URL, "artifact URL should match")
+			return nil
+		}).
+		Times(1)
+
+	// Setup orchestrator and hooks
+	orch := &Orchestrator{
+		Index:    idx,
+		DL:       dl,
+		Artifact: art,
+	}
 
 	var gotDone bool
-	hooks := Hooks{OnEvent: func(e Event) {
-		if e.Phase == "done" {
-			gotDone = true
-		}
-	}}
+	hooks := Hooks{
+		OnEvent: func(e Event) {
+			if e.Phase == "done" {
+				gotDone = true
+			}
+		},
+	}
 
-	if err := orch.Install(context.Background(), req, Options{CacheDir: tmp, Concurrency: 2}, hooks); err != nil {
-		t.Fatalf("Install failed: %v", err)
-	}
-	if !gotDone {
-		t.Fatalf("expected done event")
-	}
+	// Execute the test
+	err := orch.Install(
+		context.Background(),
+		req,
+		Options{
+			CacheDir:    tmp,
+			Concurrency: 2,
+		},
+		hooks,
+	)
+
+	// Verify results
+	require.NoError(t, err, "Install should not return an error")
+	assert.True(t, gotDone, "should have received done event")
 }
 
 func TestNew(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	// Setup mocks
 	idx := ocmocks.NewMockIndexPlanner(ctrl)
 	dl := dlmocks.NewMockManager(ctrl)
 	am := ocmocks.NewMockArtifactInstaller(ctrl)
 
+	// Call the constructor
 	orch := New(idx, dl, am)
 
-	if orch.Index != idx || orch.DL != dl || orch.Artifact != am {
-		t.Fatalf("New() did not properly initialize orchestrator fields")
-	}
+	// Verify all fields are properly initialized
+	assert.Same(t, idx, orch.Index, "Index field should be set to the provided mock")
+	assert.Same(t, dl, orch.DL, "DL field should be set to the provided mock")
+	assert.Same(t, am, orch.Artifact, "Artifact field should be set to the provided mock")
 }
 
 func TestEmit(t *testing.T) {
-	var called bool
-	var event Event
-	hooks := Hooks{
-		OnEvent: func(e Event) {
-			called = true
-			event = e
-		},
-	}
+	t.Run("with hooks", func(t *testing.T) {
+		var called bool
+		var event Event
 
-	// Test with hook set
-	expected := Event{Phase: "test", Msg: "message"}
-	emit(hooks, expected)
+		hooks := Hooks{
+			OnEvent: func(e Event) {
+				called = true
+				event = e
+			},
+		}
 
-	if !called {
-		t.Fatal("OnEvent was not called")
-	}
-	if event != expected {
-		t.Fatalf("expected event %+v, got %+v", expected, event)
-	}
+		// Execute test
+		emit(hooks, Event{Phase: "test", Msg: "message"})
 
-	// Test with nil hook
-	called = false
-	emit(Hooks{}, Event{})
-	if called {
-		t.Fatal("OnEvent should not be called with nil hook")
-	}
+		// Verify results
+		require.True(t, called, "OnEvent hook should be called")
+		require.Equal(t, "test", event.Phase, "event phase should match")
+		require.Equal(t, "message", event.Msg, "event message should match")
+	})
+
+	t.Run("with nil hooks", func(t *testing.T) {
+		// This should not panic
+		require.NotPanics(t, func() {
+			emit(Hooks{}, Event{Phase: "test2"})
+		}, "emit with nil hooks should not panic")
+	})
+
+	t.Run("with nil OnEvent function", func(t *testing.T) {
+		// This should not panic
+		require.NotPanics(t, func() {
+			emit(Hooks{OnEvent: nil}, Event{Phase: "test3"})
+		}, "emit with nil OnEvent function should not panic")
+	})
 }
 
-func TestInstall_NoArtifactInstaller(t *testing.T) {
+func TestInstall_NoDownloadManager(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Create a test artifact file
-	tmpFile := filepath.Join(t.TempDir(), "pkgA-1.0.0.tgz")
-	if err := os.WriteFile(tmpFile, []byte("test"), 0644); err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
+	// Setup test data
+	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
+	req := index.InstallRequest{
+		Name:    "pkgA",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
 	}
 
-	// Create a mock index planner that returns a plan with one step
+	step := index.InstallStep{
+		ID:        "pkgA@1.0.0",
+		Name:      "pkgA",
+		Version:   "1.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL,
+	}
+
+	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
+
+	// Setup mocks
 	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx.EXPECT().
+		Plan(gomock.Any(), req).
+		Return(plan, nil).
+		Times(1)
+
+	art := ocmocks.NewMockArtifactInstaller(ctrl)
+
+	// Create orchestrator without download manager
+	orch := &Orchestrator{
+		Index:    idx,
+		Artifact: art,
+		// DL is intentionally nil
+	}
+
+	// Execute test
+	err := orch.Install(
+		context.Background(),
+		req,
+		Options{
+			CacheDir: t.TempDir(),
+		},
+		Hooks{},
+	)
+
+	// Verify results
+	require.Error(t, err, "should return error when download is required but DL is nil")
+	errMsg := err.Error()
+	assert.Contains(t, errMsg, "no local file available",
+		"error message should indicate missing local file")
+	assert.Contains(t, errMsg, step.ID,
+		"error message should include the step ID")
+}
+
+func TestInstall_NoIndexPlanner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create an orchestrator with nil Index
+	testReq := index.InstallRequest{
+		Name:    "pkgA",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	testOpts := Options{
+		CacheDir: t.TempDir(),
+	}
+
+	testHooks := Hooks{}
+
+	torch := &Orchestrator{
+		DL:       dlmocks.NewMockManager(ctrl),
+		Artifact: ocmocks.NewMockArtifactInstaller(ctrl),
+		// Index is intentionally nil
+	}
+
+	// Execute test
+	err := torch.Install(
+		context.Background(),
+		testReq,
+		testOpts,
+		testHooks,
+	)
+
+	// Verify results
+	require.Error(t, err, "should return error when Index is nil")
+	errMsg := err.Error()
+	assert.Contains(t, errMsg, "index planner is not configured",
+		"error message should indicate missing index planner")
+}
+
+func TestInstall_PlanError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	testReq := index.InstallRequest{
+		Name:    "pkgA",
+		Version: "1.0.0",
+	}
+
+	expectedErr := fmt.Errorf("planning failed")
+
+	// Setup mocks
+	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx.EXPECT().
+		Plan(gomock.Any(), testReq).
+		Return(index.InstallPlan{}, expectedErr).
+		Times(1)
+
+	// Create orchestrator with only Index set
+	torch := &Orchestrator{Index: idx}
+
+	// Execute test
+	err := torch.Install(
+		context.Background(),
+		testReq,
+		Options{},
+		Hooks{},
+	)
+
+	// Verify results
+	require.Error(t, err, "should return error when planning fails")
+	assert.Same(t, expectedErr, err, "should return the exact error from Plan")
+}
+
+func TestInstall_ArtifactInstallError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "pkgA-1.0.0.tgz")
+	require.NoError(t, os.WriteFile(tmpFile, []byte("test"), 0644), "failed to create temp file")
+
+	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
+	testReq := index.InstallRequest{
+		Name:    "pkgA",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	step := index.InstallStep{
+		ID:        "pkgA@1.0.0",
+		Name:      "pkgA",
+		Version:   "1.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL,
+		Checksum:  "abc123",
+	}
+
+	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
+
+	// Setup mocks
+	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx.EXPECT().
+		Plan(gomock.Any(), testReq).
+		Return(plan, nil).
+		Times(1)
+
+	dl := dlmocks.NewMockManager(ctrl)
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]string{step.ID: tmpFile}, nil).
+		Times(1)
+
+	expectedErr := fmt.Errorf("installation failed")
+	art := ocmocks.NewMockArtifactInstaller(ctrl)
+	art.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), tmpFile).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string) error {
+			assert.Equal(t, step.Name, desc.Name, "artifact name should match")
+			assert.Equal(t, step.Version, desc.Version, "artifact version should match")
+			assert.Equal(t, step.OS, desc.OS, "artifact OS should match")
+			assert.Equal(t, step.Arch, desc.Arch, "artifact arch should match")
+			assert.Equal(t, step.Checksum, desc.Checksum, "artifact checksum should match")
+			return expectedErr
+		}).
+		Times(1)
+
+	// Create orchestrator
+	torch := &Orchestrator{
+		Index:    idx,
+		DL:       dl,
+		Artifact: art,
+	}
+
+	// Execute test
+	err := torch.Install(
+		context.Background(),
+		testReq,
+		Options{
+			CacheDir: tmpDir,
+		},
+		Hooks{},
+	)
+
+	// Verify results
+	require.Error(t, err, "should return error when artifact installation fails")
+	assert.Same(t, expectedErr, err, "should return the exact error from InstallArtifact")
+}
+
+func TestInstall_MissingLocalFile_Error(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	tmpDir := t.TempDir()
+	testReq := index.InstallRequest{
+		Name:    "pkgA",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	step := index.InstallStep{
 		ID:        "pkgA@1.0.0",
@@ -246,167 +589,46 @@ func TestInstall_NoArtifactInstaller(t *testing.T) {
 		SourceURL: sURL,
 		Checksum:  "abc123",
 	}
+
 	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
-	req := index.InstallRequest{Name: "pkgA", Version: "1.0.0", OS: "linux", Arch: "amd64"}
 
-	// Set up expectations
-	idx.EXPECT().Plan(gomock.Any(), req).Return(plan, nil).Times(1)
-
-	// Create a mock download manager that returns our test file
-	dl := dlmocks.NewMockManager(ctrl)
-	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(map[string]string{step.ID: tmpFile}, nil).
+	// Setup mocks
+	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx.EXPECT().
+		Plan(gomock.Any(), testReq).
+		Return(plan, nil).
 		Times(1)
 
-	// Create orchestrator with nil Artifact
-	orch := &Orchestrator{
-		Index: idx,
-		DL:    dl,
-		// Artifact is intentionally nil
+	dl := dlmocks.NewMockManager(ctrl)
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]string{"pkgA@1.0.0": ""}, nil).
+		Times(1)
+
+	art := ocmocks.NewMockArtifactInstaller(ctrl)
+
+	// Create orchestrator
+	torch := &Orchestrator{
+		Index:    idx,
+		DL:       dl,
+		Artifact: art,
 	}
 
-	// Test the Install method
-	err := orch.Install(
+	// Execute test
+	err := torch.Install(
 		context.Background(),
-		req,
+		testReq,
 		Options{
-			CacheDir:    t.TempDir(),
-			Concurrency: 1,
+			CacheDir: tmpDir,
 		},
 		Hooks{},
 	)
 
-	// Verify that we got an error about missing Artifact
-	if err == nil {
-		t.Fatal("expected error when Artifact is nil, got nil")
-	}
-	if err.Error() != "artifact installer is not configured" {
-		t.Fatalf("expected error about missing artifact installer, got: %v", err)
-	}
-}
-
-func TestInstall_NoDownloadManager(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
-	art := ocmocks.NewMockArtifactInstaller(ctrl)
-
-	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	step := index.InstallStep{ID: "pkgA@1.0.0", Name: "pkgA", Version: "1.0.0", OS: "linux", Arch: "amd64", SourceURL: sURL}
-	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
-	req := index.InstallRequest{Name: "pkgA", Version: "1.0.0", OS: "linux", Arch: "amd64"}
-
-	idx.EXPECT().Plan(gomock.Any(), req).Return(plan, nil).Times(1)
-
-	orch := &Orchestrator{Index: idx, Artifact: art}
-	err := orch.Install(context.Background(), req, Options{CacheDir: t.TempDir()}, Hooks{})
-	if err == nil {
-		t.Fatal("expected error when DL is nil and download is required")
-	}
-}
-
-func TestInstall_NoIndexPlanner(t *testing.T) {
-	// Create an orchestrator with nil Index
-	orch := &Orchestrator{
-		DL:       dlmocks.NewMockManager(gomock.NewController(t)),
-		Artifact: ocmocks.NewMockArtifactInstaller(gomock.NewController(t)),
-		// Index is intentionally nil
-	}
-
-	err := orch.Install(
-		context.Background(),
-		index.InstallRequest{Name: "test"},
-		Options{},
-		Hooks{},
-	)
-
-	// Verify that we got an error about missing Index
-	if err == nil {
-		t.Fatal("expected error when Index is nil, got nil")
-	}
-	if err.Error() != "index planner is not configured" {
-		t.Fatalf("expected error about missing index planner, got: %v", err)
-	}
-}
-
-func TestInstall_PlanError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
-	req := index.InstallRequest{Name: "pkgA", Version: "1.0.0"}
-	expectedErr := fmt.Errorf("planning failed")
-	idx.EXPECT().Plan(gomock.Any(), req).Return(index.InstallPlan{}, expectedErr).Times(1)
-
-	orch := &Orchestrator{Index: idx}
-	err := orch.Install(context.Background(), req, Options{}, Hooks{})
-	if err != expectedErr {
-		t.Fatalf("expected error %v, got %v", expectedErr, err)
-	}
-}
-
-func TestInstall_ArtifactInstallError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
-	art := ocmocks.NewMockArtifactInstaller(ctrl)
-	dl := dlmocks.NewMockManager(ctrl)
-
-	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	step := index.InstallStep{ID: "pkgA@1.0.0", Name: "pkgA", Version: "1.0.0", OS: "linux", Arch: "amd64", SourceURL: sURL, Checksum: "abc123"}
-	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
-	req := index.InstallRequest{Name: "pkgA", Version: "1.0.0", OS: "linux", Arch: "amd64"}
-
-	idx.EXPECT().Plan(gomock.Any(), req).Return(plan, nil).Times(1)
-
-	tmpFile := filepath.Join(t.TempDir(), "pkgA-1.0.0.tgz")
-	if err := os.WriteFile(tmpFile, []byte("test"), 0644); err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-
-	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).Return(map[string]string{step.ID: tmpFile}, nil).Times(1)
-
-	expectedErr := fmt.Errorf("install failed")
-	art.EXPECT().InstallArtifact(gomock.Any(), gomock.Any(), tmpFile).Return(expectedErr).Times(1)
-
-	orch := &Orchestrator{Index: idx, DL: dl, Artifact: art}
-	err := orch.Install(context.Background(), req, Options{CacheDir: t.TempDir()}, Hooks{})
-	if err != expectedErr {
-		t.Fatalf("expected error %v, got %v", expectedErr, err)
-	}
-}
-
-func TestInstall_MissingLocalFile_Error(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
-	art := ocmocks.NewMockArtifactInstaller(ctrl)
-
-	tmp := t.TempDir() // absolute
-	dl := dlmocks.NewMockManager(ctrl)
-	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, items []download.Item, opts download.Options) (map[string]string, error) {
-			// Return empty map so orchestrator can't find local file
-			return map[string]string{}, nil
-		},
-	).Times(1)
-
-	orch := &Orchestrator{Index: idx, DL: dl, Artifact: art}
-
-	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	step := index.InstallStep{ID: "pkgA@1.0.0", Name: "pkgA", Version: "1.0.0", OS: "linux", Arch: "amd64", SourceURL: sURL}
-	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
-	req := index.InstallRequest{Name: "pkgA", Version: "1.0.0", OS: "linux", Arch: "amd64"}
-
-	idx.EXPECT().Plan(gomock.Any(), req).Return(plan, nil).Times(1)
-
-	// Artifact should NOT be called
-
-	err := orch.Install(context.Background(), req, Options{CacheDir: tmp}, Hooks{})
-	if err == nil {
-		t.Fatalf("expected error due to missing local file")
-	}
+	// Verify results
+	require.Error(t, err, "should return error when local file is missing")
+	errMsg := err.Error()
+	assert.Contains(t, errMsg, "no local file available",
+		"error message should indicate missing local file")
+	assert.Contains(t, errMsg, step.ID,
+		"error message should include the step ID")
 }

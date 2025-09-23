@@ -429,6 +429,11 @@ func (c *Config) GetArtifactCacheDir() string {
 	return filepath.Join(c.Settings.CacheDir, "packages")
 }
 
+// GetCacheDir returns the base cache directory from settings.
+func (c *Config) GetCacheDir() string {
+	return c.Settings.CacheDir
+}
+
 // getUserDataDir returns the user state directory following platform conventions.
 func getUserDataDir() (string, error) {
 	// Check for XDG_STATE_HOME environment variable - if set, always use it

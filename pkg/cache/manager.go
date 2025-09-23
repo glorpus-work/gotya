@@ -23,13 +23,13 @@ func NewManager(directory string) *CacheManager {
 
 // NewDefaultManager creates a new cache manager with default directory.
 func NewDefaultManager() (*CacheManager, error) {
-	homeDir, err := os.UserHomeDir()
+	cacheDir, err := fsutil.GetCacheDir()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get user home directory")
+		return nil, errors.Wrapf(err, "failed to get user cache directory")
 	}
 
-	cacheDir := filepath.Join(homeDir, ".cache", "gotya")
-	if err := os.MkdirAll(cacheDir, os.FileMode(fsutil.DirModeDefault)); err != nil {
+	// Ensure the cache directory exists with appropriate permissions
+	if err := os.MkdirAll(cacheDir, os.FileMode(CacheDirPerm)); err != nil {
 		return nil, errors.Wrapf(err, "failed to create cache directory")
 	}
 
@@ -149,8 +149,8 @@ func cleanDirectory(dir string) (int64, error) {
 		return 0, errors.Wrapf(err, "failed to remove directory %s", dir)
 	}
 
-	// Recreate empty directory
-	if err := fsutil.EnsureDir(dir); err != nil {
+	// Recreate empty directory with cache-specific permissions
+	if err := os.MkdirAll(dir, os.FileMode(CacheDirPerm)); err != nil {
 		return totalSize, errors.Wrapf(err, "failed to recreate directory %s", dir)
 	}
 

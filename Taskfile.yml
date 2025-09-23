@@ -16,6 +16,13 @@ tasks:
     cmds:
       - go build -o {{.BIN_DIR}}/gotya ./cmd/gotya
 
+  generate:
+    desc: Generate code
+    cmds:
+      - go generate ./...
+    generates:
+      - '**/mocks/*.go'
+
   install:
     desc: Install the application
     cmds:
@@ -25,12 +32,12 @@ tasks:
   test:
     desc: Run all tests
     cmds:
-      - go test -short ./...
+      - go test -short ./... -coverprofile={{.COVER_PROFILE}}
 
   test-integration:
     desc: Run integration tests
     cmds:
-      - go test -tags=integration ./...
+      - go test -tags=integration ./... -coverprofile=integration-{{.COVER_PROFILE}}
 
   test-all:
     desc: Run all tests including integration tests
@@ -38,27 +45,38 @@ tasks:
       - task: test
       - task: test-integration
 
+
   test-cover:
     desc: Run tests and show coverage
+    deps:
+      - test
     cmds:
-      - task: test
       - go tool cover -func={{.COVER_PROFILE}}
 
   test-cover-html:
     desc: Generate HTML coverage report
+    deps:
+      - test
     cmds:
       - go tool cover -html={{.COVER_PROFILE}} -o coverage.html
 
-  mutate:
-    desc: Run mutation testing on the codebase
+  install-go-mutesting:
+    desc: Install go-mutesting
     cmds:
       - go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
+
+  mutate:
+    desc: Run mutation testing on the codebase
+    deps:
+      - install-go-mutesting
+    cmds:
       - go-mutesting --exec "go test ./pkg/..." ./pkg/...
 
   mutate-verbose:
     desc: Run mutation testing with verbose output
+    deps:
+      - install-go-mutesting
     cmds:
-      - go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
       - go-mutesting --debug pkg/... internal/...
 
   # Lint and format
