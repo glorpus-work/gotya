@@ -11,25 +11,19 @@ import (
 	"path/filepath"
 
 	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/http"
-	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/mholt/archives"
 )
 
 type ManagerImpl struct {
-	indexManager       index.Manager
-	httpClient         http.Client
 	os                 string
 	arch               string
 	artifactCacheDir   string
 	artifactInstallDir string
 }
 
-func NewManager(indexManager index.Manager, httpClient http.Client, os, arch, artifactCacheDir, artifactInstallDir string) *ManagerImpl {
+func NewManager(os, arch, artifactCacheDir, artifactInstallDir string) *ManagerImpl {
 	return &ManagerImpl{
-		indexManager:       indexManager,
-		httpClient:         httpClient,
 		os:                 os,
 		arch:               arch,
 		artifactCacheDir:   artifactCacheDir,
@@ -37,29 +31,17 @@ func NewManager(indexManager index.Manager, httpClient http.Client, os, arch, ar
 	}
 }
 
-func (m ManagerImpl) InstallArtifact(ctx context.Context, pkgName, version string, force bool) error {
-	artifact, err := m.indexManager.ResolveArtifact(pkgName, version, m.os, m.arch)
-	if err != nil {
-		return err
-	}
-	if err := m.DownloadArtifact(ctx, artifact); err != nil {
-		return err
-	}
-	if err := m.VerifyArtifact(ctx, artifact); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m ManagerImpl) DownloadArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
-	if err := m.httpClient.DownloadArtifact(ctx, artifact.GetURL(), m.getArtifactCacheFilePath(artifact)); err != nil {
-		return err
-	}
-	return nil
+// InstallArtifact installs (verifies/stages) an artifact from a local file path, replacing the previous network-based install.
+func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) error {
+	return m.verifyArtifactFile(ctx, desc, localPath)
 }
 
 func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
 	filePath := m.getArtifactCacheFilePath(artifact)
+	return m.verifyArtifactFile(ctx, artifact, filePath)
+}
+
+func (m ManagerImpl) verifyArtifactFile(ctx context.Context, artifact *model.IndexArtifactDescriptor, filePath string) error {
 	if _, err := os.Stat(filePath); err != nil {
 		return errors.ErrArtifactNotFound
 	}

@@ -4,14 +4,19 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/cperrin88/gotya/pkg/index"
+	"github.com/cperrin88/gotya/pkg/installer"
 	"github.com/spf13/cobra"
 )
 
 // NewInstallCmd creates the install command.
 func NewInstallCmd() *cobra.Command {
 	var (
-		force    bool
-		skipDeps bool
+		force       bool
+		skipDeps    bool
+		dryRun      bool
+		concurrency int
+		cacheDir    string
 	)
 
 	cmd := &cobra.Command{
@@ -21,12 +26,15 @@ func NewInstallCmd() *cobra.Command {
 Dependencies will be automatically resolved and installed unless --skip-deps is used.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			return runInstall(args, force, skipDeps)
+			return runInstall(args, force, skipDeps, dryRun, concurrency, cacheDir)
 		},
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "Force installation even if artifact already exists")
 	cmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency resolution")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Plan and print actions without executing")
+	cmd.Flags().IntVar(&concurrency, "concurrency", 0, "Number of parallel downloads (0=auto)")
+	cmd.Flags().StringVar(&cacheDir, "cache-dir", "", "Download cache directory (defaults to config)")
 
 	return cmd
 }
@@ -54,18 +62,53 @@ Use --all to update all installed packages.`,
 		return cmd
 	}
 */
-func runInstall(packages []string, force, skipDeps bool) error {
+func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrency int, cacheDir string) error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
 	httpClient := loadHTTPClient(cfg)
 	indexManager := loadIndexManager(cfg, httpClient)
-	pkgManger := loadArtifactManager(cfg, indexManager, httpClient)
+	artifactManager := loadArtifactManager(cfg)
+	dlManager := loadDownloadManager(cfg)
+
+	// default cacheDir from config if not provided
+	if cacheDir == "" {
+		cacheDir = cfg.GetArtifactCacheDir()
+	}
+
+	// Build orchestrator
+	planner, ok := indexManager.(installer.IndexPlanner)
+	if !ok {
+		return fmt.Errorf("index manager does not support planning (missing Plan method)")
+	}
+	orch := installer.New(planner, dlManager, artifactManager)
+
+	// Basic progress printing
+	hooks := installer.Hooks{OnEvent: func(e installer.Event) {
+		// Simple, human-friendly output
+		if e.ID != "" {
+			fmt.Printf("%s: %s (%s)\n", e.Phase, e.Msg, e.ID)
+		} else {
+			fmt.Printf("%s: %s\n", e.Phase, e.Msg)
+		}
+	}}
+
+	opts := installer.Options{CacheDir: cacheDir, Concurrency: concurrency, DryRun: dryRun}
+	ctx := context.Background()
 
 	// Process each artifact
 	for _, pkgName := range packages {
-		if err := pkgManger.InstallArtifact(context.Background(), pkgName, ">= 0.0.0", force); err != nil {
+		req := index.InstallRequest{
+			Name:    pkgName,
+			Version: ">= 0.0.0",
+			OS:      cfg.Settings.Platform.OS,
+			Arch:    cfg.Settings.Platform.Arch,
+		}
+		if skipDeps {
+			// currently no dependency expansion; reserved for future
+		}
+		if err := orch.Install(ctx, req, opts, hooks); err != nil {
 			return fmt.Errorf("failed to install %s: %w", pkgName, err)
 		}
 	}

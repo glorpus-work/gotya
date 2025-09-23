@@ -93,31 +93,3 @@ func (idx *Index) FindArtifacts(name string) []*model.IndexArtifactDescriptor {
 
 	return packages
 }
-
-// AddArtifact adds a artifact to the index.
-func (idx *Index) AddArtifact(pkg *model.IndexArtifactDescriptor) {
-	// Remove existing artifact with same name if it exists
-	for i := range idx.Artifacts {
-		if idx.Artifacts[i].Name == pkg.Name {
-			idx.Artifacts[i] = pkg
-			idx.LastUpdate = time.Now()
-			return
-		}
-	}
-
-	// Add new artifact
-	idx.Artifacts = append(idx.Artifacts, pkg)
-	idx.LastUpdate = time.Now()
-}
-
-// RemoveArtifact removes a artifact from the index.
-func (idx *Index) RemoveArtifact(name string) bool {
-	for i := range idx.Artifacts {
-		if idx.Artifacts[i].Name == name {
-			idx.Artifacts = append(idx.Artifacts[:i], idx.Artifacts[i+1:]...)
-			idx.LastUpdate = time.Now()
-			return true
-		}
-	}
-	return false
-}

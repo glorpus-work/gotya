@@ -7,17 +7,23 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
+// Dependency represents a dependency with a name and an optional version constraint.
+type Dependency struct {
+	Name              string `json:"name"`
+	VersionConstraint string `json:"version,omitempty"`
+}
+
 // IndexArtifactDescriptor represents the metadata and properties of an indexed artifact in a repository or package.
 type IndexArtifactDescriptor struct {
-	Name         string   `json:"name"`
-	Version      string   `json:"version"`
-	Description  string   `json:"description"`
-	URL          string   `json:"url"`
-	Checksum     string   `json:"checksum"`
-	Size         int64    `json:"size"`
-	OS           string   `json:"os,omitempty"`
-	Arch         string   `json:"arch,omitempty"`
-	Dependencies []string `json:"dependencies,omitempty"`
+	Name         string       `json:"name"`
+	Version      string       `json:"version"`
+	Description  string       `json:"description"`
+	URL          string       `json:"url"`
+	Checksum     string       `json:"checksum"`
+	Size         int64        `json:"size"`
+	OS           string       `json:"os,omitempty"`
+	Arch         string       `json:"arch,omitempty"`
+	Dependencies []Dependency `json:"dependencies,omitempty"`
 }
 
 func (a *IndexArtifactDescriptor) MatchOs(os string) bool {

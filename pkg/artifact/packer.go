@@ -102,8 +102,6 @@ func (p *Packer) Pack() error {
 
 func (p *Packer) verify() error {
 	manager := NewManager(
-		nil,
-		nil,
 		p.os,
 		p.arch,
 		p.outputDir,

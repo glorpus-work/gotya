@@ -6,6 +6,7 @@ import (
 	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/download"
 	"github.com/cperrin88/gotya/pkg/http"
 	"github.com/cperrin88/gotya/pkg/index"
 )
@@ -72,10 +73,15 @@ func loadIndexManager(config *config.Config, httpClient http.Client) index.Manag
 	return index.NewManager(httpClient, repositories, config.GetIndexDir(), config.Settings.CacheTTL)
 }
 
-func loadArtifactManager(config *config.Config, indexManager index.Manager, httpClient http.Client) artifact.Manager {
-	return artifact.NewManager(indexManager, httpClient, config.Settings.Platform.OS, config.Settings.Platform.Arch, config.GetArtifactCacheDir(), config.Settings.InstallDir)
+func loadArtifactManager(config *config.Config) artifact.Manager {
+	// Artifact manager now operates purely on local files and no longer depends on index or http
+	return artifact.NewManager(config.Settings.Platform.OS, config.Settings.Platform.Arch, config.GetArtifactCacheDir(), config.Settings.InstallDir)
 }
 
 func loadHTTPClient(config *config.Config) http.Client {
 	return http.NewHTTPClient(config.Settings.HTTPTimeout)
+}
+
+func loadDownloadManager(config *config.Config) download.Manager {
+	return download.NewManager(config.Settings.HTTPTimeout, "")
 }
