@@ -1,17 +1,13 @@
 package index
 
 import (
-	"context"
 	"fmt"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"sort"
-	"time"
 
 	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/http"
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
@@ -22,70 +18,20 @@ func (x UintSlice) Less(i, j int) bool { return x[i] < x[j] }
 func (x UintSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 type ManagerImpl struct {
-	httpClient   http.Client
 	repositories []*Repository
 	indexPath    string
-	cacheTTL     time.Duration
 	indexes      map[string]*Index
 }
 
 func NewManager(
-	httpClient http.Client,
 	repositories []*Repository,
 	indexPath string,
-	cacheTTL time.Duration,
 ) *ManagerImpl {
 	return &ManagerImpl{
-		httpClient:   httpClient,
 		repositories: repositories,
 		indexPath:    indexPath,
-		cacheTTL:     cacheTTL,
 		indexes:      make(map[string]*Index, len(repositories)),
 	}
-}
-
-func (rm *ManagerImpl) Sync(ctx context.Context, name string) error {
-	repo, err := rm.getRepository(name)
-	if err != nil {
-		return errors.ErrRepositoryNotFound(name)
-	}
-	if err := rm.httpClient.DownloadIndex(ctx, repo.URL, rm.indexPath); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (rm *ManagerImpl) SyncAll(ctx context.Context) error {
-	for _, repo := range rm.repositories {
-		if err := rm.httpClient.DownloadIndex(ctx, repo.URL, rm.getIndexPath(repo.Name)); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (rm *ManagerImpl) IsCacheStale(name string) bool {
-	age, err := rm.GetCacheAge(name)
-	if err != nil {
-		return true
-	}
-	return age > rm.cacheTTL
-}
-
-func (rm *ManagerImpl) GetCacheAge(name string) (time.Duration, error) {
-	repo, err := rm.getRepository(name)
-	if err != nil {
-		return -1, errors.ErrRepositoryNotFound(name)
-	}
-
-	indexPath := rm.getIndexPath(repo.Name)
-
-	stat, err := os.Stat(indexPath)
-	if err != nil {
-		return -1, errors.Wrapf(err, "Cannot stat file %s", indexPath)
-	}
-
-	return time.Since(stat.ModTime()), nil
 }
 
 func (rm *ManagerImpl) FindArtifacts(name string) (map[string][]*model.IndexArtifactDescriptor, error) {
@@ -137,7 +83,7 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 				return nil, errors.ErrRepositoryNotFound(idxName)
 			}
 			if repoPrioArtifacts[repo.Priority] == nil {
-				repoPrioArtifacts[repo.Priority] = make([]*model.IndexArtifactDescriptor, 5)
+				repoPrioArtifacts[repo.Priority] = make([]*model.IndexArtifactDescriptor, 0, 5)
 			}
 			repoPrioArtifacts[repo.Priority] = append(repoPrioArtifacts[repo.Priority], pkg)
 		}
@@ -177,7 +123,7 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 }
 
 func (rm *ManagerImpl) GetIndex(name string) (*Index, error) {
-	index, err := ParseIndexFromFile(rm.indexPath)
+	index, err := ParseIndexFromFile(rm.getIndexPath(name))
 	if err != nil {
 		return nil, err
 	}
@@ -191,6 +137,12 @@ func (rm *ManagerImpl) getIndexes() (map[string]*Index, error) {
 		}
 	}
 	return rm.indexes, nil
+}
+
+// Reload clears and reloads indexes from disk
+func (rm *ManagerImpl) Reload() error {
+	rm.indexes = make(map[string]*Index, len(rm.repositories))
+	return rm.loadIndexes()
 }
 
 func (rm *ManagerImpl) loadIndexes() error {

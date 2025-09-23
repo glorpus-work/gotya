@@ -2,7 +2,6 @@
 package index
 
 import (
-	"context"
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/model"
@@ -22,19 +21,10 @@ type Info struct {
 	Priority int    `json:"priority"`
 }
 
-// Manager defines the interface for managing package indexes
+// Manager defines the interface for managing and querying local indexes
 type Manager interface {
-	// Sync updates the index for a specific repository
-	Sync(ctx context.Context, name string) error
-
-	// SyncAll updates all repository indexes
-	SyncAll(ctx context.Context) error
-
-	// IsCacheStale checks if the cache for a repository is stale
-	IsCacheStale(name string) bool
-
-	// GetCacheAge returns the age of the cache for a repository
-	GetCacheAge(name string) (time.Duration, error)
+	// Reload re-reads indexes from disk into memory
+	Reload() error
 
 	// FindArtifacts searches for packages by name across all repositories
 	FindArtifacts(name string) (map[string][]*model.IndexArtifactDescriptor, error)

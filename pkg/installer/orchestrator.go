@@ -47,6 +47,30 @@ type Options struct {
 	DryRun      bool
 }
 
+// SyncAll downloads index files for the provided repositories into indexDir.
+// The caller decides which repositories to pass (e.g., enabled-only). No TTL/autosync logic here.
+func (o *Orchestrator) SyncAll(ctx context.Context, repos []*index.Repository, indexDir string, opts Options) error {
+	if o.DL == nil {
+		return fmt.Errorf("download manager is not configured")
+	}
+	items := make([]download.Item, 0, len(repos))
+	for _, r := range repos {
+		if r == nil || r.URL == nil {
+			continue
+		}
+		items = append(items, download.Item{
+			ID:       r.Name,
+			URL:      r.URL,
+			Filename: r.Name + ".json",
+		})
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	_, err := o.DL.FetchAll(ctx, items, download.Options{Dir: indexDir, Concurrency: opts.Concurrency})
+	return err
+}
+
 func emit(h Hooks, e Event) {
 	if h.OnEvent != nil {
 		h.OnEvent(e)

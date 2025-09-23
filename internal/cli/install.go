@@ -67,8 +67,7 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 	if err != nil {
 		return err
 	}
-	httpClient := loadHTTPClient(cfg)
-	indexManager := loadIndexManager(cfg, httpClient)
+	indexManager := loadIndexManager(cfg)
 	artifactManager := loadArtifactManager(cfg)
 	dlManager := loadDownloadManager(cfg)
 

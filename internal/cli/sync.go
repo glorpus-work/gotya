@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cperrin88/gotya/internal/logger"
+	installer "github.com/cperrin88/gotya/pkg/installer"
 	"github.com/spf13/cobra"
 )
 
@@ -26,12 +27,16 @@ func runSync(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
-	httpClient := loadHTTPClient(cfg)
-	manager := loadIndexManager(cfg, httpClient)
+
+	// Build components
+	dl := loadDownloadManager(cfg)
+	idx := loadIndexManager(cfg)
+	orch := &installer.Orchestrator{DL: dl}
 
 	logger.Debug("Synchronizing index indexes...")
 
-	if err := manager.SyncAll(context.Background()); err != nil {
+	repos := idx.ListRepositories()
+	if err := orch.SyncAll(context.Background(), repos, cfg.GetIndexDir(), installer.Options{Concurrency: cfg.Settings.MaxConcurrent}); err != nil {
 		return fmt.Errorf("failed to sync repositories: %w", err)
 	}
 
