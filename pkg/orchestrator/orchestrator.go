@@ -81,6 +81,10 @@ func emit(h Hooks, e Event) {
 
 // Install resolves and installs according to the plan (sequentially for now).
 func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, opts Options, hooks Hooks) error {
+	if o.Index == nil {
+		return fmt.Errorf("index planner is not configured")
+	}
+
 	emit(hooks, Event{Phase: "planning", Msg: req.Name})
 	plan, err := o.Index.Plan(ctx, req)
 	if err != nil {
@@ -114,6 +118,10 @@ func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, op
 				return err
 			}
 		}
+	}
+
+	if o.Artifact == nil {
+		return fmt.Errorf("artifact installer is not configured")
 	}
 
 	for _, step := range plan.Steps {
