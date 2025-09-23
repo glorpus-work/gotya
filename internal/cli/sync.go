@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cperrin88/gotya/internal/logger"
-	installer "github.com/cperrin88/gotya/pkg/installer"
+	installer "github.com/cperrin88/gotya/pkg/orchestrator"
 	"github.com/spf13/cobra"
 )
 

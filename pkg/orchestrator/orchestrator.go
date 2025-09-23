@@ -1,4 +1,6 @@
-package installer
+//go:generate mockgen -destination=./mocks/orchestrator.go . IndexPlanner,ArtifactInstaller
+
+package orchestrator
 
 import (
 	"context"

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cperrin88/gotya/pkg/index"
-	"github.com/cperrin88/gotya/pkg/installer"
+	"github.com/cperrin88/gotya/pkg/orchestrator"
 	"github.com/spf13/cobra"
 )
 
@@ -77,14 +77,14 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 	}
 
 	// Build orchestrator
-	planner, ok := indexManager.(installer.IndexPlanner)
+	planner, ok := indexManager.(orchestrator.IndexPlanner)
 	if !ok {
 		return fmt.Errorf("index manager does not support planning (missing Plan method)")
 	}
-	orch := installer.New(planner, dlManager, artifactManager)
+	orch := orchestrator.New(planner, dlManager, artifactManager)
 
 	// Basic progress printing
-	hooks := installer.Hooks{OnEvent: func(e installer.Event) {
+	hooks := orchestrator.Hooks{OnEvent: func(e orchestrator.Event) {
 		// Simple, human-friendly output
 		if e.ID != "" {
 			fmt.Printf("%s: %s (%s)\n", e.Phase, e.Msg, e.ID)
@@ -93,7 +93,7 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 		}
 	}}
 
-	opts := installer.Options{CacheDir: cacheDir, Concurrency: concurrency, DryRun: dryRun}
+	opts := orchestrator.Options{CacheDir: cacheDir, Concurrency: concurrency, DryRun: dryRun}
 	ctx := context.Background()
 
 	// Process each artifact
@@ -122,8 +122,8 @@ func runUpdate(packages []string, all bool) error {
 		return err
 	}
 
-	// Create installer with nil hooks manager for now
-	pkgInstaller := installer.New(cfg, repoManager, nil)
+	// Create orchestrator with nil hooks manager for now
+	pkgInstaller := orchestrator.New(cfg, repoManager, nil)
 
 	// Get packages to update
 	var packagesToUpdate []string

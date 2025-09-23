@@ -259,7 +259,7 @@ config := config.New()
 repoManager := repository.NewManager()
 hookManager := hook.NewManager()
 
-// Create installer
+// Create orchestrator
 installer := installer.New(config, repoManager, hookManager)
 
 // Install a artifact
