@@ -48,7 +48,7 @@ type Generator struct {
 }
 
 // Generate scans Dir, builds an Index, and writes it to OutputPath.
-func (g *Generator) Generate(ctx context.Context) error { //nolint:revive // ctx reserved for future
+func (g *Generator) Generate(ctx context.Context) error {
 	if g.Dir == "" {
 		return errors.Wrapf(errors.ErrInvalidPath, "packages directory is required")
 	}
