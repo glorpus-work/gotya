@@ -58,9 +58,8 @@ func TestGenerator_Generate(t *testing.T) {
 			setup: func(t *testing.T) (*Generator, string) {
 				outputPath := filepath.Join(tempDir, "index.json")
 				return &Generator{
-					Dir:           artifactsDir,
-					OutputPath:    outputPath,
-					FormatVersion: "1",
+					Dir:        artifactsDir,
+					OutputPath: outputPath,
 				}, outputPath
 			},
 			wantErr: false,
@@ -83,10 +82,9 @@ func TestGenerator_Generate(t *testing.T) {
 			setup: func(t *testing.T) (*Generator, string) {
 				outputPath := filepath.Join(tempDir, "index.json")
 				return &Generator{
-					Dir:           artifactsDir,
-					OutputPath:    outputPath,
-					FormatVersion: "1",
-					BasePath:      "packages",
+					Dir:        artifactsDir,
+					OutputPath: outputPath,
+					BasePath:   "packages",
 				}, outputPath
 			},
 			wantErr: false,
@@ -100,9 +98,8 @@ func TestGenerator_Generate(t *testing.T) {
 			setup: func(t *testing.T) (*Generator, string) {
 				outputPath := filepath.Join(tempDir, "index.json")
 				return &Generator{
-					Dir:           "/non/existent/directory",
-					OutputPath:    outputPath,
-					FormatVersion: "1",
+					Dir:        "/non/existent/directory",
+					OutputPath: outputPath,
 				}, outputPath
 			},
 			wantErr: true,
