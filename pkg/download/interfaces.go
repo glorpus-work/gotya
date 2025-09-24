@@ -2,8 +2,6 @@
 // It offers concurrent downloads, caching, checksum verification, and retry mechanisms for reliable
 // and efficient file downloads. The package is designed to be testable and supports both single
 // and batch download operations with configurable concurrency and caching strategies.
-//
-//go:generate mockgen -destination=./mocks/index.go . Manager
 package download
 
 import (

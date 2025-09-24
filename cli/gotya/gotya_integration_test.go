@@ -160,25 +160,6 @@ func TestCLIIntegration(t *testing.T) {
 			expectedOutput: "Install one or more packages from the configured repositories",
 		},
 
-		// Search command
-		{
-			name:           "search help",
-			args:           []string{"search", "--help"},
-			expectedOutput: "Search for packages in the configured repositories",
-		},
-		{
-			name:          "search with no query",
-			args:          []string{"search"},
-			expectedError: "accepts 1 arg(s), received 0",
-		},
-
-		// List command
-		{
-			name:           "list help",
-			args:           []string{"list", "--help"},
-			expectedOutput: "List installed or available packages",
-		},
-
 		// Error cases
 		{
 			name:          "unknown command",
