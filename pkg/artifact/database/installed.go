@@ -8,15 +8,36 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/errors"
 )
 
+// InstalledManager defines the interface for managing installed packages.
+type InstalledManager interface {
+	LoadDatabase(dbPath string) error
+	SaveDatabase(dbPath string) error
+	FindArtifact(name string) *InstalledArtifact
+	IsArtifactInstalled(name string) bool
+	AddArtifact(pkg *InstalledArtifact)
+	RemoveArtifact(name string) bool
+	GetInstalledArtifacts() []*InstalledArtifact
+}
+
+// InstalledArtifact represents an installed artifact with its files.
+type InstalledArtifact struct {
+	Name          string    `json:"name"`
+	Version       string    `json:"version"`
+	Description   string    `json:"description"`
+	InstalledAt   time.Time `json:"installed_at"`
+	InstalledFrom string    `json:"installed_from"` // URL or index where it was installed from
+	Files         []string  `json:"files"`          // List of files installed by this artifact
+	Checksum      string    `json:"checksum"`       // Checksum of the original artifact
+}
+
 // InstalledDatabase represents the database of installed packages.
 type InstalledDatabase struct {
-	FormatVersion string                        `json:"format_version"`
-	LastUpdate    time.Time                     `json:"last_update"`
-	Artifacts     []*artifact.InstalledArtifact `json:"artifacts"`
+	FormatVersion string               `json:"format_version"`
+	LastUpdate    time.Time            `json:"last_update"`
+	Artifacts     []*InstalledArtifact `json:"artifacts"`
 }
 
 const (
@@ -29,7 +50,7 @@ func NewInstalledDatabase() *InstalledDatabase {
 	return &InstalledDatabase{
 		FormatVersion: "1",
 		LastUpdate:    time.Now(),
-		Artifacts:     make([]*artifact.InstalledArtifact, 0, InitialArtifactCapacity),
+		Artifacts:     make([]*InstalledArtifact, 0, InitialArtifactCapacity),
 	}
 }
 
@@ -136,7 +157,7 @@ func (installedDB *InstalledDatabase) SaveDatabase(dbPath string) (err error) {
 }
 
 // FindArtifact finds an installed artifact by name.
-func (installedDB *InstalledDatabase) FindArtifact(name string) *artifact.InstalledArtifact {
+func (installedDB *InstalledDatabase) FindArtifact(name string) *InstalledArtifact {
 	for _, pkg := range installedDB.Artifacts {
 		if pkg.Name == name {
 			return pkg
@@ -151,7 +172,7 @@ func (installedDB *InstalledDatabase) IsArtifactInstalled(name string) bool {
 }
 
 // AddArtifact adds an installed artifact to the database.
-func (installedDB *InstalledDatabase) AddArtifact(pkg *artifact.InstalledArtifact) {
+func (installedDB *InstalledDatabase) AddArtifact(pkg *InstalledArtifact) {
 	// Remove existing artifact with same name if it exists
 	for i, existingPkg := range installedDB.Artifacts {
 		if existingPkg.Name == pkg.Name {
@@ -179,6 +200,6 @@ func (installedDB *InstalledDatabase) RemoveArtifact(name string) bool {
 }
 
 // GetInstalledArtifacts returns all installed packages.
-func (installedDB *InstalledDatabase) GetInstalledArtifacts() []*artifact.InstalledArtifact {
+func (installedDB *InstalledDatabase) GetInstalledArtifacts() []*InstalledArtifact {
 	return installedDB.Artifacts
 }
