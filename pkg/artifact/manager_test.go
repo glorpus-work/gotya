@@ -11,12 +11,12 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
-	mgr := NewManager(platform.OSLinux, platform.ArchAMD64, t.TempDir(), "")
+	mgr := NewManager(platform.OSLinux, platform.ArchAMD64, t.TempDir(), "", "", "")
 	assert.NotNil(t, mgr)
 }
 
 func TestInstallArtifact_MissingLocalFile(t *testing.T) {
-	mgr := NewManager("linux", "amd64", t.TempDir(), "")
+	mgr := NewManager("linux", "amd64", t.TempDir(), "", "", "")
 
 	desc := &model.IndexArtifactDescriptor{
 		Name:    "invalid-artifact",

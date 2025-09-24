@@ -21,15 +21,17 @@ type ManagerImpl struct {
 	artifactCacheDir       string
 	artifactDataInstallDir string
 	artifactMetaInstallDir string
+	installedDBPath        string
 }
 
-func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInstallDir string) *ManagerImpl {
+func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInstallDir, installedDBPath string) *ManagerImpl {
 	return &ManagerImpl{
 		os:                     os,
 		arch:                   arch,
 		artifactCacheDir:       artifactCacheDir,
 		artifactDataInstallDir: artifactInstallDir,
 		artifactMetaInstallDir: artifactMetaInstallDir,
+		installedDBPath:        installedDBPath,
 	}
 }
 

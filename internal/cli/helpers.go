@@ -80,6 +80,7 @@ func loadArtifactManager(config *config.Config) artifact.Manager {
 		config.GetArtifactCacheDir(),
 		config.Settings.InstallDir,
 		config.GetMetaDir(),
+		config.GetDatabasePath(),
 	)
 }
 

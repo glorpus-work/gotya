@@ -27,7 +27,7 @@ const (
 // NewInstalledDatabase creates a new installed packages database.
 func NewInstalledDatabase() *InstalledDatabase {
 	return &InstalledDatabase{
-		FormatVersion: "1.0",
+		FormatVersion: "1",
 		LastUpdate:    time.Now(),
 		Artifacts:     make([]*artifact.InstalledArtifact, 0, InitialArtifactCapacity),
 	}
