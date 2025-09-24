@@ -1,4 +1,4 @@
-package artifact
+package database
 
 import (
 	"encoding/json"
@@ -8,14 +8,15 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 // InstalledDatabase represents the database of installed packages.
 type InstalledDatabase struct {
-	FormatVersion string               `json:"format_version"`
-	LastUpdate    time.Time            `json:"last_update"`
-	Artifacts     []*InstalledArtifact `json:"artifacts"`
+	FormatVersion string                        `json:"format_version"`
+	LastUpdate    time.Time                     `json:"last_update"`
+	Artifacts     []*artifact.InstalledArtifact `json:"artifacts"`
 }
 
 const (
@@ -28,52 +29,45 @@ func NewInstalledDatabase() *InstalledDatabase {
 	return &InstalledDatabase{
 		FormatVersion: "1.0",
 		LastUpdate:    time.Now(),
-		Artifacts:     make([]*InstalledArtifact, 0, InitialArtifactCapacity),
+		Artifacts:     make([]*artifact.InstalledArtifact, 0, InitialArtifactCapacity),
 	}
 }
 
-// LoadInstalledDatabase loads the installed packages database from file.
-func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
+// LoadDatabase loads the installed packages database from file.
+func (installedDB *InstalledDatabase) LoadDatabase(dbPath string) error {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
-		return nil, fmt.Errorf("database path must be absolute: %s: %w", dbPath, errors.ErrInvalidPath)
+		return fmt.Errorf("database path must be absolute: %s: %w", dbPath, errors.ErrInvalidPath)
 	}
 
 	// Check if file exists with cleaned path
 	if _, err := os.Stat(cleanPath); os.IsNotExist(err) {
 		// Database doesn't exist, return new empty database
-		return NewInstalledDatabase(), nil
+		return nil
 	}
 
 	// Open the file with the cleaned path
 	file, err := os.Open(cleanPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database file: %w", err)
+		return fmt.Errorf("failed to open database file: %w", err)
 	}
 	defer file.Close()
 
-	return ParseInstalledDatabaseFromReader(file)
+	return installedDB.parseInstalledDatabaseFromReader(file)
 }
 
-// ParseInstalledDatabaseFromReader parses the database from an io.Reader.
-func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, error) {
+// parseInstalledDatabaseFromReader parses the database from an io.Reader.
+func (installedDB *InstalledDatabase) parseInstalledDatabaseFromReader(reader io.Reader) error {
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read database: %w", err)
+		return fmt.Errorf("failed to read database: %w", err)
 	}
 
 	// First unmarshal into a temporary struct
 	var tempDB InstalledDatabase
 	if err := json.Unmarshal(data, &tempDB); err != nil {
-		return nil, fmt.Errorf("failed to parse database: %w", err)
-	}
-
-	// Convert to our actual database structure with pointers
-	installedDB := &InstalledDatabase{
-		FormatVersion: tempDB.FormatVersion,
-		LastUpdate:    tempDB.LastUpdate,
-		Artifacts:     make([]*InstalledArtifact, 0, len(tempDB.Artifacts)),
+		return fmt.Errorf("failed to parse database: %w", err)
 	}
 
 	// Convert each artifact to a pointer
@@ -82,11 +76,11 @@ func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, err
 		installedDB.Artifacts = append(installedDB.Artifacts, pkg)
 	}
 
-	return installedDB, nil
+	return nil
 }
 
-// Save saves the installed packages database to file.
-func (installedDB *InstalledDatabase) Save(dbPath string) (err error) {
+// SaveDatabase saves the installed packages database to file.
+func (installedDB *InstalledDatabase) SaveDatabase(dbPath string) (err error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
@@ -142,7 +136,7 @@ func (installedDB *InstalledDatabase) Save(dbPath string) (err error) {
 }
 
 // FindArtifact finds an installed artifact by name.
-func (installedDB *InstalledDatabase) FindArtifact(name string) *InstalledArtifact {
+func (installedDB *InstalledDatabase) FindArtifact(name string) *artifact.InstalledArtifact {
 	for _, pkg := range installedDB.Artifacts {
 		if pkg.Name == name {
 			return pkg
@@ -157,7 +151,7 @@ func (installedDB *InstalledDatabase) IsArtifactInstalled(name string) bool {
 }
 
 // AddArtifact adds an installed artifact to the database.
-func (installedDB *InstalledDatabase) AddArtifact(pkg *InstalledArtifact) {
+func (installedDB *InstalledDatabase) AddArtifact(pkg *artifact.InstalledArtifact) {
 	// Remove existing artifact with same name if it exists
 	for i, existingPkg := range installedDB.Artifacts {
 		if existingPkg.Name == pkg.Name {
@@ -185,6 +179,6 @@ func (installedDB *InstalledDatabase) RemoveArtifact(name string) bool {
 }
 
 // GetInstalledArtifacts returns all installed packages.
-func (installedDB *InstalledDatabase) GetInstalledArtifacts() []*InstalledArtifact {
+func (installedDB *InstalledDatabase) GetInstalledArtifacts() []*artifact.InstalledArtifact {
 	return installedDB.Artifacts
 }

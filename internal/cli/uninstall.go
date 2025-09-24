@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	pkg "github.com/cperrin88/gotya/pkg/artifact"
+	pkg "github.com/cperrin88/gotya/pkg/artifact/database"
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/spf13/cobra"
 )
@@ -35,7 +35,7 @@ By default, pre-remove and post-remove hooks will be executed.`,
 			}
 
 			// Load installed packages database
-			installedDB, err := pkg.LoadInstalledDatabase(cfg.GetDatabasePath())
+			installedDB, err := pkg.LoadDatabase(cfg.GetDatabasePath())
 			if err != nil {
 				return fmt.Errorf("failed to load installed packages database: %w", err)
 			}
@@ -47,8 +47,8 @@ By default, pre-remove and post-remove hooks will be executed.`,
 				}
 			}
 
-			// Save the updated database
-			if err := installedDB.Save(cfg.GetDatabasePath()); err != nil {
+			// SaveDatabase the updated database
+			if err := installedDB.SaveDatabase(cfg.GetDatabasePath()); err != nil {
 				return fmt.Errorf("failed to save database: %w", err)
 			}
 

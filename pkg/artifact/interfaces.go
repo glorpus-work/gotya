@@ -21,7 +21,7 @@ type InstalledManager interface {
 	IsArtifactInstalled(name string) bool
 	AddArtifact(pkg *InstalledArtifact)
 	RemoveArtifact(name string) bool
-	GetInstalledArtifacts() []InstalledArtifact
+	GetInstalledArtifacts() []*InstalledArtifact
 }
 
 // InstalledArtifact represents an installed artifact with its files.
