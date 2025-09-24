@@ -2,7 +2,6 @@ package artifact
 
 import (
 	"context"
-	"time"
 
 	"github.com/cperrin88/gotya/pkg/model"
 )
