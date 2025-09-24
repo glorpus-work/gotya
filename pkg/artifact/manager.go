@@ -9,7 +9,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/cperrin88/gotya/pkg/artifact/database"
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/mholt/archives"
@@ -41,25 +43,65 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 		return err
 	}
 
+	// Load or create the installed database
+	db := database.NewInstalledDatabase()
+	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+		return fmt.Errorf("failed to load installed database: %w", err)
+	}
+
+	// Check if the artifact is already installed
+	if db.IsArtifactInstalled(desc.Name) {
+		return fmt.Errorf("artifact %s is already installed", desc.Name)
+	}
+
 	dir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s", desc.Name))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
 	defer os.RemoveAll(dir)
 
 	if err := m.extractArtifact(ctx, localPath, dir); err != nil {
-		return err
+		return fmt.Errorf("failed to extract artifact: %w", err)
 	}
 
-	//TODO rollback handling
 	//TODO pre-install hooks
-	if err := os.Rename(filepath.Join(dir, artifactMetaDir), filepath.Join(m.artifactMetaInstallDir, desc.Name)); err != nil {
-		return err
+
+	// Install the artifact files
+	metaPath := m.getArtifactMetaInstallPath(desc.Name)
+	if err := os.Rename(filepath.Join(dir, artifactMetaDir), metaPath); err != nil {
+		return fmt.Errorf("failed to install metadata: %w", err)
 	}
 
-	if err := os.Rename(filepath.Join(dir, artifactDataDir), filepath.Join(m.artifactDataInstallDir, desc.Name)); err != nil {
-		return err
+	// If we fail after this point, we need to clean up the metadata directory
+	rollbackNeeded := true
+	defer func() {
+		if rollbackNeeded {
+			m.installRollback(desc.Name)
+		}
+	}()
+
+	dataPath := m.getArtifactDataInstallPath(desc.Name)
+	if err := os.Rename(filepath.Join(dir, artifactDataDir), dataPath); err != nil {
+		return fmt.Errorf("failed to install data: %w", err)
 	}
+
+	installedArtifact := &InstalledArtifact{
+		Name:          desc.Name,
+		Version:       desc.Version,
+		Description:   desc.Description,
+		InstalledAt:   time.Now(),
+		InstalledFrom: desc.URL,
+		Files:         []string{metaPath, dataPath}, // Track the installed files
+	}
+	db.AddArtifact(installedArtifact)
+
+	// Save the database
+	if err := db.SaveDatabase(m.installedDBPath); err != nil {
+		return fmt.Errorf("failed to save installed database: %w", err)
+	}
+
+	// If we get here, the installation was successful
+	rollbackNeeded = false
 
 	//TODO post-install hooks
 
@@ -242,4 +284,21 @@ func (m ManagerImpl) extractArtifact(ctx context.Context, filePath, destDir stri
 
 func (m ManagerImpl) getArtifactCacheFilePath(artifact *model.IndexArtifactDescriptor) string {
 	return filepath.Join(m.artifactCacheDir, fmt.Sprintf("%s_%s_%s_%s.gotya", artifact.Name, artifact.Version, artifact.OS, artifact.Arch))
+}
+
+func (m ManagerImpl) getArtifactMetaInstallPath(artifactName string) string {
+	return filepath.Join(m.artifactMetaInstallDir, artifactName)
+}
+
+func (m ManagerImpl) getArtifactDataInstallPath(artifactName string) string {
+	return filepath.Join(m.artifactDataInstallDir, artifactName)
+}
+
+// installRollback cleans up any partially installed files in case of an error
+func (m ManagerImpl) installRollback(artifactName string) {
+	metaPath := m.getArtifactMetaInstallPath(artifactName)
+	_ = os.RemoveAll(metaPath)
+
+	dataPath := m.getArtifactDataInstallPath(artifactName)
+	_ = os.RemoveAll(dataPath)
 }
