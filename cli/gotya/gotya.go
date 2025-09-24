@@ -60,11 +60,10 @@ func newRootCmd() *cobra.Command {
 		cli.NewInstallCmd(),
 		cli.NewUninstallCmd(),
 		// cli.NewUpdateCmd(),
-		cli.NewSearchCmd(),
-		cli.NewListCmd(),
 		cli.NewConfigCmd(),
 		cli.NewCacheCmd(),
 		cli.NewArtifactCmd(),
+		cli.NewIndexCmd(),
 		cli.NewVersionCmd(),
 	)
 

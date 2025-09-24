@@ -19,6 +19,9 @@ import (
 // Common error types used throughout the application.
 // Errors are grouped by their domain or functionality.
 var (
+	// Index errors are related to package index operations.
+	ErrAlreadyExists = fmt.Errorf("resource already exists")
+	ErrValidation    = fmt.Errorf("validation failed")
 	// Config errors are related to configuration file operations and validation.
 	// These errors typically occur during application startup or config reload.
 	ErrEmptyConfigPath = fmt.Errorf(

@@ -45,15 +45,93 @@ type Generator struct {
 	// BasePath is an optional prefix to apply to artifact URLs in the index.
 	// The resulting URL is path.Join(BasePath, relPathFromIndexDirToArtifact).
 	BasePath string
+	// ForceOverwrite controls whether to overwrite an existing output file.
+	ForceOverwrite bool
+}
+
+// NewGenerator creates a new Generator with default values.
+func NewGenerator(dir, outputPath string) *Generator {
+	return &Generator{
+		Dir:        dir,
+		OutputPath: outputPath,
+	}
+}
+
+// Validate checks if the generator is properly configured.
+func (g *Generator) Validate() error {
+	// Check source directory exists and is readable
+	if g.Dir == "" {
+		return errors.Wrapf(errors.ErrInvalidPath, "source directory is required")
+	}
+	if g.OutputPath == "" {
+		return errors.Wrapf(errors.ErrInvalidPath, "output path is required")
+	}
+
+	// Check source directory exists and is accessible
+	if fi, err := os.Stat(g.Dir); os.IsNotExist(err) {
+		return errors.Wrapf(errors.ErrInvalidPath, "source directory does not exist: %s", g.Dir)
+	} else if !fi.IsDir() {
+		return errors.Wrapf(errors.ErrInvalidPath, "source is not a directory: %s", g.Dir)
+	}
+
+	// Check output file doesn't exist (unless force is set)
+	if !g.ForceOverwrite {
+		if _, err := os.Stat(g.OutputPath); err == nil {
+			return errors.Wrapf(errors.ErrAlreadyExists,
+				"output file exists (use ForceOverwrite to overwrite): %s", g.OutputPath)
+		}
+	}
+
+	// Ensure output directory exists and is writable
+	outputDir := filepath.Dir(g.OutputPath)
+	if outputDir != "." {
+		if err := os.MkdirAll(outputDir, 0o755); err != nil {
+			return errors.Wrapf(err, "failed to create output directory: %s", outputDir)
+		}
+	}
+
+	// Check if we can write to the output directory
+	testFile := filepath.Join(outputDir, ".gotya_test_"+time.Now().Format("20060102150405"))
+	if f, err := os.Create(testFile); err != nil {
+		return errors.Wrapf(err, "output directory is not writable: %s", outputDir)
+	} else {
+		f.Close()
+		os.Remove(testFile) // Clean up test file
+	}
+
+	return nil
+}
+
+// CountArtifacts counts the number of .gotya files in the source directory
+func (g *Generator) CountArtifacts() (int, error) {
+	count := 0
+	err := filepath.Walk(g.Dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".gotya") {
+			count++
+		}
+		return nil
+	})
+
+	return count, err
 }
 
 // Generate scans Dir, builds an Index, and writes it to OutputPath.
 func (g *Generator) Generate(ctx context.Context) error {
-	if g.Dir == "" {
-		return errors.Wrapf(errors.ErrInvalidPath, "packages directory is required")
+	// Validate configuration
+	if err := g.Validate(); err != nil {
+		return err
 	}
-	if g.OutputPath == "" {
-		return errors.Wrapf(errors.ErrInvalidPath, "output index path is required")
+
+	// Count artifacts to provide better error messages
+	count, countErr := g.CountArtifacts()
+	if countErr != nil {
+		return errors.Wrap(countErr, "failed to count artifacts")
+	}
+	if count == 0 {
+		return errors.Wrap(errors.ErrValidation, "no .gotya artifacts found in source directory")
 	}
 	index := &Index{
 		FormatVersion: CurrentFormatVersion,
@@ -62,9 +140,9 @@ func (g *Generator) Generate(ctx context.Context) error {
 	}
 
 	// Walk the directory tree and find .gotya files
-	err := filepath.WalkDir(g.Dir, func(p string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
+	walkErr := filepath.WalkDir(g.Dir, func(p string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
 		if d.IsDir() {
 			return nil
@@ -75,13 +153,14 @@ func (g *Generator) Generate(ctx context.Context) error {
 		// Parse this artifact and convert to descriptor
 		desc, err := g.describeArtifact(ctx, p)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to process artifact %s: %w", p, err)
 		}
 		index.Artifacts = append(index.Artifacts, desc)
 		return nil
 	})
-	if err != nil {
-		return err
+
+	if walkErr != nil {
+		return fmt.Errorf("error walking directory: %w", walkErr)
 	}
 
 	// Write index to file

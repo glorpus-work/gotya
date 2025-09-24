@@ -80,11 +80,12 @@ func TestGenerator_Generate(t *testing.T) {
 		{
 			name: "with base path",
 			setup: func(t *testing.T) (*Generator, string) {
-				outputPath := filepath.Join(tempDir, "index.json")
+				outputPath := filepath.Join(tempDir, "index-with-base.json")
 				return &Generator{
-					Dir:        artifactsDir,
-					OutputPath: outputPath,
-					BasePath:   "packages",
+					Dir:            artifactsDir,
+					OutputPath:     outputPath,
+					BasePath:       "packages",
+					ForceOverwrite: true, // Allow overwrite for test
 				}, outputPath
 			},
 			wantErr: false,
