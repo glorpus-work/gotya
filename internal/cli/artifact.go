@@ -57,9 +57,11 @@ The source directory should contain a 'meta/artifact.json' file and a 'files/' d
 				sourceDir,
 				outputDir,
 			)
-			if err := packer.Pack(); err != nil {
+			outputFile, err := packer.Pack()
+			if err != nil {
 				return fmt.Errorf("failed to create artifact: %w", err)
 			}
+			fmt.Printf("Successfully created artifact: %s\n", outputFile)
 			return nil
 		},
 	}

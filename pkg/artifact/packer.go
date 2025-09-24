@@ -55,10 +55,10 @@ func NewPacker(name, version, os, arch, maintainer, description string, dependen
 	}
 }
 
-func (p *Packer) Pack() error {
+func (p *Packer) Pack() (string, error) {
 	dir, err := os.MkdirTemp("", "gotya-packer")
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	p.tempDir = dir
@@ -66,7 +66,7 @@ func (p *Packer) Pack() error {
 	defer os.RemoveAll(dir)
 
 	if err := p.checkInput(); err != nil {
-		return err
+		return "", err
 	}
 
 	p.metadata = &Metadata{
@@ -82,22 +82,22 @@ func (p *Packer) Pack() error {
 	}
 
 	if err := p.copyInputDir(); err != nil {
-		return err
+		return "", err
 	}
 
 	if err := p.createMetadataFile(); err != nil {
-		return err
+		return "", err
 	}
 
 	if err := p.createArchive(); err != nil {
-		return err
+		return "", err
 	}
 
 	if err := p.verify(); err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return p.getOutputFile(), nil
 }
 
 func (p *Packer) verify() error {

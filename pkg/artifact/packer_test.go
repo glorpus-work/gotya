@@ -155,18 +155,19 @@ func TestPacker_Pack(t *testing.T) {
 			p.outputDir = outputDir
 
 			// Run the pack function
-			err = p.Pack()
+			outputFile, err := p.Pack()
 
 			// Check the error
 			if tt.expectedErr != nil {
 				assert.ErrorIs(t, err, tt.expectedErr)
 			} else {
 				assert.NoError(t, err)
+				assert.NotEmpty(t, outputFile)
 			}
 
 			// Check if output file was created if expected
-			outputFile := filepath.Join(outputDir, p.name+"_"+p.version+"_"+p.os+"_"+p.arch+".gotya")
-			_, statErr := os.Stat(outputFile)
+			expectedOutputFile := filepath.Join(outputDir, p.name+"_"+p.version+"_"+p.os+"_"+p.arch+".gotya")
+			_, statErr := os.Stat(expectedOutputFile)
 			if tt.expectOutput {
 				assert.NoError(t, statErr, "expected output file to exist")
 			} else {
@@ -260,10 +261,11 @@ func TestPackSymlinks(t *testing.T) {
 			// Ensure output directory exists
 			require.NoError(t, os.MkdirAll(outputDir, 0o755))
 
-			err := p.Pack()
+			outputFile, err := p.Pack()
 
 			if tt.expectErr {
 				assert.Error(t, err)
+				assert.Empty(t, outputFile)
 				// New error semantics: ensure it wraps ErrInvalidPath
 				assert.ErrorIs(t, err, errors.ErrInvalidPath)
 				// Keep a minimal message check to ensure context is present when provided
