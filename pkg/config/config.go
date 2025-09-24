@@ -76,6 +76,7 @@ type Settings struct {
 
 	// Installation settings
 	InstallDir string `yaml:"install_dir,omitempty"` // Base directory for artifact installations
+	MetaDir    string `yaml:"meta_dir,omitempty"`
 
 	// Network settings
 	HTTPTimeout   time.Duration `yaml:"http_timeout"`
@@ -92,37 +93,35 @@ type Settings struct {
 
 // DefaultConfig returns a configuration with sensible defaults.
 func DefaultConfig() *Config {
-	// Get the default install directory (usually ~/.local/share/gotya/install on Linux)
-	installDir, err := fsutil.GetInstalledDir()
+	userConfigDir, err := getUserDataDir()
 	if err != nil {
-		// Fall back to a reasonable default if we can't determine the install dir
-		installDir = "/usr/local/share/gotya/install"
-	}
-
-	cacheDir, err := fsutil.GetCacheDir()
-	if err != nil {
-		// Fall back to a reasonable default if we can't determine the cache dir
-		cacheDir = "/var/cache/gotya"
+		// Fallback to current directory if we can't determine user config dir
+		userConfigDir = "."
 	}
 
 	return &Config{
-		Repositories: []*RepositoryConfig{},
+		Repositories: []*RepositoryConfig{
+			{
+				Name:    "default",
+				URL:     "https://github.com/cperrin88/gotya-index",
+				Enabled: true,
+			},
+		},
 		Settings: Settings{
-			CacheDir:      cacheDir,
 			CacheTTL:      DefaultCacheTTL,
-			AutoSync:      false,
 			HTTPTimeout:   DefaultHTTPTimeout,
 			MaxConcurrent: DefaultMaxConcurrent,
-			InstallDir:    installDir,
+			AutoSync:      true,
+			OutputFormat:  "text",
+			ColorOutput:   true,
+			LogLevel:      "info",
+			InstallDir:    filepath.Join(userConfigDir, "bin"),
+			MetaDir:       filepath.Join(userConfigDir, "meta"),
 			Platform: PlatformConfig{
-				OS:   runtime.GOOS,
-				Arch: runtime.GOARCH,
-				// OS and Arch are empty by default for auto-detection
+				OS:           runtime.GOOS,
+				Arch:         runtime.GOARCH,
 				PreferNative: true,
 			},
-			OutputFormat: "table",
-			ColorOutput:  true,
-			LogLevel:     "info",
 		},
 	}
 }
@@ -427,11 +426,17 @@ func (c *Config) GetDatabasePath() string {
 }
 
 func (c *Config) GetIndexDir() string {
-	return filepath.Join(c.Settings.CacheDir, "indexes")
+	return filepath.Join(c.GetCacheDir(), "indexes")
 }
 
+// GetArtifactCacheDir returns the path to the artifact cache directory.
 func (c *Config) GetArtifactCacheDir() string {
-	return filepath.Join(c.Settings.CacheDir, "packages")
+	return filepath.Join(c.GetCacheDir(), "artifacts")
+}
+
+// GetMetaDir returns the path to the meta directory.
+func (c *Config) GetMetaDir() string {
+	return c.Settings.MetaDir
 }
 
 // GetCacheDir returns the base cache directory from settings.
@@ -452,7 +457,7 @@ func getUserDataDir() (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("failed to get user home directory: %w", err)
 		}
-		return filepath.Join(homeDir, ".local", "share", "gotya", "state"), nil
+		return filepath.Join(homeDir, ".local", "share"), nil
 	}
 
 	// For all other platforms (Windows, macOS, etc.), use UserConfigDir + gotya/state
@@ -460,5 +465,5 @@ func getUserDataDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get user config directory: %w", err)
 	}
-	return filepath.Join(configDir, "gotya", "state"), nil
+	return configDir, nil
 }

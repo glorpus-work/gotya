@@ -15,7 +15,7 @@ import (
 type InstalledDatabase struct {
 	FormatVersion string               `json:"format_version"`
 	LastUpdate    time.Time            `json:"last_update"`
-	Artifacts     []*InstalledArtifact `json:"packages"`
+	Artifacts     []*InstalledArtifact `json:"artifacts"`
 }
 
 const (
@@ -56,13 +56,6 @@ func LoadInstalledDatabase(dbPath string) (*InstalledDatabase, error) {
 	return ParseInstalledDatabaseFromReader(file)
 }
 
-// tempInstalledDatabase is used for JSON unmarshaling.
-type tempInstalledDatabase struct {
-	FormatVersion string              `json:"format_version"`
-	LastUpdate    time.Time           `json:"last_update"`
-	Artifacts     []InstalledArtifact `json:"packages"`
-}
-
 // ParseInstalledDatabaseFromReader parses the database from an io.Reader.
 func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, error) {
 	data, err := io.ReadAll(reader)
@@ -71,7 +64,7 @@ func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, err
 	}
 
 	// First unmarshal into a temporary struct
-	var tempDB tempInstalledDatabase
+	var tempDB InstalledDatabase
 	if err := json.Unmarshal(data, &tempDB); err != nil {
 		return nil, fmt.Errorf("failed to parse database: %w", err)
 	}
@@ -85,9 +78,8 @@ func ParseInstalledDatabaseFromReader(reader io.Reader) (*InstalledDatabase, err
 
 	// Convert each artifact to a pointer
 	for i := range tempDB.Artifacts {
-		break
 		pkg := tempDB.Artifacts[i] // Create a copy in the loop
-		installedDB.Artifacts = append(installedDB.Artifacts, &pkg)
+		installedDB.Artifacts = append(installedDB.Artifacts, pkg)
 	}
 
 	return installedDB, nil

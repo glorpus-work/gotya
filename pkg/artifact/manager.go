@@ -20,14 +20,16 @@ type ManagerImpl struct {
 	arch                   string
 	artifactCacheDir       string
 	artifactDataInstallDir string
+	artifactMetaInstallDir string
 }
 
-func NewManager(os, arch, artifactCacheDir, artifactInstallDir string) *ManagerImpl {
+func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInstallDir string) *ManagerImpl {
 	return &ManagerImpl{
 		os:                     os,
 		arch:                   arch,
 		artifactCacheDir:       artifactCacheDir,
 		artifactDataInstallDir: artifactInstallDir,
+		artifactMetaInstallDir: artifactMetaInstallDir,
 	}
 }
 
@@ -47,9 +49,17 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 		return err
 	}
 
+	//TODO rollback handling
+	//TODO pre-install hooks
+	if err := os.Rename(filepath.Join(dir, artifactMetaDir), filepath.Join(m.artifactMetaInstallDir, desc.Name)); err != nil {
+		return err
+	}
+
 	if err := os.Rename(filepath.Join(dir, artifactDataDir), filepath.Join(m.artifactDataInstallDir, desc.Name)); err != nil {
 		return err
 	}
+
+	//TODO post-install hooks
 
 	return nil
 }

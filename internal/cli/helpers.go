@@ -74,7 +74,13 @@ func loadIndexManager(config *config.Config) index.Manager {
 
 func loadArtifactManager(config *config.Config) artifact.Manager {
 	// Artifact manager now operates purely on local files and no longer depends on index or http
-	return artifact.NewManager(config.Settings.Platform.OS, config.Settings.Platform.Arch, config.GetArtifactCacheDir(), config.Settings.InstallDir)
+	return artifact.NewManager(
+		config.Settings.Platform.OS,
+		config.Settings.Platform.Arch,
+		config.GetArtifactCacheDir(),
+		config.Settings.InstallDir,
+		config.GetMetaDir(),
+	)
 }
 
 func loadDownloadManager(config *config.Config) download.Manager {
