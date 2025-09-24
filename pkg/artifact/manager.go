@@ -16,24 +16,42 @@ import (
 )
 
 type ManagerImpl struct {
-	os                 string
-	arch               string
-	artifactCacheDir   string
-	artifactInstallDir string
+	os                     string
+	arch                   string
+	artifactCacheDir       string
+	artifactDataInstallDir string
 }
 
 func NewManager(os, arch, artifactCacheDir, artifactInstallDir string) *ManagerImpl {
 	return &ManagerImpl{
-		os:                 os,
-		arch:               arch,
-		artifactCacheDir:   artifactCacheDir,
-		artifactInstallDir: artifactInstallDir,
+		os:                     os,
+		arch:                   arch,
+		artifactCacheDir:       artifactCacheDir,
+		artifactDataInstallDir: artifactInstallDir,
 	}
 }
 
 // InstallArtifact installs (verifies/stages) an artifact from a local file path, replacing the previous network-based install.
 func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) error {
-	return m.verifyArtifactFile(ctx, desc, localPath)
+	if err := m.verifyArtifactFile(ctx, desc, localPath); err != nil {
+		return err
+	}
+
+	dir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s", desc.Name))
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+
+	if err := m.extractArtifact(ctx, localPath, dir); err != nil {
+		return err
+	}
+
+	if err := os.Rename(filepath.Join(dir, artifactDataDir), filepath.Join(m.artifactDataInstallDir, desc.Name)); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
@@ -41,6 +59,8 @@ func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexAr
 	return m.verifyArtifactFile(ctx, artifact, filePath)
 }
 
+// verifyArtifactFile verifies an artifact from a local file path.
+// TODO rewrite to use a local filepath instead of archives.FileSystem.
 func (m ManagerImpl) verifyArtifactFile(ctx context.Context, artifact *model.IndexArtifactDescriptor, filePath string) error {
 	if _, err := os.Stat(filePath); err != nil {
 		return errors.ErrArtifactNotFound
@@ -113,6 +133,99 @@ func (m ManagerImpl) verifyArtifactFile(ctx context.Context, artifact *model.Ind
 	}
 
 	return nil
+}
+
+// extractArtifact extracts an artifact from a local file path to a directory.
+func (m ManagerImpl) extractArtifact(ctx context.Context, filePath, destDir string) error {
+	// Open the artifact file
+	fsys, err := archives.FileSystem(ctx, filePath, nil)
+	if err != nil {
+		return errors.Wrap(err, "failed to open artifact file")
+	}
+
+	// Ensure the destination directory exists
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return errors.Wrapf(err, "failed to create destination directory: %s", destDir)
+	}
+
+	// Walk through all files in the artifact and extract them
+	walkFn := func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory
+		if path == "." {
+			return nil
+		}
+
+		targetPath := filepath.Join(destDir, path)
+
+		if d.IsDir() {
+			return os.MkdirAll(targetPath, 0755)
+		}
+
+		// Handle regular files and symlinks
+		info, err := d.Info()
+		if err != nil {
+			return errors.Wrapf(err, "failed to get file info for %s", path)
+		}
+
+		// Handle symlinks
+		if info.Mode()&os.ModeSymlink != 0 {
+			linkTarget, err := os.Readlink(filepath.Join(filePath, path))
+			if err != nil {
+				return errors.Wrapf(err, "failed to read symlink %s", path)
+			}
+
+			// Ensure the target directory exists
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				return errors.Wrapf(err, "failed to create parent directory for symlink %s", path)
+			}
+
+			// Remove existing file/symlink if it exists
+			_ = os.Remove(targetPath)
+
+			return os.Symlink(linkTarget, targetPath)
+		}
+
+		// Handle regular files
+		srcFile, err := fsys.Open(path)
+		if err != nil {
+			return errors.Wrapf(err, "failed to open source file %s", path)
+		}
+		defer srcFile.Close()
+
+		// Ensure the target directory exists
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return errors.Wrapf(err, "failed to create parent directory for %s", path)
+		}
+
+		dstFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
+		if err != nil {
+			return errors.Wrapf(err, "failed to create destination file %s", targetPath)
+		}
+		defer dstFile.Close()
+
+		if _, err := io.Copy(dstFile, srcFile); err != nil {
+			return errors.Wrapf(err, "failed to copy file %s", path)
+		}
+
+		// Preserve file permissions
+		if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
+			return errors.Wrapf(err, "failed to set permissions for %s", targetPath)
+		}
+
+		// Preserve modification time if possible
+		if err := os.Chtimes(targetPath, info.ModTime(), info.ModTime()); err != nil {
+			return errors.Wrapf(err, "failed to set modification time for %s", targetPath)
+		}
+
+		return nil
+	}
+
+	// Start walking through the artifact files
+	return fs.WalkDir(fsys, ".", walkFn)
 }
 
 func (m ManagerImpl) getArtifactCacheFilePath(artifact *model.IndexArtifactDescriptor) string {
