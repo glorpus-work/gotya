@@ -38,14 +38,23 @@ func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInst
 }
 
 // InstallArtifact installs (verifies/stages) an artifact from a local file path, replacing the previous network-based install.
-func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) error {
-	if err := m.verifyArtifactFile(ctx, desc, localPath); err != nil {
+func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) (err error) {
+	// Set up rollback in case of failure
+	var installed bool
+	defer func() {
+		if err != nil && installed {
+			// If we installed files but then failed, clean them up
+			m.installRollback(desc.Name)
+		}
+	}()
+
+	if err = m.verifyArtifactFile(ctx, desc, localPath); err != nil {
 		return err
 	}
 
 	// Load or create the installed database
 	db := database.NewInstalledDatabase()
-	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+	if err = db.LoadDatabase(m.installedDBPath); err != nil {
 		return fmt.Errorf("failed to load installed database: %w", err)
 	}
 
@@ -60,19 +69,21 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	}
 	defer os.RemoveAll(extractDir)
 
-	if err := m.extractArtifact(ctx, localPath, extractDir); err != nil {
+	if err = m.extractArtifact(ctx, localPath, extractDir); err != nil {
 		return fmt.Errorf("failed to extract artifact: %w", err)
 	}
 
 	//TODO pre-install hooks
 
 	// Install the artifact files
-	if err := m.installArtifactFiles(desc.Name, extractDir); err != nil {
+	if err = m.installArtifactFiles(desc.Name, extractDir); err != nil {
 		return fmt.Errorf("failed to install artifact files: %w", err)
 	}
+	installed = true // Mark that we've installed files that might need cleanup
 
 	// Add the installed artifact to the database
-	if err := m.addArtifactToDatabase(db, desc); err != nil {
+	_, err = m.addArtifactToDatabase(db, desc)
+	if err != nil {
 		return fmt.Errorf("failed to update artifact database: %w", err)
 	}
 
@@ -92,27 +103,27 @@ func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) error
 	metaSrcDir := filepath.Join(extractDir, artifactMetaDir)
 	dataSrcDir := filepath.Join(extractDir, artifactDataDir)
 
+	// Check if metadata directory exists
+	if _, err := os.Stat(metaSrcDir); os.IsNotExist(err) {
+		return fmt.Errorf("metadata directory not found in artifact")
+	}
+
 	// Install the metadata directory
 	metaPath := m.getArtifactMetaInstallPath(artifactName)
 	if err := os.Rename(metaSrcDir, metaPath); err != nil {
 		return fmt.Errorf("failed to install metadata: %w", err)
 	}
 
-	// If we fail after this point, we need to clean up the metadata directory
-	rollbackNeeded := true
-	defer func() {
-		if rollbackNeeded {
-			m.installRollback(artifactName)
+	// Only install data directory if it exists
+	if _, err := os.Stat(dataSrcDir); err == nil {
+		dataPath := m.getArtifactDataInstallPath(artifactName)
+		if err := os.Rename(dataSrcDir, dataPath); err != nil {
+			// Clean up the metadata directory if data installation fails
+			_ = os.RemoveAll(metaPath)
+			return fmt.Errorf("failed to install data: %w", err)
 		}
-	}()
-
-	// Install the data directory
-	dataPath := m.getArtifactDataInstallPath(artifactName)
-	if err := os.Rename(dataSrcDir, dataPath); err != nil {
-		return fmt.Errorf("failed to install data: %w", err)
 	}
 
-	rollbackNeeded = false
 	return nil
 }
 
@@ -136,20 +147,25 @@ func getAllFilesInDir(dir string) ([]string, error) {
 }
 
 // addArtifactToDatabase adds an installed artifact to the database
-func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledDatabase, desc *model.IndexArtifactDescriptor) error {
+// Returns the list of installed files if successful, or an error
+func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledDatabase, desc *model.IndexArtifactDescriptor) ([]string, error) {
 	// Get all installed files
 	metaPath := m.getArtifactMetaInstallPath(desc.Name)
 	dataPath := m.getArtifactDataInstallPath(desc.Name)
 
-	// Get all files from both metadata and data directories
+	// Get all files from metadata directory (required)
 	metaFiles, err := getAllFilesInDir(metaPath)
 	if err != nil {
-		return fmt.Errorf("failed to list installed metadata files: %w", err)
+		return nil, fmt.Errorf("failed to list installed metadata files: %w", err)
 	}
 
-	dataFiles, err := getAllFilesInDir(dataPath)
-	if err != nil {
-		return fmt.Errorf("failed to list installed data files: %w", err)
+	// Get all files from data directory (optional)
+	var dataFiles []string
+	if _, err := os.Stat(dataPath); err == nil {
+		dataFiles, err = getAllFilesInDir(dataPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list installed data files: %w", err)
+		}
 	}
 
 	// Combine all files
@@ -168,11 +184,10 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledDatabase, desc 
 
 	// Save the database
 	if err := db.SaveDatabase(m.installedDBPath); err != nil {
-		m.installRollback(desc.Name) // Clean up installed files
-		return fmt.Errorf("failed to save installed database: %w", err)
+		return nil, fmt.Errorf("failed to save installed database: %w", err)
 	}
 
-	return nil
+	return allFiles, nil
 }
 
 // verifyArtifactFile verifies an artifact from a local file path.
