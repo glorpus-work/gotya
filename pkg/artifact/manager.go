@@ -92,6 +92,10 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	return nil
 }
 
+func (m ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string, purge bool) error {
+	return nil
+}
+
 func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
 	filePath := m.getArtifactCacheFilePath(artifact)
 	return m.verifyArtifactFile(ctx, artifact, filePath)
