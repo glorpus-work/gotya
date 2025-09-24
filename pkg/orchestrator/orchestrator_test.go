@@ -166,7 +166,7 @@ func TestInstall_DryRun(t *testing.T) {
 
 	// Setup hooks to capture events
 	var events []Event
-	hooks := Hooks{
+	orch.Hooks = Hooks{
 		OnEvent: func(e Event) {
 			events = append(events, e)
 		},
@@ -177,7 +177,6 @@ func TestInstall_DryRun(t *testing.T) {
 		context.Background(),
 		req,
 		Options{DryRun: true},
-		hooks,
 	)
 
 	// Verify results
@@ -277,7 +276,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	}
 
 	var gotDone bool
-	hooks := Hooks{
+	orch.Hooks = Hooks{
 		OnEvent: func(e Event) {
 			if e.Phase == "done" {
 				gotDone = true
@@ -293,7 +292,6 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 			CacheDir:    tmp,
 			Concurrency: 2,
 		},
-		hooks,
 	)
 
 	// Verify results
@@ -311,7 +309,7 @@ func TestNew(t *testing.T) {
 	am := ocmocks.NewMockArtifactInstaller(ctrl)
 
 	// Call the constructor
-	orch := New(idx, dl, am)
+	orch := New(idx, dl, am, Hooks{})
 
 	// Verify all fields are properly initialized
 	assert.Same(t, idx, orch.Index, "Index field should be set to the provided mock")
@@ -392,9 +390,9 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 	orch := &Orchestrator{
 		Index:    idx,
 		Artifact: art,
+		Hooks:    Hooks{},
 		// DL is intentionally nil
 	}
-
 	// Execute test
 	err := orch.Install(
 		context.Background(),
@@ -402,7 +400,6 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 		Options{
 			CacheDir: t.TempDir(),
 		},
-		Hooks{},
 	)
 
 	// Verify results
@@ -430,11 +427,10 @@ func TestInstall_NoIndexPlanner(t *testing.T) {
 		CacheDir: t.TempDir(),
 	}
 
-	testHooks := Hooks{}
-
 	torch := &Orchestrator{
 		DL:       dlmocks.NewMockManager(ctrl),
 		Artifact: ocmocks.NewMockArtifactInstaller(ctrl),
+		Hooks:    Hooks{},
 		// Index is intentionally nil
 	}
 
@@ -443,7 +439,6 @@ func TestInstall_NoIndexPlanner(t *testing.T) {
 		context.Background(),
 		testReq,
 		testOpts,
-		testHooks,
 	)
 
 	// Verify results
@@ -473,14 +468,14 @@ func TestInstall_PlanError(t *testing.T) {
 		Times(1)
 
 	// Create orchestrator with only Index set
-	torch := &Orchestrator{Index: idx}
-
-	// Execute test
+	torch := &Orchestrator{
+		Index: idx,
+		Hooks: Hooks{},
+	}
 	err := torch.Install(
 		context.Background(),
 		testReq,
 		Options{},
-		Hooks{},
 	)
 
 	// Verify results
@@ -558,7 +553,6 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 		Options{
 			CacheDir: tmpDir,
 		},
-		Hooks{},
 	)
 
 	// Verify results
@@ -621,7 +615,6 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 		Options{
 			CacheDir: tmpDir,
 		},
-		Hooks{},
 	)
 
 	// Verify results

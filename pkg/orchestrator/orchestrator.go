@@ -1,4 +1,4 @@
-//go:generate mockgen -destination=./mocks/orchestrator.go . IndexPlanner,ArtifactInstaller
+//go:generate mockgen -destination=./mocks/orchestrator.go . IndexPlanner,ArtifactInstaller,Downloader
 
 package orchestrator
 
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/download"
 	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/model"
@@ -23,11 +22,16 @@ type ArtifactInstaller interface {
 	InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) error
 }
 
+type Downloader interface {
+	FetchAll(ctx context.Context, items []download.Item, opts download.Options) (map[string]string, error)
+}
+
 // Orchestrator ties Index, Download and Artifact managers together for installs.
 type Orchestrator struct {
 	Index    IndexPlanner
-	DL       download.Manager
+	DL       Downloader
 	Artifact ArtifactInstaller
+	Hooks    Hooks // Hooks for progress and event notifications
 }
 
 // Event represents a simple progress notification.
@@ -80,12 +84,12 @@ func emit(h Hooks, e Event) {
 }
 
 // Install resolves and installs according to the plan (sequentially for now).
-func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, opts Options, hooks Hooks) error {
+func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, opts Options) error {
 	if o.Index == nil {
 		return fmt.Errorf("index planner is not configured")
 	}
 
-	emit(hooks, Event{Phase: "planning", Msg: req.Name})
+	emit(o.Hooks, Event{Phase: "planning", Msg: req.Name})
 	plan, err := o.Index.Plan(ctx, req)
 	if err != nil {
 		return err
@@ -94,9 +98,9 @@ func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, op
 	// Dry run: just emit steps and return
 	if opts.DryRun {
 		for _, step := range plan.Steps {
-			emit(hooks, Event{Phase: "planning", ID: step.ID, Msg: step.Name + "@" + step.Version})
+			emit(o.Hooks, Event{Phase: "planning", ID: step.ID, Msg: step.Name + "@" + step.Version})
 		}
-		emit(hooks, Event{Phase: "done", Msg: "dry-run"})
+		emit(o.Hooks, Event{Phase: "done", Msg: "dry-run"})
 		return nil
 	}
 
@@ -111,7 +115,7 @@ func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, op
 			items = append(items, download.Item{ID: s.ID, URL: s.SourceURL, Checksum: s.Checksum})
 		}
 		if len(items) > 0 {
-			emit(hooks, Event{Phase: "downloading", Msg: "prefetching artifacts"})
+			emit(o.Hooks, Event{Phase: "downloading", Msg: "prefetching artifacts"})
 			var err error
 			fetched, err = o.DL.FetchAll(ctx, items, download.Options{Dir: opts.CacheDir, Concurrency: opts.Concurrency})
 			if err != nil {
@@ -125,7 +129,7 @@ func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, op
 	}
 
 	for _, step := range plan.Steps {
-		emit(hooks, Event{Phase: "installing", ID: step.ID, Msg: step.Name + "@" + step.Version})
+		emit(o.Hooks, Event{Phase: "installing", ID: step.ID, Msg: step.Name + "@" + step.Version})
 		path := ""
 		if fetched != nil {
 			path = fetched[step.ID]
@@ -148,11 +152,17 @@ func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, op
 			return err
 		}
 	}
-	emit(hooks, Event{Phase: "done"})
+	emit(o.Hooks, Event{Phase: "done"})
 	return nil
 }
 
 // New constructs a default Orchestrator from existing managers. Helper for wiring.
-func New(idx IndexPlanner, dl download.Manager, am artifact.Manager) *Orchestrator {
-	return &Orchestrator{Index: idx, DL: dl, Artifact: am}
+// Hooks can be nil if no event handling is needed.
+func New(idx IndexPlanner, dl Downloader, am ArtifactInstaller, hooks Hooks) *Orchestrator {
+	return &Orchestrator{
+		Index:    idx,
+		DL:       dl,
+		Artifact: am,
+		Hooks:    hooks,
+	}
 }

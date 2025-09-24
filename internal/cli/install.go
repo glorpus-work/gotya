@@ -76,14 +76,13 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 		cacheDir = cfg.GetArtifactCacheDir()
 	}
 
-	// Build orchestrator
+	// Verify interfaces
 	planner, ok := indexManager.(orchestrator.IndexPlanner)
 	if !ok {
 		return fmt.Errorf("index manager does not support planning (missing Plan method)")
 	}
-	orch := orchestrator.New(planner, dlManager, artifactManager)
 
-	// Basic progress printing
+	// Create progress hooks
 	hooks := orchestrator.Hooks{OnEvent: func(e orchestrator.Event) {
 		// Simple, human-friendly output
 		if e.ID != "" {
@@ -92,6 +91,9 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 			fmt.Printf("%s: %s\n", e.Phase, e.Msg)
 		}
 	}}
+
+	// Create orchestrator with hooks
+	orch := orchestrator.New(planner, dlManager, artifactManager, hooks)
 
 	opts := orchestrator.Options{CacheDir: cacheDir, Concurrency: concurrency, DryRun: dryRun}
 	ctx := context.Background()
@@ -107,7 +109,7 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 		if skipDeps {
 			// currently no dependency expansion; reserved for future
 		}
-		if err := orch.Install(ctx, req, opts, hooks); err != nil {
+		if err := orch.Install(ctx, req, opts); err != nil {
 			return fmt.Errorf("failed to install %s: %w", pkgName, err)
 		}
 	}
@@ -117,13 +119,16 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 
 /*
 func runUpdate(packages []string, all bool) error {
-	cfg, repoManager, err := loadConfig()
+	cfg, err := loadConfig()
 	if err != nil {
 		return err
 	}
 
+	// Create orchestrator with hooks
+	orch := orchestrator.New(planner, dlManager, artifactManager, hooks)
+
 	// Create orchestrator with nil hooks manager for now
-	pkgInstaller := orchestrator.New(cfg, repoManager, nil)
+	pkgInstaller := orchestrator.New(cfg, dlManager, artifactManager)
 
 	// Get packages to update
 	var packagesToUpdate []string
