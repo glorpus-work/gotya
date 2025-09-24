@@ -54,37 +54,25 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 		return fmt.Errorf("artifact %s is already installed", desc.Name)
 	}
 
-	dir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s", desc.Name))
+	extractDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s", desc.Name))
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(dir)
+	defer os.RemoveAll(extractDir)
 
-	if err := m.extractArtifact(ctx, localPath, dir); err != nil {
+	if err := m.extractArtifact(ctx, localPath, extractDir); err != nil {
 		return fmt.Errorf("failed to extract artifact: %w", err)
 	}
 
 	//TODO pre-install hooks
 
 	// Install the artifact files
-	metaPath := m.getArtifactMetaInstallPath(desc.Name)
-	if err := os.Rename(filepath.Join(dir, artifactMetaDir), metaPath); err != nil {
-		return fmt.Errorf("failed to install metadata: %w", err)
+	metaPath, dataPath, err := m.installArtifactFiles(desc.Name, extractDir)
+	if err != nil {
+		return fmt.Errorf("failed to install artifact files: %w", err)
 	}
 
-	// If we fail after this point, we need to clean up the metadata directory
-	rollbackNeeded := true
-	defer func() {
-		if rollbackNeeded {
-			m.installRollback(desc.Name)
-		}
-	}()
-
-	dataPath := m.getArtifactDataInstallPath(desc.Name)
-	if err := os.Rename(filepath.Join(dir, artifactDataDir), dataPath); err != nil {
-		return fmt.Errorf("failed to install data: %w", err)
-	}
-
+	// Create and add the installed artifact to the database
 	installedArtifact := &InstalledArtifact{
 		Name:          desc.Name,
 		Version:       desc.Version,
@@ -97,11 +85,9 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 
 	// Save the database
 	if err := db.SaveDatabase(m.installedDBPath); err != nil {
+		m.installRollback(desc.Name) // Clean up installed files
 		return fmt.Errorf("failed to save installed database: %w", err)
 	}
-
-	// If we get here, the installation was successful
-	rollbackNeeded = false
 
 	//TODO post-install hooks
 
@@ -111,6 +97,32 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
 	filePath := m.getArtifactCacheFilePath(artifact)
 	return m.verifyArtifactFile(ctx, artifact, filePath)
+}
+
+// installArtifactFiles handles the actual file operations for installing an artifact
+// Returns the paths to the installed metadata and data directories, or an error
+func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) (string, string, error) {
+	// Install the artifact files
+	metaPath := m.getArtifactMetaInstallPath(artifactName)
+	if err := os.Rename(filepath.Join(extractDir, artifactMetaDir), metaPath); err != nil {
+		return "", "", fmt.Errorf("failed to install metadata: %w", err)
+	}
+
+	// If we fail after this point, we need to clean up the metadata directory
+	rollbackNeeded := true
+	defer func() {
+		if rollbackNeeded {
+			m.installRollback(artifactName)
+		}
+	}()
+
+	dataPath := m.getArtifactDataInstallPath(artifactName)
+	if err := os.Rename(filepath.Join(extractDir, artifactDataDir), dataPath); err != nil {
+		return "", "", fmt.Errorf("failed to install data: %w", err)
+	}
+
+	rollbackNeeded = false
+	return metaPath, dataPath, nil
 }
 
 // verifyArtifactFile verifies an artifact from a local file path.
