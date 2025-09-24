@@ -9,10 +9,9 @@ import (
 	"testing"
 
 	"github.com/cperrin88/gotya/pkg/download"
-	dlmocks "github.com/cperrin88/gotya/pkg/download/mocks"
 	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/model"
-	ocmocks "github.com/cperrin88/gotya/pkg/orchestrator/mocks"
+	mocks "github.com/cperrin88/gotya/pkg/orchestrator/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -28,7 +27,7 @@ func TestSyncAll_Success(t *testing.T) {
 
 	expectedDir := t.TempDir()
 
-	dl := dlmocks.NewMockManager(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
 	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, items []download.Item, opts download.Options) (map[string]string, error) {
 			assert.Len(t, items, 2, "should have 2 items to fetch")
@@ -55,7 +54,7 @@ func TestSyncAll_NoReposOrNilURL(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dl := dlmocks.NewMockManager(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
 	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).Times(0) // No fetch should happen
 
 	orch := &Orchestrator{DL: dl}
@@ -85,7 +84,7 @@ func TestSyncAll_DownloadError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dl := dlmocks.NewMockManager(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
 	expectedErr := fmt.Errorf("download failed")
 	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, expectedErr).
@@ -107,7 +106,7 @@ func TestSyncAll_DownloadError(t *testing.T) {
 
 func TestSyncAll_EmptyRepos(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	dl := dlmocks.NewMockManager(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
 	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	orch := &Orchestrator{DL: dl}
@@ -156,7 +155,7 @@ func TestInstall_DryRun(t *testing.T) {
 	}
 
 	// Setup mocks
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockIndexPlanner(ctrl)
 	idx.EXPECT().
 		Plan(gomock.Any(), req).
 		Return(plan, nil).
@@ -232,7 +231,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
 
 	// Setup mocks
-	dl := dlmocks.NewMockManager(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
 	dl.EXPECT().
 		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, items []download.Item, opts download.Options) (map[string]string, error) {
@@ -247,13 +246,13 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 		}).
 		Times(1)
 
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockIndexPlanner(ctrl)
 	idx.EXPECT().
 		Plan(gomock.Any(), req).
 		Return(plan, nil).
 		Times(1)
 
-	art := ocmocks.NewMockArtifactInstaller(ctrl)
+	art := mocks.NewMockArtifactInstaller(ctrl)
 	expectedArtifactPath := filepath.Join(tmp, "pkgA-1.0.0.tgz")
 	art.EXPECT().
 		InstallArtifact(gomock.Any(), gomock.Any(), expectedArtifactPath).
@@ -304,9 +303,9 @@ func TestNew(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Setup mocks
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
-	dl := dlmocks.NewMockManager(ctrl)
-	am := ocmocks.NewMockArtifactInstaller(ctrl)
+	idx := mocks.NewMockIndexPlanner(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
+	am := mocks.NewMockArtifactInstaller(ctrl)
 
 	// Call the constructor
 	orch := New(idx, dl, am, Hooks{})
@@ -378,13 +377,13 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
 
 	// Setup mocks
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockIndexPlanner(ctrl)
 	idx.EXPECT().
 		Plan(gomock.Any(), req).
 		Return(plan, nil).
 		Times(1)
 
-	art := ocmocks.NewMockArtifactInstaller(ctrl)
+	art := mocks.NewMockArtifactInstaller(ctrl)
 
 	// Create orchestrator without download manager
 	orch := &Orchestrator{
@@ -428,8 +427,8 @@ func TestInstall_NoIndexPlanner(t *testing.T) {
 	}
 
 	torch := &Orchestrator{
-		DL:       dlmocks.NewMockManager(ctrl),
-		Artifact: ocmocks.NewMockArtifactInstaller(ctrl),
+		DL:       mocks.NewMockDownloader(ctrl),
+		Artifact: mocks.NewMockArtifactInstaller(ctrl),
 		Hooks:    Hooks{},
 		// Index is intentionally nil
 	}
@@ -461,7 +460,7 @@ func TestInstall_PlanError(t *testing.T) {
 	expectedErr := fmt.Errorf("planning failed")
 
 	// Setup mocks
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockIndexPlanner(ctrl)
 	idx.EXPECT().
 		Plan(gomock.Any(), testReq).
 		Return(index.InstallPlan{}, expectedErr).
@@ -513,20 +512,20 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
 
 	// Setup mocks
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockIndexPlanner(ctrl)
 	idx.EXPECT().
 		Plan(gomock.Any(), testReq).
 		Return(plan, nil).
 		Times(1)
 
-	dl := dlmocks.NewMockManager(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
 	dl.EXPECT().
 		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(map[string]string{step.ID: tmpFile}, nil).
 		Times(1)
 
 	expectedErr := fmt.Errorf("installation failed")
-	art := ocmocks.NewMockArtifactInstaller(ctrl)
+	art := mocks.NewMockArtifactInstaller(ctrl)
 	art.EXPECT().
 		InstallArtifact(gomock.Any(), gomock.Any(), tmpFile).
 		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string) error {
@@ -587,19 +586,19 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
 
 	// Setup mocks
-	idx := ocmocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockIndexPlanner(ctrl)
 	idx.EXPECT().
 		Plan(gomock.Any(), testReq).
 		Return(plan, nil).
 		Times(1)
 
-	dl := dlmocks.NewMockManager(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
 	dl.EXPECT().
 		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(map[string]string{"pkgA@1.0.0": ""}, nil).
 		Times(1)
 
-	art := ocmocks.NewMockArtifactInstaller(ctrl)
+	art := mocks.NewMockArtifactInstaller(ctrl)
 
 	// Create orchestrator
 	torch := &Orchestrator{
