@@ -100,19 +100,13 @@ func DefaultConfig() *Config {
 	}
 
 	return &Config{
-		Repositories: []*RepositoryConfig{
-			{
-				Name:    "default",
-				URL:     "https://github.com/cperrin88/gotya-index",
-				Enabled: true,
-			},
-		},
+		Repositories: []*RepositoryConfig{},
 		Settings: Settings{
 			CacheTTL:      DefaultCacheTTL,
 			HTTPTimeout:   DefaultHTTPTimeout,
 			MaxConcurrent: DefaultMaxConcurrent,
-			AutoSync:      true,
-			OutputFormat:  "text",
+			AutoSync:      false,
+			OutputFormat:  "json",
 			ColorOutput:   true,
 			LogLevel:      "info",
 			InstallDir:    filepath.Join(userConfigDir, "bin"),
