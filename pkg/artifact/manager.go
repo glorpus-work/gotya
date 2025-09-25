@@ -122,8 +122,72 @@ func (m ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string,
 		return m.uninstallWithPurge(ctx, db, artifact)
 	}
 
-	// Handle selective mode
 	return m.uninstallSelectively(ctx, db, artifact)
+}
+
+// UpdateArtifact updates an installed artifact by replacing it with a new version.
+// This method uses the simple approach: uninstall the old version, then install the new version.
+// If the installation fails, the old version remains uninstalled.
+func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, newArtifactPath string, newDescriptor *model.IndexArtifactDescriptor) error {
+	// Input validation
+	if artifactName == "" {
+		return fmt.Errorf("artifact name cannot be empty")
+	}
+	if newArtifactPath == "" {
+		return fmt.Errorf("new artifact path cannot be empty")
+	}
+	if newDescriptor == nil {
+		return fmt.Errorf("new artifact descriptor cannot be nil")
+	}
+
+	// Load the installed database
+	db := database.NewInstalledDatabase()
+	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+		return fmt.Errorf("failed to load installed database: %w", err)
+	}
+
+	// Check if the artifact is installed
+	if !db.IsArtifactInstalled(artifactName) {
+		return fmt.Errorf("artifact %s is not installed", artifactName)
+	}
+
+	installedArtifact := db.FindArtifact(artifactName)
+	if installedArtifact == nil {
+		return fmt.Errorf("artifact %s not found in database", artifactName)
+	}
+
+	// Verify the new artifact before proceeding
+	if err := m.verifyArtifactFile(ctx, newDescriptor, newArtifactPath); err != nil {
+		return fmt.Errorf("failed to verify new artifact: %w", err)
+	}
+
+	// Check if this is actually an update (different version or URL)
+	if installedArtifact.Version == newDescriptor.Version && installedArtifact.InstalledFrom == newDescriptor.URL {
+		return fmt.Errorf("artifact %s is already at the latest version", artifactName)
+	}
+
+	// Step 1: Uninstall the old version (with purge=true for clean slate)
+	if err := m.uninstallWithPurge(ctx, db, installedArtifact); err != nil {
+		return fmt.Errorf("failed to uninstall old version of %s: %w", artifactName, err)
+	}
+
+	// Step 2: Install the new version
+	// Note: We need to reload the database since uninstallWithPurge modifies it
+	db = database.NewInstalledDatabase()
+	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+		// If we can't reload the database, the uninstall succeeded but we can't install
+		// This leaves the user in a bad state, but we should report the error
+		return fmt.Errorf("failed to reload database after uninstall: %w", err)
+	}
+
+	if err := m.InstallArtifact(ctx, newDescriptor, newArtifactPath); err != nil {
+		// Installation failed - we should try to rollback by reinstalling the old version
+		// However, we don't have the old artifact file anymore, so we can only log a warning
+		log.Printf("Warning: Failed to install new version of %s: %v. The old version has been uninstalled but cannot be restored.", artifactName, err)
+		return fmt.Errorf("failed to install new version of %s: %w", artifactName, err)
+	}
+
+	return nil
 }
 
 // uninstallWithPurge removes the entire artifact directories recursively

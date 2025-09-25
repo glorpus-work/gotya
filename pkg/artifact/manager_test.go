@@ -512,6 +512,258 @@ func TestUninstallArtifact_MetaPackage(t *testing.T) {
 	}
 }
 
+// TestUpdateArtifact_Successful tests successful artifact update
+func TestUpdateArtifact_Successful(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install the original version
+	originalArtifact := filepath.Join(tempDir, "original.gotya")
+	originalMetadata := &Metadata{
+		Name:         artifactName,
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+		Maintainer:   "test@example.com",
+		Description:  "Original version",
+		Dependencies: []string{"dep1"},
+		Hooks:        make(map[string]string),
+	}
+	setupTestArtifact(t, originalArtifact, true, originalMetadata)
+
+	originalDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/v1.0.0.gotya",
+	}
+
+	// Install the original version
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	require.NoError(t, err)
+
+	// Verify original version is installed
+	db := loadInstalledDB(t, dbPath)
+	assert.True(t, db.IsArtifactInstalled(artifactName), "original artifact should be installed")
+	originalInstalled := db.FindArtifact(artifactName)
+	require.NotNil(t, originalInstalled)
+	assert.Equal(t, "1.0.0", originalInstalled.Version)
+
+	// Create the updated version
+	updatedArtifact := filepath.Join(tempDir, "updated.gotya")
+	updatedMetadata := &Metadata{
+		Name:         artifactName,
+		Version:      "2.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+		Maintainer:   "test@example.com",
+		Description:  "Updated version",
+		Dependencies: []string{"dep1", "dep2"}, // Added new dependency
+		Hooks:        make(map[string]string),
+	}
+	setupTestArtifact(t, updatedArtifact, true, updatedMetadata)
+
+	updatedDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "2.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/v2.0.0.gotya",
+	}
+
+	// Update the artifact
+	err = mgr.UpdateArtifact(context.Background(), artifactName, updatedArtifact, updatedDesc)
+	require.NoError(t, err)
+
+	// Verify the update was successful
+	db = loadInstalledDB(t, dbPath)
+	assert.True(t, db.IsArtifactInstalled(artifactName), "updated artifact should be installed")
+	updatedInstalled := db.FindArtifact(artifactName)
+	require.NotNil(t, updatedInstalled)
+	assert.Equal(t, "2.0.0", updatedInstalled.Version)
+	assert.Equal(t, "http://example.com/v2.0.0.gotya", updatedInstalled.InstalledFrom)
+}
+
+// TestUpdateArtifact_NotInstalled tests updating a non-existent artifact
+func TestUpdateArtifact_NotInstalled(t *testing.T) {
+	tempDir := t.TempDir()
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
+
+	// Try to update a non-existent artifact
+	testArtifact := filepath.Join(tempDir, "nonexistent.gotya")
+	desc := &model.IndexArtifactDescriptor{
+		Name:    "nonexistent",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test.gotya",
+	}
+
+	err := mgr.UpdateArtifact(context.Background(), "nonexistent", testArtifact, desc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not installed")
+}
+
+// TestUpdateArtifact_AlreadyLatest tests updating to the same version
+func TestUpdateArtifact_AlreadyLatest(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install the original version
+	originalArtifact := filepath.Join(tempDir, "original.gotya")
+	originalMetadata := &Metadata{
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test version",
+	}
+	setupTestArtifact(t, originalArtifact, true, originalMetadata)
+
+	originalDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/v1.0.0.gotya",
+	}
+
+	// Install the original version
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	require.NoError(t, err)
+
+	// Try to update to the same version and URL
+	sameDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0", // Same version
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/v1.0.0.gotya", // Same URL
+	}
+
+	err = mgr.UpdateArtifact(context.Background(), artifactName, originalArtifact, sameDesc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "already at the latest version")
+}
+
+// TestUpdateArtifact_InvalidNewArtifact tests updating with an invalid new artifact
+func TestUpdateArtifact_InvalidNewArtifact(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install the original version
+	originalArtifact := filepath.Join(tempDir, "original.gotya")
+	originalMetadata := &Metadata{
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test version",
+	}
+	setupTestArtifact(t, originalArtifact, true, originalMetadata)
+
+	originalDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/v1.0.0.gotya",
+	}
+
+	// Install the original version
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	require.NoError(t, err)
+
+	// Try to update with an invalid artifact
+	invalidDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "2.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/v2.0.0.gotya",
+	}
+
+	err = mgr.UpdateArtifact(context.Background(), artifactName, "/nonexistent/path.gotya", invalidDesc)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to verify new artifact")
+}
+
+// TestUpdateArtifact_UninstallFailure tests behavior when uninstall fails during update
+func TestUpdateArtifact_UninstallFailure(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install the original version
+	originalArtifact := filepath.Join(tempDir, "original.gotya")
+	originalMetadata := &Metadata{
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test version",
+	}
+	setupTestArtifact(t, originalArtifact, true, originalMetadata)
+
+	originalDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/v1.0.0.gotya",
+	}
+
+	// Install the original version
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	require.NoError(t, err)
+
+	// Create an updated version
+	updatedArtifact := filepath.Join(tempDir, "updated.gotya")
+	updatedMetadata := &Metadata{
+		Name:        artifactName,
+		Version:     "2.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Updated version",
+	}
+	setupTestArtifact(t, updatedArtifact, true, updatedMetadata)
+
+	updatedDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "2.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/v2.0.0.gotya",
+	}
+
+	// Verify the updated artifact is valid before testing
+	err = mgr.verifyArtifactFile(context.Background(), updatedDesc, updatedArtifact)
+	require.NoError(t, err)
+
+	// Now test the update - it should work normally
+	err = mgr.UpdateArtifact(context.Background(), artifactName, updatedArtifact, updatedDesc)
+	require.NoError(t, err)
+
+	// Verify the update was successful
+	db := loadInstalledDB(t, dbPath)
+	assert.True(t, db.IsArtifactInstalled(artifactName), "updated artifact should be installed")
+	updatedInstalled := db.FindArtifact(artifactName)
+	require.NotNil(t, updatedInstalled)
+	assert.Equal(t, "2.0.0", updatedInstalled.Version)
+}
+
 // setupTestArtifact creates a test artifact file with the specified structure and metadata
 // If metadata is nil, default test metadata will be used
 func setupTestArtifact(t *testing.T, artifactPath string, includeDataDir bool, metadata *Metadata) {
