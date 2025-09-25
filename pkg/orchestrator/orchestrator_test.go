@@ -134,7 +134,7 @@ func TestInstall_DryRun(t *testing.T) {
 	}
 
 	plan := index.ResolvedArtifacts{
-		Artifacts: []index.InstallStep{
+		Artifacts: []index.ResolvedArtifact{
 			{
 				ID:        "pkgA@1.0.0",
 				Name:      "pkgA",
@@ -219,7 +219,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 		Arch:    "amd64",
 	}
 
-	step := index.InstallStep{
+	step := index.ResolvedArtifact{
 		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
@@ -228,7 +228,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 		SourceURL: sURL,
 		Checksum:  "deadbeef",
 	}
-	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
+	plan := index.ResolvedArtifacts{Artifacts: []index.ResolvedArtifact{step}}
 
 	// Setup mocks
 	dl := mocks.NewMockDownloader(ctrl)
@@ -365,7 +365,7 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 		Arch:    "amd64",
 	}
 
-	step := index.InstallStep{
+	step := index.ResolvedArtifact{
 		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
@@ -374,7 +374,7 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 		SourceURL: sURL,
 	}
 
-	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
+	plan := index.ResolvedArtifacts{Artifacts: []index.ResolvedArtifact{step}}
 
 	// Setup mocks
 	idx := mocks.NewMockArtifactResolver(ctrl)
@@ -499,7 +499,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 		Arch:    "amd64",
 	}
 
-	step := index.InstallStep{
+	step := index.ResolvedArtifact{
 		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
@@ -509,7 +509,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 		Checksum:  "abc123",
 	}
 
-	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
+	plan := index.ResolvedArtifacts{Artifacts: []index.ResolvedArtifact{step}}
 
 	// Setup mocks
 	idx := mocks.NewMockArtifactResolver(ctrl)
@@ -573,7 +573,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	}
 
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	step := index.InstallStep{
+	step := index.ResolvedArtifact{
 		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
@@ -583,7 +583,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 		Checksum:  "abc123",
 	}
 
-	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
+	plan := index.ResolvedArtifacts{Artifacts: []index.ResolvedArtifact{step}}
 
 	// Setup mocks
 	idx := mocks.NewMockArtifactResolver(ctrl)

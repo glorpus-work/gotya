@@ -18,8 +18,8 @@ type ResolveRequest struct {
 	Arch    string // target arch
 }
 
-// InstallStep is one concrete installation action.
-type InstallStep struct {
+// ResolvedArtifact is one concrete installation action.
+type ResolvedArtifact struct {
 	ID        string
 	Name      string
 	Version   string
@@ -31,7 +31,7 @@ type InstallStep struct {
 
 // ResolvedArtifacts is an ordered list of steps. Topologically sorted if deps are present.
 type ResolvedArtifacts struct {
-	Artifacts []InstallStep
+	Artifacts []ResolvedArtifact
 }
 
 // Resolve computes resolved artifacts with dependency resolution.
@@ -163,14 +163,14 @@ func (r *resolver) topoOrder(root string) []string {
 	return order
 }
 
-func (r *resolver) resolveArtifacts(order []string) []InstallStep {
-	steps := make([]InstallStep, 0, len(order))
+func (r *resolver) resolveArtifacts(order []string) []ResolvedArtifact {
+	steps := make([]ResolvedArtifact, 0, len(order))
 	for _, name := range order {
 		d := r.selected[name]
 		if d == nil {
 			continue
 		}
-		steps = append(steps, InstallStep{
+		steps = append(steps, ResolvedArtifact{
 			ID:        d.Name + "@" + d.Version,
 			Name:      d.Name,
 			Version:   d.Version,
