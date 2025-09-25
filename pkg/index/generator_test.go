@@ -7,11 +7,59 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/cperrin88/gotya/pkg/artifact"
+	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// createTestArtifact creates a test artifact file with the given metadata
+func createTestArtifact(t *testing.T, path string, md *artifact.Metadata) {
+	t.Helper()
+
+	// Create the artifact file
+	f, err := os.Create(path)
+	require.NoError(t, err)
+	defer f.Close()
+
+	// Create a zip writer
+	zw := zip.NewWriter(f)
+
+	// Create the meta directory
+	hdr := &zip.FileHeader{
+		Name:     "meta/",
+		Method:   zip.Store,
+		Modified: time.Now(),
+	}
+	hdr.SetMode(0755)
+	_, err = zw.CreateHeader(hdr)
+	require.NoError(t, err)
+
+	// Create the artifact.json file
+	artifactHdr := &zip.FileHeader{
+		Name:     "meta/artifact.json",
+		Method:   zip.Store,
+		Modified: time.Now(),
+	}
+	artifactHdr.SetMode(0644)
+	artifactW, err := zw.CreateHeader(artifactHdr)
+	require.NoError(t, err)
+
+	// Write the artifact metadata
+	metadata, err := json.MarshalIndent(md, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to marshal metadata: %v", err)
+	}
+
+	_, err = artifactW.Write([]byte(metadata))
+	require.NoError(t, err)
+
+	// Close the zip writer
+	err = zw.Close()
+	require.NoError(t, err)
+}
 
 // LoadIndex is a helper function to load an index from a file
 func LoadIndex(path string) (*Index, error) {
@@ -185,6 +233,170 @@ func TestGenerator_describeArtifact(t *testing.T) {
 	}
 }
 
+func TestGenerator_WithBaseline(t *testing.T) {
+	// Create a temporary directory for the test
+	tempDir, err := os.MkdirTemp("", "gotya-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a test artifact in the temp directory
+	testArtifactPath := filepath.Join(tempDir, "test.gotya")
+	createSimpleTestArtifact(t, testArtifactPath, "test-artifact", "1.0.0")
+
+	// Create a baseline index file
+	baselineIndexPath := filepath.Join(tempDir, "baseline.json")
+	createTestIndex(t, baselineIndexPath, []*model.IndexArtifactDescriptor{
+		{
+			Name:        "existing-artifact",
+			Version:     "1.0.0",
+			Description: "Existing artifact in baseline",
+			URL:         "existing-artifact-1.0.0.gotya",
+			Checksum:    "abc123",
+			Size:        1024,
+		},
+	})
+
+	// Create a generator with baseline
+	outputPath := filepath.Join(tempDir, "output.json")
+	generator := NewGenerator(tempDir, outputPath).WithBaseline(baselineIndexPath)
+
+	// Generate the index
+	err = generator.Generate(context.Background())
+	require.NoError(t, err)
+
+	// Verify the output file exists
+	_, err = os.Stat(outputPath)
+	require.NoError(t, err)
+
+	// Load and verify the generated index
+	data, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+
+	var result Index
+	err = json.Unmarshal(data, &result)
+	require.NoError(t, err)
+
+	// Should contain both the baseline artifact and the new one
+	assert.Equal(t, 2, len(result.Artifacts), "should contain both baseline and new artifact")
+
+	// Verify the artifacts are present
+	foundExisting := false
+	foundNew := false
+	for _, a := range result.Artifacts {
+		if a.Name == "existing-artifact" && a.Version == "1.0.0" {
+			foundExisting = true
+			assert.Equal(t, "Existing artifact in baseline", a.Description)
+		}
+		if a.Name == "test-artifact" && a.Version == "1.0.0" {
+			foundNew = true
+		}
+	}
+
+	assert.True(t, foundExisting, "should contain the baseline artifact")
+	assert.True(t, foundNew, "should contain the new artifact")
+}
+
+func TestGenerator_WithBaseline_Conflict(t *testing.T) {
+	// Create a temporary directory for the test
+	tempDir, err := os.MkdirTemp("", "gotya-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a baseline index file with an artifact
+	baselineIndexPath := filepath.Join(tempDir, "baseline.json")
+	baselineArtifact := &model.IndexArtifactDescriptor{
+		Name:        "conflict-artifact",
+		Version:     "1.0.0",
+		Description: "Test artifact conflict-artifact",
+		URL:         "conflict-artifact-1.0.0.gotya",
+		Checksum:    "", // Will be filled in after creating the artifact
+		Size:        0,  // Will be filled in after creating the artifact
+		OS:          "linux",
+		Arch:        "amd64",
+	}
+
+	// Create the test artifact with different metadata to cause a conflict
+	testArtifactPath := filepath.Join(tempDir, "conflict.gotya")
+	createTestArtifact(t, testArtifactPath, &artifact.Metadata{
+		Name:        baselineArtifact.Name,
+		Version:     baselineArtifact.Version,
+		Description: "Different description to cause conflict", // This is different from baseline
+		OS:          baselineArtifact.OS,
+		Arch:        baselineArtifact.Arch,
+	})
+
+	// Get the actual checksum and size of the created artifact
+	fileInfo, err := os.Stat(testArtifactPath)
+	require.NoError(t, err)
+	baselineArtifact.Size = fileInfo.Size()
+
+	checksum, err := sha256File(testArtifactPath)
+	require.NoError(t, err)
+	baselineArtifact.Checksum = checksum
+
+	// Create the baseline index with the updated artifact
+	createTestIndex(t, baselineIndexPath, []*model.IndexArtifactDescriptor{baselineArtifact})
+
+	// Create a generator with baseline
+	outputPath := filepath.Join(tempDir, "output.json")
+	generator := NewGenerator(tempDir, outputPath).WithBaseline(baselineIndexPath)
+
+	// Generate the index - should fail with conflict
+	err = generator.Generate(context.Background())
+	require.Error(t, err)
+	// Check if the error contains the expected error message
+	assert.Contains(t, err.Error(), "conflict for artifact", "should return index conflict error")
+}
+
+func TestGenerator_WithBaseline_NoNewArtifacts(t *testing.T) {
+	// Create a temporary directory for the test
+	tempDir, err := os.MkdirTemp("", "gotya-test-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	// Create a baseline index file
+	baselineIndexPath := filepath.Join(tempDir, "baseline.json")
+	createTestIndex(t, baselineIndexPath, []*model.IndexArtifactDescriptor{
+		{
+			Name:        "baseline-only",
+			Version:     "1.0.0",
+			Description: "Artifact only in baseline",
+			URL:         "baseline-only-1.0.0.gotya",
+			Checksum:    "abc123",
+			Size:        1024,
+		},
+	})
+
+	// Create an empty directory for the generator
+	tempDir2, err := os.MkdirTemp("", "gotya-test-empty-*")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir2)
+
+	// Create a generator with baseline but no new artifacts
+	outputPath := filepath.Join(tempDir, "output.json")
+	generator := NewGenerator(tempDir2, outputPath).WithBaseline(baselineIndexPath)
+
+	// Generate the index - should succeed with just the baseline artifacts
+	err = generator.Generate(context.Background())
+	require.NoError(t, err)
+
+	// Verify the output file exists
+	_, err = os.Stat(outputPath)
+	require.NoError(t, err)
+
+	// Load and verify the generated index
+	data, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+
+	var result Index
+	err = json.Unmarshal(data, &result)
+	require.NoError(t, err)
+
+	// Should contain only the baseline artifact
+	assert.Equal(t, 1, len(result.Artifacts), "should contain only the baseline artifact")
+	assert.Equal(t, "baseline-only", result.Artifacts[0].Name)
+}
+
 func TestGenerator_makeURL(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -233,72 +445,28 @@ func TestGenerator_makeURL(t *testing.T) {
 }
 
 // createTestArtifact creates a test artifact file with the given metadata
-func createTestArtifact(t *testing.T, path string, md *artifact.Metadata) {
-	tempDir := t.TempDir()
-
-	// Create meta directory and artifact.json
-	metaDir := filepath.Join(tempDir, "meta")
-	err := os.MkdirAll(metaDir, 0o755)
-	require.NoError(t, err)
-
-	metaFile, err := os.Create(filepath.Join(metaDir, "artifact.json"))
-	require.NoError(t, err)
-	err = json.NewEncoder(metaFile).Encode(md)
-	require.NoError(t, err)
-	metaFile.Close()
-
-	// Create a simple file in the archive
-	contentFile, err := os.Create(filepath.Join(tempDir, "content.txt"))
-	require.NoError(t, err)
-	_, err = contentFile.WriteString("test content")
-	require.NoError(t, err)
-	contentFile.Close()
-
-	// Create the output directory if it doesn't exist
-	if filepath.Dir(path) != "." {
-		err = os.MkdirAll(filepath.Dir(path), 0o755)
-		require.NoError(t, err)
+// createTestIndex creates a test index file with the given artifacts
+func createTestIndex(t *testing.T, path string, artifacts []*model.IndexArtifactDescriptor) {
+	index := Index{
+		FormatVersion: CurrentFormatVersion,
+		LastUpdate:    time.Now(),
+		Artifacts:     artifacts,
 	}
 
-	// Create a zip archive
-	zipFile, err := os.Create(path)
+	data, err := json.MarshalIndent(index, "", "  ")
 	require.NoError(t, err)
-	defer zipFile.Close()
 
-	// Create a zip writer
-	zipWriter := zip.NewWriter(zipFile)
-	defer zipWriter.Close()
+	err = os.WriteFile(path, data, 0o644)
+	require.NoError(t, err)
+}
 
-	// Walk the temp directory and add files to the zip
-	err = filepath.Walk(tempDir, func(filePath string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip directories
-		if info.IsDir() {
-			return nil
-		}
-
-		// Get the relative path from tempDir
-		relPath, err := filepath.Rel(tempDir, filePath)
-		if err != nil {
-			return err
-		}
-
-		// Create a new file in the zip
-		zipEntry, err := zipWriter.Create(relPath)
-		if err != nil {
-			return err
-		}
-
-		// Copy the file content
-		fileContent, err := os.ReadFile(filePath)
-		if err != nil {
-			return err
-		}
-		_, err = zipEntry.Write(fileContent)
-		return err
+// createSimpleTestArtifact creates a simple test artifact with the given name and version
+func createSimpleTestArtifact(t *testing.T, path, name, version string) {
+	t.Helper()
+	createTestArtifact(t, path, &artifact.Metadata{
+		Name:    name,
+		Version: version,
+		OS:      "linux",
+		Arch:    "amd64",
 	})
-	require.NoError(t, err)
 }
