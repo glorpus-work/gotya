@@ -309,8 +309,6 @@ func TestGenerator_WithBaseline_Conflict(t *testing.T) {
 		Version:     "1.0.0",
 		Description: "Test artifact conflict-artifact",
 		URL:         "conflict-artifact-1.0.0.gotya",
-		Checksum:    "", // Will be filled in after creating the artifact
-		Size:        0,  // Will be filled in after creating the artifact
 		OS:          "linux",
 		Arch:        "amd64",
 	}

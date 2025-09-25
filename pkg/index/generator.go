@@ -304,8 +304,13 @@ func (g *Generator) processArtifacts(ctx context.Context, baseline *Index) ([]*m
 			return fmt.Errorf("failed to process artifact %s: %w", path, err)
 		}
 
-		// Add or update the artifact in our map
+		// Check for conflicts with existing artifacts
 		key := fmt.Sprintf("%s@%s", desc.Name, desc.Version)
+		if existing, exists := artifacts[key]; exists {
+			if !artifactsEqual(desc, existing) {
+				return fmt.Errorf("conflict for artifact %s@%s: metadata differs from baseline", desc.Name, desc.Version)
+			}
+		}
 		artifacts[key] = desc
 
 		return nil
