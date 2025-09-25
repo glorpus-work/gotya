@@ -35,6 +35,17 @@ func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInst
 
 // InstallArtifact installs (verifies/stages) an artifact from a local file path, replacing the previous network-based install.
 func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) (err error) {
+	// Input validation
+	if desc == nil {
+		return fmt.Errorf("artifact descriptor cannot be nil")
+	}
+	if desc.Name == "" {
+		return fmt.Errorf("artifact name cannot be empty")
+	}
+	if localPath == "" {
+		return fmt.Errorf("local path cannot be empty")
+	}
+
 	// Set up rollback in case of failure
 	var installed bool
 	defer func() {
@@ -152,6 +163,11 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 	// Verify the new artifact before proceeding
 	if err := m.verifier.VerifyArtifact(ctx, newDescriptor, newArtifactPath); err != nil {
 		return fmt.Errorf("failed to verify new artifact: %w", err)
+	}
+
+	// Validate that the new artifact name matches the installed artifact name
+	if installedArtifact.Name != newDescriptor.Name {
+		return fmt.Errorf("cannot update artifact %s with artifact %s: name mismatch", artifactName, newDescriptor.Name)
 	}
 
 	// Check if this is actually an update (different version or URL)
