@@ -155,9 +155,9 @@ func TestInstall_DryRun(t *testing.T) {
 	}
 
 	// Setup mocks
-	idx := mocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
-		Plan(gomock.Any(), req).
+		Resolve(gomock.Any(), req).
 		Return(plan, nil).
 		Times(1)
 
@@ -246,13 +246,13 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 		}).
 		Times(1)
 
-	idx := mocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
-		Plan(gomock.Any(), req).
+		Resolve(gomock.Any(), req).
 		Return(plan, nil).
 		Times(1)
 
-	art := mocks.NewMockArtifactInstaller(ctrl)
+	art := mocks.NewMockArtifactManager(ctrl)
 	expectedArtifactPath := filepath.Join(tmp, "pkgA-1.0.0.tgz")
 	art.EXPECT().
 		InstallArtifact(gomock.Any(), gomock.Any(), expectedArtifactPath).
@@ -303,9 +303,9 @@ func TestNew(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Setup mocks
-	idx := mocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockArtifactResolver(ctrl)
 	dl := mocks.NewMockDownloader(ctrl)
-	am := mocks.NewMockArtifactInstaller(ctrl)
+	am := mocks.NewMockArtifactManager(ctrl)
 
 	// Call the constructor
 	orch := New(idx, dl, am, Hooks{})
@@ -377,13 +377,13 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
 
 	// Setup mocks
-	idx := mocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
-		Plan(gomock.Any(), req).
+		Resolve(gomock.Any(), req).
 		Return(plan, nil).
 		Times(1)
 
-	art := mocks.NewMockArtifactInstaller(ctrl)
+	art := mocks.NewMockArtifactManager(ctrl)
 
 	// Create orchestrator without download manager
 	orch := &Orchestrator{
@@ -428,7 +428,7 @@ func TestInstall_NoIndexPlanner(t *testing.T) {
 
 	torch := &Orchestrator{
 		DL:       mocks.NewMockDownloader(ctrl),
-		Artifact: mocks.NewMockArtifactInstaller(ctrl),
+		Artifact: mocks.NewMockArtifactManager(ctrl),
 		Hooks:    Hooks{},
 		// Index is intentionally nil
 	}
@@ -460,9 +460,9 @@ func TestInstall_PlanError(t *testing.T) {
 	expectedErr := fmt.Errorf("planning failed")
 
 	// Setup mocks
-	idx := mocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
-		Plan(gomock.Any(), testReq).
+		Resolve(gomock.Any(), testReq).
 		Return(index.ResolvedArtifacts{}, expectedErr).
 		Times(1)
 
@@ -512,9 +512,9 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
 
 	// Setup mocks
-	idx := mocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
-		Plan(gomock.Any(), testReq).
+		Resolve(gomock.Any(), testReq).
 		Return(plan, nil).
 		Times(1)
 
@@ -525,7 +525,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 		Times(1)
 
 	expectedErr := fmt.Errorf("installation failed")
-	art := mocks.NewMockArtifactInstaller(ctrl)
+	art := mocks.NewMockArtifactManager(ctrl)
 	art.EXPECT().
 		InstallArtifact(gomock.Any(), gomock.Any(), tmpFile).
 		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string) error {
@@ -586,9 +586,9 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
 
 	// Setup mocks
-	idx := mocks.NewMockIndexPlanner(ctrl)
+	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
-		Plan(gomock.Any(), testReq).
+		Resolve(gomock.Any(), testReq).
 		Return(plan, nil).
 		Times(1)
 
@@ -598,7 +598,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 		Return(map[string]string{"pkgA@1.0.0": ""}, nil).
 		Times(1)
 
-	art := mocks.NewMockArtifactInstaller(ctrl)
+	art := mocks.NewMockArtifactManager(ctrl)
 
 	// Create orchestrator
 	torch := &Orchestrator{
