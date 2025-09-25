@@ -14,4 +14,6 @@ type Manager interface {
 	// UpdateArtifact updates an installed artifact by replacing it with a new version.
 	// Uses the simple approach: uninstall the old version, then install the new version.
 	UpdateArtifact(ctx context.Context, artifactName string, newArtifactPath string, newDescriptor *model.IndexArtifactDescriptor) error
+	// VerifyArtifact verifies an artifact in the cache without installing it.
+	VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error
 }
