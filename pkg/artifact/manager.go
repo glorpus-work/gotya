@@ -217,8 +217,68 @@ func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexAr
 
 // ReverseResolve returns the list of artifacts that depend on the given artifact recursively
 func (m ManagerImpl) ReverseResolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error) {
-	//TODO implement me
-	panic("implement me")
+	// Load the installed database
+	db := database.NewInstalledDatabase()
+	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+		return model.ResolvedArtifacts{}, fmt.Errorf("failed to load installed database: %w", err)
+	}
+
+	// Build reverse dependency graph and collect all dependent artifacts
+	dependentArtifacts := m.collectReverseDependencies(db, req.Name)
+
+	// Convert to ResolvedArtifacts format
+	return m.convertToResolvedArtifacts(dependentArtifacts), nil
+}
+
+func (m ManagerImpl) collectReverseDependencies(db *database.InstalledManagerImpl, targetArtifact string) map[string]*database.InstalledArtifact {
+	visited := make(map[string]bool)
+	result := make(map[string]*database.InstalledArtifact)
+
+	m.dfsReverseDependencies(db, targetArtifact, visited, result)
+	return result
+}
+
+// dfsReverseDependencies performs depth-first search to find all reverse dependencies
+func (m ManagerImpl) dfsReverseDependencies(db *database.InstalledManagerImpl, artifactName string, visited map[string]bool, result map[string]*database.InstalledArtifact) {
+	// Mark as visited to prevent cycles
+	if visited[artifactName] {
+		return
+	}
+	visited[artifactName] = true
+
+	// Find the artifact in the database
+	artifact := db.FindArtifact(artifactName)
+	if artifact == nil || artifact.Status != database.StatusInstalled {
+		return
+	}
+
+	// Add this artifact to results
+	result[artifactName] = artifact
+
+	// Recursively process all artifacts that depend on this one
+	for _, dependentName := range artifact.ReverseDependencies {
+		m.dfsReverseDependencies(db, dependentName, visited, result)
+	}
+}
+
+// convertToResolvedArtifacts converts database artifacts to the expected ResolvedArtifacts format
+func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*database.InstalledArtifact) model.ResolvedArtifacts {
+	resolved := make([]model.ResolvedArtifact, 0, len(artifacts))
+
+	for _, artifact := range artifacts {
+		resolvedArtifact := model.ResolvedArtifact{
+			ID:        fmt.Sprintf("%s@%s", artifact.Name, artifact.Version),
+			Name:      artifact.Name,
+			Version:   artifact.Version,
+			OS:        m.os,
+			Arch:      m.arch,
+			SourceURL: nil,
+			Checksum:  artifact.Checksum,
+		}
+		resolved = append(resolved, resolvedArtifact)
+	}
+
+	return model.ResolvedArtifacts{Artifacts: resolved}
 }
 
 func (m ManagerImpl) getArtifactMetaInstallPath(artifactName string) string {
