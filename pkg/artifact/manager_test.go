@@ -110,12 +110,27 @@ func TestInstallArtifact_RegularPackage(t *testing.T) {
 	assert.NotEmpty(t, installedArtifact.InstalledAt, "installed at timestamp should be set")
 
 	// Verify installed files in database
-	expectedFiles := []string{
+	expectedMetaFiles := []string{
 		filepath.Join(tempDir, "install", "meta", artifactName, "artifact.json"),
+	}
+	expectedDataFiles := []string{
 		filepath.Join(tempDir, "install", "data", artifactName, "datafile1.bin"),
 		filepath.Join(tempDir, "install", "data", artifactName, "datafile2.bin"),
 	}
-	assert.ElementsMatch(t, expectedFiles, installedArtifact.Files, "installed files in database don't match")
+
+	// Convert MetaFiles and DataFiles to full paths for comparison
+	var actualMetaFiles []string
+	for _, f := range installedArtifact.MetaFiles {
+		actualMetaFiles = append(actualMetaFiles, filepath.Join(installedArtifact.BaseMetaDir, artifactName, f.Path))
+	}
+
+	var actualDataFiles []string
+	for _, f := range installedArtifact.DataFiles {
+		actualDataFiles = append(actualDataFiles, filepath.Join(installedArtifact.BaseDataDir, artifactName, f.Path))
+	}
+
+	assert.ElementsMatch(t, expectedMetaFiles, actualMetaFiles, "meta files in database don't match")
+	assert.ElementsMatch(t, expectedDataFiles, actualDataFiles, "data files in database don't match")
 }
 
 func TestInstallArtifact_MetaPackage(t *testing.T) {
@@ -166,10 +181,18 @@ func TestInstallArtifact_MetaPackage(t *testing.T) {
 	assert.NotEmpty(t, installedArtifact.InstalledAt, "installed at timestamp should be set")
 
 	// Verify only metadata file is recorded in database
-	expectedFiles := []string{
+	expectedMetaFiles := []string{
 		filepath.Join(tempDir, "install", "meta", "test-meta", "artifact.json"),
 	}
-	assert.ElementsMatch(t, expectedFiles, installedArtifact.Files, "installed files in database don't match")
+
+	// Convert MetaFiles to full paths for comparison
+	var actualMetaFiles []string
+	for _, f := range installedArtifact.MetaFiles {
+		actualMetaFiles = append(actualMetaFiles, filepath.Join(installedArtifact.BaseMetaDir, "test-meta", f.Path))
+	}
+
+	assert.ElementsMatch(t, expectedMetaFiles, actualMetaFiles, "meta files in database don't match")
+	assert.Empty(t, installedArtifact.DataFiles, "data files should be empty for meta-package")
 }
 
 func TestInstallArtifact_RollbackOnFailure(t *testing.T) {
