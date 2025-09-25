@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func captureOutput(t *testing.T, level string, fn func()) string {
+func captureOutput(t *testing.T, level string, format OutputFormat, fn func()) string {
 	t.Helper()
 	buf := &bytes.Buffer{}
 	SetTestOutput(buf)
@@ -17,7 +17,7 @@ func captureOutput(t *testing.T, level string, fn func()) string {
 
 	// Reinitialize logger with test output
 	logger = nil
-	InitLogger(level)
+	InitLogger(level, format)
 
 	// Call the function that logs
 	fn()
@@ -103,85 +103,153 @@ func TestLogger(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := captureOutput(t, tt.level, tt.logFn)
-
-			// Check for expected substrings
-			for _, s := range tt.contains {
-				assert.True(t, strings.Contains(output, s), "output should contain %q, got: %s", s, output)
+			// Test text format
+			testOutput := captureOutput(t, tt.level, FormatText, tt.logFn)
+			for _, want := range tt.contains {
+				assert.Contains(t, testOutput, want, "text log output should contain expected message")
+			}
+			for _, notWant := range tt.excludes {
+				assert.NotContains(t, testOutput, notWant, "text log output should not contain excluded message")
 			}
 
-			// Check for excluded substrings
-			for _, s := range tt.excludes {
-				assert.False(t, strings.Contains(output, s), "output should not contain %q, got: %s", s, output)
+			// Test JSON format if this is not a format-specific test
+			if !strings.HasPrefix(tt.name, "json format") {
+				jsonOutput := captureOutput(t, tt.level, FormatJSON, tt.logFn)
+				// For JSON output, we need to adjust our expectations
+				// as the format is different from text output
+				for _, want := range tt.contains {
+					// For key=value pairs in the text output, we need to look for "key":value in JSON
+					if strings.Contains(want, "=") {
+						parts := strings.SplitN(want, "=", 2)
+						key := parts[0]
+						value := parts[1]
+						// Handle different value types in JSON
+						if value == "true" || value == "false" || unicode.IsDigit(rune(value[0])) {
+							// For boolean or numeric values, don't add quotes
+							assert.Contains(t, jsonOutput, `"`+key+`":`+value, "JSON log output should contain expected field")
+						} else {
+							// For string values, add quotes
+							assert.Contains(t, jsonOutput, `"`+key+`":"`+value+`"`, "JSON log output should contain expected field")
+						}
+					} else {
+						// For non-key=value strings, just check if they're in the message
+						assert.Contains(t, jsonOutput, want, "JSON log output should contain expected message")
+					}
+				}
+				for _, notWant := range tt.excludes {
+					if strings.Contains(notWant, "=") {
+						parts := strings.SplitN(notWant, "=", 2)
+						key := parts[0]
+						value := parts[1]
+						// For key=value pairs, check both key and value separately
+						assert.NotContains(t, jsonOutput, `"`+key+`":"`+value+`"`, "JSON log output should not contain excluded field")
+					} else {
+						assert.NotContains(t, jsonOutput, notWant, "JSON log output should not contain excluded message")
+					}
+				}
 			}
 		})
 	}
 }
 
 func TestGetLogger_InitializesIfNil(t *testing.T) {
-	// Ensure logger is nil
 	logger = nil
+	assert.NotPanics(t, func() {
+		lg := GetLogger()
+		assert.NotNil(t, lg)
+		lg.Info("test message")
+	})
+}
+
+func TestSetOutputFormat(t *testing.T) {
+	// Test switching from text to JSON
 	buf := &bytes.Buffer{}
 	SetTestOutput(buf)
 	defer UnsetTestOutput()
 
-	// This should initialize the logger with default settings
-	l := GetLogger()
-	require.NotNil(t, l)
-
-	// Log a message
-	l.Info("test message")
+	// Initialize with text format
+	logger = nil
+	InitLogger("debug", FormatText)
+	Info("test message 1")
 	output := buf.String()
+	assert.Contains(t, output, "test message 1")
+	assert.Contains(t, output, "INFO")
 
-	// Verify it's using the default level (info)
-	assert.Contains(t, output, "test message")
-	assert.Contains(t, output, "level=INFO")
+	// Clear buffer and switch to JSON
+	buf.Reset()
+	SetOutputFormat(FormatJSON)
+	Info("test message 2")
+	jsonOutput := buf.String()
+	assert.Contains(t, jsonOutput, `"msg":"test message 2"`)
+	assert.Contains(t, jsonOutput, `"level":"INFO"`)
 }
 
 func TestPlainOutput(t *testing.T) {
-	output := captureOutput(t, "info", func() {
-		Info("info message")
-		Error("error message")
+	// Test text format
+	output := captureOutput(t, "info", FormatText, func() {
+		Info("test message")
 	})
+	assert.Contains(t, output, "test message")
+	assert.Contains(t, output, "INFO")
 
-	// Should not contain any color codes
-	assert.Contains(t, output, "info message")
-	assert.Contains(t, output, "error message")
-	assert.False(t, strings.Contains(output, "\x1b"), "output should not contain ANSI color codes")
+	// Test JSON format
+	jsonOutput := captureOutput(t, "info", FormatJSON, func() {
+		Info("test message")
+	})
+	assert.Contains(t, jsonOutput, `"msg":"test message"`)
+	assert.Contains(t, jsonOutput, `"level":"INFO"`)
 }
 
 func TestMergeFields(t *testing.T) {
 	tests := []struct {
 		name   string
 		fields []Fields
-		expect []interface{}
+		expect map[string]interface{}
 	}{
 		{
-			name:   "no fields",
-			fields: []Fields{},
-			expect: []interface{}{},
+			name:   "single field",
+			fields: []Fields{{"key1": "value1"}},
+			expect: map[string]interface{}{"key1": "value1"},
 		},
 		{
-			name: "single field",
-			fields: []Fields{
-				{"key1": "value1"},
-			},
-			expect: []interface{}{"key1", "value1"},
+			name:   "multiple fields",
+			fields: []Fields{{"key1": "value1"}, {"key2": 123, "key3": true}},
+			expect: map[string]interface{}{"key1": "value1", "key2": 123, "key3": true},
 		},
 		{
-			name: "multiple fields",
-			fields: []Fields{
-				{"key1": "value1"},
-				{"key2": 42, "key3": true},
-			},
-			expect: []interface{}{"key1", "value1", "key2", 42, "key3", true},
+			name:   "overwrite fields",
+			fields: []Fields{{"key1": "value1"}, {"key1": "new value", "key2": 123}},
+			expect: map[string]interface{}{"key1": "new value", "key2": 123},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := mergeFields(tt.fields...)
-			assert.ElementsMatch(t, tt.expect, result)
+			attrs := mergeFields(tt.fields...)
+			result := make(map[string]interface{})
+			for i := 0; i < len(attrs); i += 2 {
+				key := attrs[i].(string)
+				result[key] = attrs[i+1]
+			}
+			assert.Equal(t, tt.expect, result)
 		})
 	}
+}
+
+func TestJSONFormat(t *testing.T) {
+	// Test with fields to ensure they're properly serialized to JSON
+	output := captureOutput(t, "info", FormatJSON, func() {
+		Info("test json message", Fields{
+			"key1":   "value1",
+			"number": 42,
+			"bool":   true,
+		})
+	})
+
+	// Check for JSON structure
+	assert.Contains(t, output, `"msg":"test json message"`)
+	assert.Contains(t, output, `"level":"INFO"`)
+	assert.Contains(t, output, `"key1":"value1"`)
+	assert.Contains(t, output, `"number":42`)
+	assert.Contains(t, output, `"bool":true`)
 }

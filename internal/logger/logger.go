@@ -9,6 +9,16 @@ import (
 	"sync"
 )
 
+// OutputFormat defines the supported logging output formats
+type OutputFormat string
+
+const (
+	// FormatText represents plain text log format
+	FormatText OutputFormat = "text"
+	// FormatJSON represents JSON log format
+	FormatJSON OutputFormat = "json"
+)
+
 var (
 	// testOutput is used to capture log output during tests
 	testOutput   io.Writer
@@ -44,7 +54,8 @@ func getOutput() io.Writer {
 	return os.Stdout
 }
 
-func InitLogger(logLevel string) {
+// InitLogger initializes the logger with the specified log level and output format.
+func InitLogger(logLevel string, format OutputFormat) {
 	var level slog.Level
 	switch strings.ToLower(logLevel) {
 	case "debug":
@@ -59,21 +70,46 @@ func InitLogger(logLevel string) {
 		level = slog.LevelInfo // fallback to info level
 	}
 
-	// Configure handler
-	handler := slog.NewTextHandler(getOutput(), &slog.HandlerOptions{
-		Level: level,
-	})
+	outputFormat := format
+
+	// Configure handler based on output format
+	var handler slog.Handler
+	if outputFormat == FormatJSON {
+		handler = slog.NewJSONHandler(getOutput(), &slog.HandlerOptions{
+			Level: level,
+		})
+	} else {
+		handler = slog.NewTextHandler(getOutput(), &slog.HandlerOptions{
+			Level: level,
+		})
+	}
 
 	logger = slog.New(handler)
 }
 
 // GetLogger returns the configured logger instance.
+// It initializes the logger with default settings if not already initialized.
 func GetLogger() *slog.Logger {
 	if logger == nil {
 		// Initialize with default settings if not already initialized
-		InitLogger("info")
+		InitLogger("info", FormatText)
 	}
 	return logger
+}
+
+// SetOutputFormat changes the output format of the logger.
+// This will reinitialize the logger with the new format.
+func SetOutputFormat(format OutputFormat) {
+	// Get current level
+	level := slog.LevelInfo
+	if logger != nil {
+		// Try to get the current level from the existing logger
+		if h, ok := logger.Handler().(interface{ Level() slog.Level }); ok {
+			level = h.Level()
+		}
+	}
+	// Reinitialize with current level and new format
+	InitLogger(level.String(), format)
 }
 
 // Info logs an info message.
