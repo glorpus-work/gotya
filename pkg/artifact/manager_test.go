@@ -188,7 +188,7 @@ func TestInstallArtifact_MetaPackage(t *testing.T) {
 	// Convert MetaFiles to full paths for comparison
 	var actualMetaFiles []string
 	for _, f := range installedArtifact.MetaFiles {
-		actualMetaFiles = append(actualMetaFiles, filepath.Join(installedArtifact.ArtifactMetaDir, "test-meta", f.Path))
+		actualMetaFiles = append(actualMetaFiles, filepath.Join(installedArtifact.ArtifactMetaDir, f.Path))
 	}
 
 	assert.ElementsMatch(t, expectedMetaFiles, actualMetaFiles, "meta files in database don't match")
