@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/errors"
@@ -38,6 +39,7 @@ type InstalledManagerImpl struct {
 	FormatVersion string               `json:"format_version"`
 	LastUpdate    time.Time            `json:"last_update"`
 	Artifacts     []*InstalledArtifact `json:"artifacts"`
+	rwMutex       sync.RWMutex         `json:"-"` // Mutex for concurrent access
 }
 
 const (
@@ -158,6 +160,9 @@ func (installedDB *InstalledManagerImpl) SaveDatabase(dbPath string) (err error)
 
 // FindArtifact finds an installed artifact by name.
 func (installedDB *InstalledManagerImpl) FindArtifact(name string) *InstalledArtifact {
+	installedDB.rwMutex.RLock()
+	defer installedDB.rwMutex.RUnlock()
+
 	for _, pkg := range installedDB.Artifacts {
 		if pkg.Name == name {
 			return pkg
@@ -168,27 +173,42 @@ func (installedDB *InstalledManagerImpl) FindArtifact(name string) *InstalledArt
 
 // IsArtifactInstalled checks if a artifact is installed.
 func (installedDB *InstalledManagerImpl) IsArtifactInstalled(name string) bool {
-	return installedDB.FindArtifact(name) != nil
+	installedDB.rwMutex.RLock()
+	defer installedDB.rwMutex.RUnlock()
+
+	for _, pkg := range installedDB.Artifacts {
+		if pkg.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // AddArtifact adds an installed artifact to the database.
 func (installedDB *InstalledManagerImpl) AddArtifact(pkg *InstalledArtifact) {
-	// Remove existing artifact with same name if it exists
-	for i, existingPkg := range installedDB.Artifacts {
-		if existingPkg.Name == pkg.Name {
+	installedDB.rwMutex.Lock()
+	defer installedDB.rwMutex.Unlock()
+
+	for i, existing := range installedDB.Artifacts {
+		if existing.Name == pkg.Name {
 			installedDB.Artifacts[i] = pkg
-			installedDB.LastUpdate = time.Now()
 			return
 		}
 	}
 
-	// Add new artifact
+	if pkg.InstalledAt.IsZero() {
+		pkg.InstalledAt = time.Now()
+	}
+
 	installedDB.Artifacts = append(installedDB.Artifacts, pkg)
 	installedDB.LastUpdate = time.Now()
 }
 
 // RemoveArtifact removes an installed artifact from the database.
 func (installedDB *InstalledManagerImpl) RemoveArtifact(name string) bool {
+	installedDB.rwMutex.Lock()
+	defer installedDB.rwMutex.Unlock()
+
 	for i, pkg := range installedDB.Artifacts {
 		if pkg.Name == name {
 			installedDB.Artifacts = append(installedDB.Artifacts[:i], installedDB.Artifacts[i+1:]...)
@@ -201,5 +221,11 @@ func (installedDB *InstalledManagerImpl) RemoveArtifact(name string) bool {
 
 // GetInstalledArtifacts returns all installed packages.
 func (installedDB *InstalledManagerImpl) GetInstalledArtifacts() []*InstalledArtifact {
-	return installedDB.Artifacts
+	installedDB.rwMutex.RLock()
+	defer installedDB.rwMutex.RUnlock()
+
+	// Return a copy of the slice to prevent data races
+	artifacts := make([]*InstalledArtifact, len(installedDB.Artifacts))
+	copy(artifacts, installedDB.Artifacts)
+	return artifacts
 }
