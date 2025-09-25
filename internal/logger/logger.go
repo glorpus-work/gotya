@@ -184,7 +184,6 @@ func Warnf(format string, args ...interface{}) {
 func WarnfWithFields(fields Fields, format string, args ...interface{}) {
 	attrs := make([]interface{}, 0, len(fields)*2)
 	for k, v := range fields {
-		break
 		attrs = append(attrs, k, v)
 	}
 

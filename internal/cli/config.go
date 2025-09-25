@@ -142,7 +142,7 @@ func runConfigSet(key, value string) error {
 		if value != "" {
 			// Validate OS value
 			normalized := platform.NormalizeOS(value)
-			if normalized == "" && value != "" {
+			if normalized == "" {
 				return fmt.Errorf("invalid OS value: %s. Valid values are: %v",
 					value, platform.GetValidOS())
 			}
@@ -152,7 +152,7 @@ func runConfigSet(key, value string) error {
 		if value != "" {
 			// Validate Arch value
 			normalized := platform.NormalizeArch(value)
-			if normalized == "" && value != "" {
+			if normalized == "" {
 				return fmt.Errorf("invalid architecture value: %s. Valid values are: %v",
 					value, platform.GetValidArch())
 			}
