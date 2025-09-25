@@ -126,15 +126,15 @@ func TestInstall_DryRun(t *testing.T) {
 
 	// Setup test data
 	s1url, _ := url.Parse("https://example.com/a.tgz")
-	req := index.InstallRequest{
+	req := index.ResolveRequest{
 		Name:    "pkgA",
 		Version: ">= 0.0.0",
 		OS:      "linux",
 		Arch:    "amd64",
 	}
 
-	plan := index.InstallPlan{
-		Steps: []index.InstallStep{
+	plan := index.ResolvedArtifacts{
+		Artifacts: []index.InstallStep{
 			{
 				ID:        "pkgA@1.0.0",
 				Name:      "pkgA",
@@ -193,9 +193,9 @@ func TestInstall_DryRun(t *testing.T) {
 
 	// Check that we have events for each step
 	stepEvents := events[1 : len(events)-1] // Exclude first and last events
-	assert.Len(t, stepEvents, len(plan.Steps), "should have one event per step")
+	assert.Len(t, stepEvents, len(plan.Artifacts), "should have one event per step")
 
-	for i, step := range plan.Steps {
+	for i, step := range plan.Artifacts {
 		event := stepEvents[i]
 		expectedMsg := fmt.Sprintf("%s@%s", step.Name, step.Version)
 
@@ -212,7 +212,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	// Setup test data
 	tmp := t.TempDir()
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	req := index.InstallRequest{
+	req := index.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -228,7 +228,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 		SourceURL: sURL,
 		Checksum:  "deadbeef",
 	}
-	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
+	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
 
 	// Setup mocks
 	dl := mocks.NewMockDownloader(ctrl)
@@ -358,7 +358,7 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 
 	// Setup test data
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	req := index.InstallRequest{
+	req := index.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -374,7 +374,7 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 		SourceURL: sURL,
 	}
 
-	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
+	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
 
 	// Setup mocks
 	idx := mocks.NewMockIndexPlanner(ctrl)
@@ -415,7 +415,7 @@ func TestInstall_NoIndexPlanner(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Create an orchestrator with nil Index
-	testReq := index.InstallRequest{
+	testReq := index.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -452,7 +452,7 @@ func TestInstall_PlanError(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Setup test data
-	testReq := index.InstallRequest{
+	testReq := index.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 	}
@@ -463,7 +463,7 @@ func TestInstall_PlanError(t *testing.T) {
 	idx := mocks.NewMockIndexPlanner(ctrl)
 	idx.EXPECT().
 		Plan(gomock.Any(), testReq).
-		Return(index.InstallPlan{}, expectedErr).
+		Return(index.ResolvedArtifacts{}, expectedErr).
 		Times(1)
 
 	// Create orchestrator with only Index set
@@ -479,7 +479,7 @@ func TestInstall_PlanError(t *testing.T) {
 
 	// Verify results
 	require.Error(t, err, "should return error when planning fails")
-	assert.Same(t, expectedErr, err, "should return the exact error from Plan")
+	assert.Same(t, expectedErr, err, "should return the exact error from Resolve")
 }
 
 func TestInstall_ArtifactInstallError(t *testing.T) {
@@ -492,7 +492,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	require.NoError(t, os.WriteFile(tmpFile, []byte("test"), 0644), "failed to create temp file")
 
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	testReq := index.InstallRequest{
+	testReq := index.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -509,7 +509,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 		Checksum:  "abc123",
 	}
 
-	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
+	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
 
 	// Setup mocks
 	idx := mocks.NewMockIndexPlanner(ctrl)
@@ -565,7 +565,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 
 	// Setup test data
 	tmpDir := t.TempDir()
-	testReq := index.InstallRequest{
+	testReq := index.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -583,7 +583,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 		Checksum:  "abc123",
 	}
 
-	plan := index.InstallPlan{Steps: []index.InstallStep{step}}
+	plan := index.ResolvedArtifacts{Artifacts: []index.InstallStep{step}}
 
 	// Setup mocks
 	idx := mocks.NewMockIndexPlanner(ctrl)

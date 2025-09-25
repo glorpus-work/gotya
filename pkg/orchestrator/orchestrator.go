@@ -12,9 +12,9 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
-// IndexPlanner is the subset of the index manager used by the orchestrator.
-type IndexPlanner interface {
-	Plan(ctx context.Context, req index.InstallRequest) (index.InstallPlan, error)
+// ArtifactResolver is the subset of the index manager used by the orchestrator.
+type ArtifactResolver interface {
+	Resolve(ctx context.Context, req index.ResolveRequest) (index.ResolvedArtifacts, error)
 }
 
 // ArtifactInstaller is the subset of the artifact manager used by the orchestrator.
@@ -28,7 +28,7 @@ type Downloader interface {
 
 // Orchestrator ties Index, Download and Artifact managers together for installs.
 type Orchestrator struct {
-	Index    IndexPlanner
+	Index    ArtifactResolver
 	DL       Downloader
 	Artifact ArtifactInstaller
 	Hooks    Hooks // Hooks for progress and event notifications
@@ -84,20 +84,20 @@ func emit(h Hooks, e Event) {
 }
 
 // Install resolves and installs according to the plan (sequentially for now).
-func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, opts Options) error {
+func (o *Orchestrator) Install(ctx context.Context, req index.ResolveRequest, opts Options) error {
 	if o.Index == nil {
 		return fmt.Errorf("index planner is not configured")
 	}
 
 	emit(o.Hooks, Event{Phase: "planning", Msg: req.Name})
-	plan, err := o.Index.Plan(ctx, req)
+	plan, err := o.Index.Resolve(ctx, req)
 	if err != nil {
 		return err
 	}
 
 	// Dry run: just emit steps and return
 	if opts.DryRun {
-		for _, step := range plan.Steps {
+		for _, step := range plan.Artifacts {
 			emit(o.Hooks, Event{Phase: "planning", ID: step.ID, Msg: step.Name + "@" + step.Version})
 		}
 		emit(o.Hooks, Event{Phase: "done", Msg: "dry-run"})
@@ -107,8 +107,8 @@ func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, op
 	// Prefetch via Download Manager and capture paths (required for local-only installs)
 	var fetched map[string]string
 	if o.DL != nil && filepath.IsAbs(opts.CacheDir) {
-		items := make([]download.Item, 0, len(plan.Steps))
-		for _, s := range plan.Steps {
+		items := make([]download.Item, 0, len(plan.Artifacts))
+		for _, s := range plan.Artifacts {
 			if s.SourceURL == nil { // nothing to prefetch
 				continue
 			}
@@ -128,7 +128,7 @@ func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, op
 		return fmt.Errorf("artifact installer is not configured")
 	}
 
-	for _, step := range plan.Steps {
+	for _, step := range plan.Artifacts {
 		emit(o.Hooks, Event{Phase: "installing", ID: step.ID, Msg: step.Name + "@" + step.Version})
 		path := ""
 		if fetched != nil {
@@ -158,7 +158,7 @@ func (o *Orchestrator) Install(ctx context.Context, req index.InstallRequest, op
 
 // New constructs a default Orchestrator from existing managers. Helper for wiring.
 // Hooks can be nil if no event handling is needed.
-func New(idx IndexPlanner, dl Downloader, am ArtifactInstaller, hooks Hooks) *Orchestrator {
+func New(idx ArtifactResolver, dl Downloader, am ArtifactInstaller, hooks Hooks) *Orchestrator {
 	return &Orchestrator{
 		Index:    idx,
 		DL:       dl,

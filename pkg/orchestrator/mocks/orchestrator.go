@@ -44,10 +44,10 @@ func (m *MockIndexPlanner) EXPECT() *MockIndexPlannerMockRecorder {
 }
 
 // Plan mocks base method.
-func (m *MockIndexPlanner) Plan(ctx context.Context, req index.InstallRequest) (index.InstallPlan, error) {
+func (m *MockIndexPlanner) Resolve(ctx context.Context, req index.ResolveRequest) (index.ResolvedArtifacts, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Plan", ctx, req)
-	ret0, _ := ret[0].(index.InstallPlan)
+	ret := m.ctrl.Call(m, "Resolve", ctx, req)
+	ret0, _ := ret[0].(index.ResolvedArtifacts)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -55,7 +55,7 @@ func (m *MockIndexPlanner) Plan(ctx context.Context, req index.InstallRequest) (
 // Plan indicates an expected call of Plan.
 func (mr *MockIndexPlannerMockRecorder) Plan(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Plan", reflect.TypeOf((*MockIndexPlanner)(nil).Plan), ctx, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockIndexPlanner)(nil).Resolve), ctx, req)
 }
 
 // MockArtifactInstaller is a mock of ArtifactInstaller interface.

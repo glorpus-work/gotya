@@ -32,7 +32,7 @@ Dependencies will be automatically resolved and installed unless --skip-deps is 
 
 	cmd.Flags().BoolVar(&force, "force", false, "Force installation even if artifact already exists")
 	cmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency resolution")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Plan and print actions without executing")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Resolve and print actions without executing")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 0, "Number of parallel downloads (0=auto)")
 	cmd.Flags().StringVar(&cacheDir, "cache-dir", "", "Download cache directory (defaults to config)")
 
@@ -77,9 +77,9 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 	}
 
 	// Verify interfaces
-	planner, ok := indexManager.(orchestrator.IndexPlanner)
+	planner, ok := indexManager.(orchestrator.ArtifactResolver)
 	if !ok {
-		return fmt.Errorf("index manager does not support planning (missing Plan method)")
+		return fmt.Errorf("index manager does not support planning (missing Resolve method)")
 	}
 
 	// Create progress hooks
@@ -100,7 +100,7 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 
 	// Process each artifact
 	for _, pkgName := range packages {
-		req := index.InstallRequest{
+		req := index.ResolveRequest{
 			Name:    pkgName,
 			Version: ">= 0.0.0",
 			OS:      cfg.Settings.Platform.OS,

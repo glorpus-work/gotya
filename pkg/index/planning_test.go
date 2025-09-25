@@ -23,7 +23,7 @@ func TestPlan_BasicDependencyResolution(t *testing.T) {
 		{"name":"c","version":"1.0.0","url":"https://ex/c","checksum":"c1"}
 	]`)
 
-	plan, err := mgr.Plan(context.Background(), InstallRequest{
+	plan, err := mgr.Resolve(context.Background(), ResolveRequest{
 		Name:    "a",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -31,10 +31,10 @@ func TestPlan_BasicDependencyResolution(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Len(t, plan.Steps, 3)
-	assert.Equal(t, "c@1.0.0", plan.Steps[0].ID)
-	assert.Equal(t, "b@1.0.0", plan.Steps[1].ID)
-	assert.Equal(t, "a@1.0.0", plan.Steps[2].ID)
+	require.Len(t, plan.Artifacts, 3)
+	assert.Equal(t, "c@1.0.0", plan.Artifacts[0].ID)
+	assert.Equal(t, "b@1.0.0", plan.Artifacts[1].ID)
+	assert.Equal(t, "a@1.0.0", plan.Artifacts[2].ID)
 }
 
 func TestPlan_VersionConflictResolution(t *testing.T) {
@@ -54,7 +54,7 @@ func TestPlan_VersionConflictResolution(t *testing.T) {
 		{"name":"common-lib","version":"2.0.0","url":"https://ex/common-2","checksum":"clib2"}
 	]`)
 
-	plan, err := mgr.Plan(context.Background(), InstallRequest{
+	plan, err := mgr.Resolve(context.Background(), ResolveRequest{
 		Name:    "app",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -66,7 +66,7 @@ func TestPlan_VersionConflictResolution(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, plan)
 	// Should have app, lib-a, lib-b, and one version of common-lib
-	assert.True(t, len(plan.Steps) >= 3, "expected at least 3 steps in the plan")
+	assert.True(t, len(plan.Artifacts) >= 3, "expected at least 3 steps in the plan")
 }
 
 func TestPlan_CyclicDependency(t *testing.T) {
@@ -76,7 +76,7 @@ func TestPlan_CyclicDependency(t *testing.T) {
 		{"name":"b","version":"1.0.0","dependencies":[{"name":"a","version_constraint":">= 1.0.0"}],"url":"https://ex/b","checksum":"b1"}
 	]`)
 
-	_, err := mgr.Plan(context.Background(), InstallRequest{
+	_, err := mgr.Resolve(context.Background(), ResolveRequest{
 		Name:    "a",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -110,7 +110,7 @@ func TestPlan_ComplexDependencyGraph(t *testing.T) {
 		],"url":"https://ex/http-2.0","checksum":"http2"}
 	]`)
 
-	plan, err := mgr.Plan(context.Background(), InstallRequest{
+	plan, err := mgr.Resolve(context.Background(), ResolveRequest{
 		Name:    "app",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -121,11 +121,11 @@ func TestPlan_ComplexDependencyGraph(t *testing.T) {
 	// Expected order (one possible valid topological sort):
 	// logger, common-utils, http-client, feature-a, feature-b, app
 	// or similar - the exact order might vary as long as dependencies come before dependents
-	assert.Len(t, plan.Steps, 6)
+	assert.Len(t, plan.Artifacts, 6)
 
 	// Verify all required packages are included
 	names := make(map[string]bool)
-	for _, step := range plan.Steps {
+	for _, step := range plan.Artifacts {
 		names[step.Name] = true
 	}
 	required := []string{"app", "feature-a", "feature-b", "common-utils", "logger", "http-client"}
@@ -134,7 +134,7 @@ func TestPlan_ComplexDependencyGraph(t *testing.T) {
 	}
 
 	// Verify common-utils version is 1.5.0 (the only version that satisfies both constraints)
-	for _, step := range plan.Steps {
+	for _, step := range plan.Artifacts {
 		if step.Name == "common-utils" {
 			assert.Equal(t, "1.5.0", step.Version)
 		}
@@ -152,7 +152,7 @@ func TestPlan_PlatformSpecificDependencies(t *testing.T) {
 	]`)
 
 	t.Run("linux/amd64", func(t *testing.T) {
-		plan, err := mgr.Plan(context.Background(), InstallRequest{
+		plan, err := mgr.Resolve(context.Background(), ResolveRequest{
 			Name:    "app",
 			Version: "1.0.0",
 			OS:      "linux",
@@ -160,15 +160,15 @@ func TestPlan_PlatformSpecificDependencies(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		require.Len(t, plan.Steps, 2)
-		assert.Equal(t, "platform-lib@1.0.0", plan.Steps[0].ID)
-		assert.Equal(t, "app@1.0.0", plan.Steps[1].ID)
-		assert.Equal(t, "linux", plan.Steps[0].OS)
-		assert.Equal(t, "amd64", plan.Steps[0].Arch)
+		require.Len(t, plan.Artifacts, 2)
+		assert.Equal(t, "platform-lib@1.0.0", plan.Artifacts[0].ID)
+		assert.Equal(t, "app@1.0.0", plan.Artifacts[1].ID)
+		assert.Equal(t, "linux", plan.Artifacts[0].OS)
+		assert.Equal(t, "amd64", plan.Artifacts[0].Arch)
 	})
 
 	t.Run("darwin/arm64", func(t *testing.T) {
-		plan, err := mgr.Plan(context.Background(), InstallRequest{
+		plan, err := mgr.Resolve(context.Background(), ResolveRequest{
 			Name:    "app",
 			Version: "1.0.0",
 			OS:      "darwin",
@@ -176,11 +176,11 @@ func TestPlan_PlatformSpecificDependencies(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		require.Len(t, plan.Steps, 2)
-		assert.Equal(t, "platform-lib@1.0.0", plan.Steps[0].ID)
-		assert.Equal(t, "app@1.0.0", plan.Steps[1].ID)
-		assert.Equal(t, "darwin", plan.Steps[0].OS)
-		assert.Equal(t, "arm64", plan.Steps[0].Arch)
+		require.Len(t, plan.Artifacts, 2)
+		assert.Equal(t, "platform-lib@1.0.0", plan.Artifacts[0].ID)
+		assert.Equal(t, "app@1.0.0", plan.Artifacts[1].ID)
+		assert.Equal(t, "darwin", plan.Artifacts[0].OS)
+		assert.Equal(t, "arm64", plan.Artifacts[0].Arch)
 	})
 }
 
@@ -188,7 +188,7 @@ func TestPlan_NoDependencies(t *testing.T) {
 	// Test planning for a package with no dependencies
 	mgr := setupTestManager(t, `[{"name":"standalone","version":"1.0.0","url":"https://ex/standalone","checksum":"s1"}]`)
 
-	plan, err := mgr.Plan(context.Background(), InstallRequest{
+	plan, err := mgr.Resolve(context.Background(), ResolveRequest{
 		Name:    "standalone",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -196,15 +196,15 @@ func TestPlan_NoDependencies(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Len(t, plan.Steps, 1)
-	assert.Equal(t, "standalone@1.0.0", plan.Steps[0].ID)
+	require.Len(t, plan.Artifacts, 1)
+	assert.Equal(t, "standalone@1.0.0", plan.Artifacts[0].ID)
 }
 
 func TestPlan_NonExistentPackage(t *testing.T) {
 	// Test behavior when the requested package doesn't exist
 	mgr := setupTestManager(t, `[{"name":"exists","version":"1.0.0","url":"https://ex/exists","checksum":"e1"}]`)
 
-	_, err := mgr.Plan(context.Background(), InstallRequest{
+	_, err := mgr.Resolve(context.Background(), ResolveRequest{
 		Name:    "nonexistent",
 		Version: "1.0.0",
 		OS:      "linux",
