@@ -51,7 +51,7 @@ func loadConfig() (*config.Config, error) {
 	}
 
 	// Initialize logger with config settings
-	logger.InitLogger(cfg.Settings.LogLevel)
+	logger.InitLogger(cfg.Settings.LogLevel, logger.OutputFormat(cfg.Settings.OutputFormat))
 
 	return cfg, nil
 }
