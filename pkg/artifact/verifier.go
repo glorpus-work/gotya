@@ -23,7 +23,8 @@ func NewVerifier() *Verifier {
 	return &Verifier{}
 }
 
-// VerifyArtifact verifies an artifact from a local file path.
+// VerifyArtifact verifies an artifact from a local file path against the provided descriptor.
+// If the descriptor is nil, only the internal consistency of the artifact is verified.
 // TODO rewrite to use a local filepath instead of archives.FileSystem.
 func (v *Verifier) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor, filePath string) error {
 	if _, err := os.Stat(filePath); err != nil {
@@ -46,11 +47,27 @@ func (v *Verifier) VerifyArtifact(ctx context.Context, artifact *model.IndexArti
 		return err
 	}
 
-	if metadata.Name != artifact.Name || metadata.Version != artifact.Version || metadata.GetOS() != artifact.GetOS() || metadata.GetArch() != artifact.GetArch() {
-		return errors.Wrapf(errors.ErrArtifactInvalid, "metadata mismatch - expected Name: %s, Version: %s, OS: %s, Arch: %s but got Name: %s, Version: %s, OS: %s, Arch: %s",
-			artifact.Name, artifact.Version, artifact.GetOS(), artifact.GetArch(),
-			metadata.Name, metadata.Version, metadata.GetOS(), metadata.GetArch())
+	// Only verify against descriptor if provided
+	if artifact != nil {
+		if metadata.Name != artifact.Name || metadata.Version != artifact.Version ||
+			metadata.GetOS() != artifact.GetOS() || metadata.GetArch() != artifact.GetArch() {
+			return errors.Wrapf(errors.ErrArtifactInvalid,
+				"metadata mismatch - expected Name: %s, Version: %s, OS: %s, Arch: %s but got Name: %s, Version: %s, OS: %s, Arch: %s",
+				artifact.Name, artifact.Version, artifact.GetOS(), artifact.GetArch(),
+				metadata.Name, metadata.Version, metadata.GetOS(), metadata.GetArch())
+		}
 	}
+
+	return v.verifyArtifactContents(fsys, metadata)
+}
+
+// VerifyArtifactFile verifies the internal consistency of an artifact file without comparing against a descriptor.
+func (v *Verifier) VerifyArtifactFile(ctx context.Context, filePath string) error {
+	return v.VerifyArtifact(ctx, nil, filePath)
+}
+
+// verifyArtifactContents verifies the internal consistency of an artifact's contents.
+func (v *Verifier) verifyArtifactContents(fsys fs.FS, metadata *Metadata) error {
 
 	dataDir, err := fsys.Open(artifactDataDir)
 	if err != nil {

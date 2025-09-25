@@ -1,12 +1,16 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/spf13/cobra"
 
-	pkgpkg "github.com/cperrin88/gotya/pkg/artifact"
+	"github.com/cperrin88/gotya/pkg/artifact"
 )
 
 // NewArtifactCmd creates a new artifact command.
@@ -19,6 +23,7 @@ func NewArtifactCmd() *cobra.Command {
 
 	// Add subcommands
 	pkgCmd.AddCommand(newArtifactCreateCommand())
+	pkgCmd.AddCommand(newArtifactVerifyCommand())
 
 	return pkgCmd
 }
@@ -45,7 +50,7 @@ func newArtifactCreateCommand() *cobra.Command {
 		Long: `Create a new gotya artifact from a source directory.
 The source directory should contain a 'meta/artifact.json' file and a 'files/' directory.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			packer := pkgpkg.NewPacker(
+			packer := artifact.NewPacker(
 				pkgName,
 				pkgVer,
 				pkgOS,
@@ -87,6 +92,65 @@ The source directory should contain a 'meta/artifact.json' file and a 'files/' d
 		// This should never happen since we control the flag names
 		panic(fmt.Sprintf("failed to mark name as required: %v", err))
 	}
+
+	return cmd
+}
+
+// newArtifactVerifyCommand creates the 'artifact verify' command.
+func newArtifactVerifyCommand() *cobra.Command {
+	// Command line flags
+	var (
+		filePath string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "verify",
+		Short: "Verify an artifact file",
+		Long: `Verify the integrity of a gotya artifact file.
+
+This command checks the internal consistency of an artifact file, 
+including file hashes and metadata structure.`,
+		RunE: func(_ *cobra.Command, args []string) error {
+			// If file path is provided as an argument, use it (takes precedence over flag)
+			if len(args) > 0 {
+				filePath = args[0]
+			}
+
+			if filePath == "" {
+				return fmt.Errorf("missing required argument: file path")
+			}
+
+			// Convert to absolute path
+			absPath, err := filepath.Abs(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to get absolute path: %w", err)
+			}
+
+			// Check if file exists
+			if _, err := os.Stat(absPath); os.IsNotExist(err) {
+				return fmt.Errorf("artifact file not found: %s", absPath)
+			}
+
+			log.Printf("Verifying artifact: %s\n", absPath)
+
+			verifier := artifact.NewVerifier()
+			if err := verifier.VerifyArtifactFile(context.Background(), absPath); err != nil {
+				return fmt.Errorf("verification failed: %w", err)
+			}
+
+			log.Printf("Artifact verified successfully: %s\n", absPath)
+			return nil
+		},
+	}
+
+	// Add flags
+	cmd.Flags().StringVarP(&filePath, "file", "f", "", "Path to the artifact file to verify")
+
+	// Mark the file flag as required if not provided as an argument
+	cmd.MarkFlagFilename("file", "gotya")
+
+	// Allow passing the file path as a positional argument
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	return cmd
 }
