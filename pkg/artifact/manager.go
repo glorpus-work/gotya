@@ -112,6 +112,11 @@ func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) error
 		return fmt.Errorf("metadata directory not found in artifact")
 	}
 
+	err := os.MkdirAll(m.artifactMetaInstallDir, 0o755)
+	if err != nil {
+		return err
+	}
+
 	// Install the metadata directory
 	metaPath := m.getArtifactMetaInstallPath(artifactName)
 	if err := os.Rename(metaSrcDir, metaPath); err != nil {
@@ -120,6 +125,10 @@ func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) error
 
 	// Only install data directory if it exists
 	if _, err := os.Stat(dataSrcDir); err == nil {
+		err := os.MkdirAll(m.artifactDataInstallDir, 0o755)
+		if err != nil {
+			return err
+		}
 		dataPath := m.getArtifactDataInstallPath(artifactName)
 		if err := os.Rename(dataSrcDir, dataPath); err != nil {
 			// Clean up the metadata directory if data installation fails
