@@ -175,7 +175,7 @@ func TestInstall_DryRun(t *testing.T) {
 	err := orch.Install(
 		context.Background(),
 		req,
-		Options{DryRun: true},
+		InstallOptions{DryRun: true},
 	)
 
 	// Verify results
@@ -284,13 +284,14 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	}
 
 	// Execute the test
+	testOpts := InstallOptions{
+		CacheDir:    tmp,
+		Concurrency: 2, // Match the expected concurrency in the test
+	}
 	err := orch.Install(
 		context.Background(),
 		req,
-		Options{
-			CacheDir:    tmp,
-			Concurrency: 2,
-		},
+		testOpts,
 	)
 
 	// Verify results
@@ -304,11 +305,12 @@ func TestNew(t *testing.T) {
 
 	// Setup mocks
 	idx := mocks.NewMockArtifactResolver(ctrl)
+	reverseIdx := mocks.NewMockArtifactReverseResolver(ctrl)
 	dl := mocks.NewMockDownloader(ctrl)
 	am := mocks.NewMockArtifactManager(ctrl)
 
 	// Call the constructor
-	orch := New(idx, dl, am, Hooks{})
+	orch := New(idx, reverseIdx, dl, am, Hooks{})
 
 	// Verify all fields are properly initialized
 	assert.Same(t, idx, orch.Index, "Index field should be set to the provided mock")
@@ -396,7 +398,7 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 	err := orch.Install(
 		context.Background(),
 		req,
-		Options{
+		InstallOptions{
 			CacheDir: t.TempDir(),
 		},
 	)
@@ -422,7 +424,7 @@ func TestInstall_NoIndexPlanner(t *testing.T) {
 		Arch:    "amd64",
 	}
 
-	testOpts := Options{
+	testOpts := InstallOptions{
 		CacheDir: t.TempDir(),
 	}
 
@@ -474,7 +476,7 @@ func TestInstall_PlanError(t *testing.T) {
 	err := torch.Install(
 		context.Background(),
 		testReq,
-		Options{},
+		InstallOptions{},
 	)
 
 	// Verify results
@@ -549,7 +551,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	err := torch.Install(
 		context.Background(),
 		testReq,
-		Options{
+		InstallOptions{
 			CacheDir: tmpDir,
 		},
 	)
@@ -611,7 +613,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	err := torch.Install(
 		context.Background(),
 		testReq,
-		Options{
+		InstallOptions{
 			CacheDir: tmpDir,
 		},
 	)
@@ -754,6 +756,7 @@ func TestUninstall_ForceWithNoCascade(t *testing.T) {
 
 	// Create mocks
 	am := mocks.NewMockArtifactManager(ctrl)
+	reverseIdx := mocks.NewMockArtifactReverseResolver(ctrl)
 
 	// Setup expectations - with Force and NoCascade, it should create a minimal artifact list
 	// and only uninstall the requested artifact
@@ -764,7 +767,7 @@ func TestUninstall_ForceWithNoCascade(t *testing.T) {
 	// Create orchestrator with mocks
 	orch := &Orchestrator{
 		ArtifactManager: am,
-		// No ReverseIndex needed as we're testing Force + NoCascade which skips reverse resolution
+		ReverseIndex:    reverseIdx, // Required even with Force + NoCascade
 	}
 
 	// Execute test with both Force and NoCascade
