@@ -126,15 +126,15 @@ func TestInstall_DryRun(t *testing.T) {
 
 	// Setup test data
 	s1url, _ := url.Parse("https://example.com/a.tgz")
-	req := index.ResolveRequest{
+	req := model.ResolveRequest{
 		Name:    "pkgA",
 		Version: ">= 0.0.0",
 		OS:      "linux",
 		Arch:    "amd64",
 	}
 
-	plan := index.ResolvedArtifacts{
-		Artifacts: []index.ResolvedArtifact{
+	plan := model.ResolvedArtifacts{
+		Artifacts: []model.ResolvedArtifact{
 			{
 				ID:        "pkgA@1.0.0",
 				Name:      "pkgA",
@@ -212,14 +212,14 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	// Setup test data
 	tmp := t.TempDir()
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	req := index.ResolveRequest{
+	req := model.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 		OS:      "linux",
 		Arch:    "amd64",
 	}
 
-	step := index.ResolvedArtifact{
+	step := model.ResolvedArtifact{
 		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
@@ -228,7 +228,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 		SourceURL: sURL,
 		Checksum:  "deadbeef",
 	}
-	plan := index.ResolvedArtifacts{Artifacts: []index.ResolvedArtifact{step}}
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
 
 	// Setup mocks
 	dl := mocks.NewMockDownloader(ctrl)
@@ -358,14 +358,14 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 
 	// Setup test data
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	req := index.ResolveRequest{
+	req := model.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 		OS:      "linux",
 		Arch:    "amd64",
 	}
 
-	step := index.ResolvedArtifact{
+	step := model.ResolvedArtifact{
 		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
@@ -374,7 +374,7 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 		SourceURL: sURL,
 	}
 
-	plan := index.ResolvedArtifacts{Artifacts: []index.ResolvedArtifact{step}}
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
 
 	// Setup mocks
 	idx := mocks.NewMockArtifactResolver(ctrl)
@@ -415,7 +415,7 @@ func TestInstall_NoIndexPlanner(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Create an orchestrator with nil Index
-	testReq := index.ResolveRequest{
+	testReq := model.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -452,7 +452,7 @@ func TestInstall_PlanError(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Setup test data
-	testReq := index.ResolveRequest{
+	testReq := model.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 	}
@@ -463,7 +463,7 @@ func TestInstall_PlanError(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), testReq).
-		Return(index.ResolvedArtifacts{}, expectedErr).
+		Return(model.ResolvedArtifacts{}, expectedErr).
 		Times(1)
 
 	// Create orchestrator with only Index set
@@ -492,14 +492,14 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	require.NoError(t, os.WriteFile(tmpFile, []byte("test"), 0644), "failed to create temp file")
 
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	testReq := index.ResolveRequest{
+	testReq := model.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 		OS:      "linux",
 		Arch:    "amd64",
 	}
 
-	step := index.ResolvedArtifact{
+	step := model.ResolvedArtifact{
 		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
@@ -509,7 +509,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 		Checksum:  "abc123",
 	}
 
-	plan := index.ResolvedArtifacts{Artifacts: []index.ResolvedArtifact{step}}
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
 
 	// Setup mocks
 	idx := mocks.NewMockArtifactResolver(ctrl)
@@ -565,7 +565,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 
 	// Setup test data
 	tmpDir := t.TempDir()
-	testReq := index.ResolveRequest{
+	testReq := model.ResolveRequest{
 		Name:    "pkgA",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -573,7 +573,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	}
 
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	step := index.ResolvedArtifact{
+	step := model.ResolvedArtifact{
 		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
@@ -583,7 +583,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 		Checksum:  "abc123",
 	}
 
-	plan := index.ResolvedArtifacts{Artifacts: []index.ResolvedArtifact{step}}
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
 
 	// Setup mocks
 	idx := mocks.NewMockArtifactResolver(ctrl)

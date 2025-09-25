@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cperrin88/gotya/pkg/index"
+	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/cperrin88/gotya/pkg/orchestrator"
 	"github.com/spf13/cobra"
 )
@@ -100,7 +100,7 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 
 	// Process each artifact
 	for _, pkgName := range packages {
-		req := index.ResolveRequest{
+		req := model.ResolveRequest{
 			Name:    pkgName,
 			Version: ">= 0.0.0",
 			OS:      cfg.Settings.Platform.OS,

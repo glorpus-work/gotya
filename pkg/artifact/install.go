@@ -162,3 +162,12 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 
 	return nil
 }
+
+// installRollback cleans up any partially installed files in case of an error
+func (m ManagerImpl) installRollback(artifactName string) {
+	metaPath := m.getArtifactMetaInstallPath(artifactName)
+	_ = os.RemoveAll(metaPath)
+
+	dataPath := m.getArtifactDataInstallPath(artifactName)
+	_ = os.RemoveAll(dataPath)
+}

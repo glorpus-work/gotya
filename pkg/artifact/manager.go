@@ -215,19 +215,16 @@ func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexAr
 	return m.verifier.VerifyArtifact(ctx, artifact, filePath)
 }
 
+// ReverseResolve returns the list of artifacts that depend on the given artifact recursively
+func (m ManagerImpl) ReverseResolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m ManagerImpl) getArtifactMetaInstallPath(artifactName string) string {
 	return filepath.Join(m.artifactMetaInstallDir, artifactName)
 }
 
 func (m ManagerImpl) getArtifactDataInstallPath(artifactName string) string {
 	return filepath.Join(m.artifactDataInstallDir, artifactName)
-}
-
-// installRollback cleans up any partially installed files in case of an error
-func (m ManagerImpl) installRollback(artifactName string) {
-	metaPath := m.getArtifactMetaInstallPath(artifactName)
-	_ = os.RemoveAll(metaPath)
-
-	dataPath := m.getArtifactDataInstallPath(artifactName)
-	_ = os.RemoveAll(dataPath)
 }

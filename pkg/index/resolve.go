@@ -3,36 +3,11 @@ package index
 import (
 	"context"
 	"fmt"
-	"net/url"
 	slices2 "slices"
 	"strings"
 
 	"github.com/cperrin88/gotya/pkg/model"
 )
-
-// ResolveRequest describes what the user asked to resolve.
-type ResolveRequest struct {
-	Name    string
-	Version string // semver constraint (e.g., ">= 0.0.0" for latest)
-	OS      string // target os
-	Arch    string // target arch
-}
-
-// ResolvedArtifact is one concrete installation action.
-type ResolvedArtifact struct {
-	ID        string
-	Name      string
-	Version   string
-	OS        string
-	Arch      string
-	SourceURL *url.URL
-	Checksum  string
-}
-
-// ResolvedArtifacts is an ordered list of steps. Topologically sorted if deps are present.
-type ResolvedArtifacts struct {
-	Artifacts []ResolvedArtifact
-}
 
 // Resolve computes resolved artifacts with dependency resolution.
 // Rules:
@@ -40,7 +15,7 @@ type ResolvedArtifacts struct {
 // - For each artifact name, select a single version that satisfies all accumulated constraints.
 // - Pick the latest version (by semver) that satisfies constraints and platform filters across all indexes.
 // - Error if a dependency cannot be found in any index, or if no version satisfies combined constraints.
-func (rm *ManagerImpl) Resolve(ctx context.Context, req ResolveRequest) (ResolvedArtifacts, error) { //nolint:revive // ctx reserved for future
+func (rm *ManagerImpl) Resolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error) { //nolint:revive // ctx reserved for future
 	_ = ctx // reserved for future use
 
 	// Normalize version request
@@ -52,26 +27,26 @@ func (rm *ManagerImpl) Resolve(ctx context.Context, req ResolveRequest) (Resolve
 	res := newResolver(rm, req)
 	res.addConstraint(req.Name, req.Version)
 	if err := res.resolveNode(req.Name); err != nil {
-		return ResolvedArtifacts{}, err
+		return model.ResolvedArtifacts{}, err
 	}
 
 	order := res.topoOrder(req.Name)
 	Artifacts := res.resolveArtifacts(order)
-	return ResolvedArtifacts{Artifacts: Artifacts}, nil
+	return model.ResolvedArtifacts{Artifacts: Artifacts}, nil
 }
 
 // --- Internal planning helpers ---
 
 type resolver struct {
 	manager     *ManagerImpl
-	installReq  ResolveRequest
+	installReq  model.ResolveRequest
 	constraints map[string][]string                       // name -> constraints (AND)
 	selected    map[string]*model.IndexArtifactDescriptor // name -> chosen descriptor
 	deps        map[string][]string                       // name -> dep names
 	visiting    map[string]struct{}                       // for cycle detection
 }
 
-func newResolver(mgr *ManagerImpl, request ResolveRequest) *resolver {
+func newResolver(mgr *ManagerImpl, request model.ResolveRequest) *resolver {
 	return &resolver{
 		manager:     mgr,
 		installReq:  request,
@@ -163,14 +138,14 @@ func (r *resolver) topoOrder(root string) []string {
 	return order
 }
 
-func (r *resolver) resolveArtifacts(order []string) []ResolvedArtifact {
-	steps := make([]ResolvedArtifact, 0, len(order))
+func (r *resolver) resolveArtifacts(order []string) []model.ResolvedArtifact {
+	steps := make([]model.ResolvedArtifact, 0, len(order))
 	for _, name := range order {
 		d := r.selected[name]
 		if d == nil {
 			continue
 		}
-		steps = append(steps, ResolvedArtifact{
+		steps = append(steps, model.ResolvedArtifact{
 			ID:        d.Name + "@" + d.Version,
 			Name:      d.Name,
 			Version:   d.Version,

@@ -14,7 +14,11 @@ import (
 
 // ArtifactResolver is the subset of the index manager used by the orchestrator.
 type ArtifactResolver interface {
-	Resolve(ctx context.Context, req index.ResolveRequest) (index.ResolvedArtifacts, error)
+	Resolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error)
+}
+
+type ArtifactReverseResolver interface {
+	ReverseResolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error)
 }
 
 // ArtifactManager is the subset of the artifact manager used by the orchestrator.
@@ -84,7 +88,7 @@ func emit(h Hooks, e Event) {
 }
 
 // Install resolves and installs according to the plan (sequentially for now).
-func (o *Orchestrator) Install(ctx context.Context, req index.ResolveRequest, opts Options) error {
+func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, opts Options) error {
 	if o.Index == nil {
 		return fmt.Errorf("index planner is not configured")
 	}

@@ -14,7 +14,6 @@ import (
 	reflect "reflect"
 
 	download "github.com/cperrin88/gotya/pkg/download"
-	index "github.com/cperrin88/gotya/pkg/index"
 	model "github.com/cperrin88/gotya/pkg/model"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -44,10 +43,10 @@ func (m *MockArtifactResolver) EXPECT() *MockArtifactResolverMockRecorder {
 }
 
 // Resolve mocks base method.
-func (m *MockArtifactResolver) Resolve(ctx context.Context, req index.ResolveRequest) (index.ResolvedArtifacts, error) {
+func (m *MockArtifactResolver) Resolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Resolve", ctx, req)
-	ret0, _ := ret[0].(index.ResolvedArtifacts)
+	ret0, _ := ret[0].(model.ResolvedArtifacts)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

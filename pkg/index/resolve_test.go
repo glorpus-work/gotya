@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +24,7 @@ func TestResolve_BasicDependencyResolution(t *testing.T) {
 		{"name":"c","version":"1.0.0","url":"https://ex/c","checksum":"c1"}
 	]`)
 
-	plan, err := mgr.Resolve(context.Background(), ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 		Name:    "a",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -54,7 +55,7 @@ func TestResolve_VersionConflictResolution(t *testing.T) {
 		{"name":"common-lib","version":"2.0.0","url":"https://ex/common-2","checksum":"clib2"}
 	]`)
 
-	plan, err := mgr.Resolve(context.Background(), ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 		Name:    "app",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -76,7 +77,7 @@ func TestResolve_CyclicDependency(t *testing.T) {
 		{"name":"b","version":"1.0.0","dependencies":[{"name":"a","version_constraint":">= 1.0.0"}],"url":"https://ex/b","checksum":"b1"}
 	]`)
 
-	_, err := mgr.Resolve(context.Background(), ResolveRequest{
+	_, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 		Name:    "a",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -110,7 +111,7 @@ func TestResolve_ComplexDependencyGraph(t *testing.T) {
 		],"url":"https://ex/http-2.0","checksum":"http2"}
 	]`)
 
-	plan, err := mgr.Resolve(context.Background(), ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 		Name:    "app",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -152,7 +153,7 @@ func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 	]`)
 
 	t.Run("linux/amd64", func(t *testing.T) {
-		plan, err := mgr.Resolve(context.Background(), ResolveRequest{
+		plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 			Name:    "app",
 			Version: "1.0.0",
 			OS:      "linux",
@@ -168,7 +169,7 @@ func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 	})
 
 	t.Run("darwin/arm64", func(t *testing.T) {
-		plan, err := mgr.Resolve(context.Background(), ResolveRequest{
+		plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 			Name:    "app",
 			Version: "1.0.0",
 			OS:      "darwin",
@@ -188,7 +189,7 @@ func TestResolve_NoDependencies(t *testing.T) {
 	// Test planning for a package with no dependencies
 	mgr := setupTestManager(t, `[{"name":"standalone","version":"1.0.0","url":"https://ex/standalone","checksum":"s1"}]`)
 
-	plan, err := mgr.Resolve(context.Background(), ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 		Name:    "standalone",
 		Version: "1.0.0",
 		OS:      "linux",
@@ -204,7 +205,7 @@ func TestResolve_NonExistentPackage(t *testing.T) {
 	// Test behavior when the requested package doesn't exist
 	mgr := setupTestManager(t, `[{"name":"exists","version":"1.0.0","url":"https://ex/exists","checksum":"e1"}]`)
 
-	_, err := mgr.Resolve(context.Background(), ResolveRequest{
+	_, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 		Name:    "nonexistent",
 		Version: "1.0.0",
 		OS:      "linux",
