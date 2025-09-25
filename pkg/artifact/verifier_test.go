@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -152,6 +153,121 @@ func TestVerifier_extractArtifact_Permissions(t *testing.T) {
 	err := verifier.extractArtifact(context.Background(), testArtifact, destDir)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "permission denied")
+}
+
+func TestVerifier_Verify(t *testing.T) {
+	// Common test artifact setup
+	validArtifactSetup := func(t *testing.T, tempDir string) string {
+		testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
+		metadata := &Metadata{
+			Name:    "test-artifact",
+			Version: "1.0.0",
+			OS:      "linux",
+			Arch:    "amd64",
+		}
+		setupTestArtifact(t, testArtifact, true, metadata)
+		return testArtifact
+	}
+
+	tests := []struct {
+		name        string
+		doc         string
+		descriptor  *model.IndexArtifactDescriptor
+		setup       func(*testing.T, string) string
+		verifyFn    func(*Verifier, context.Context, *model.IndexArtifactDescriptor, string) error
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "VerifyArtifact with matching descriptor",
+			doc:  "Should successfully verify when descriptor matches artifact metadata",
+			descriptor: &model.IndexArtifactDescriptor{
+				Name:    "test-artifact",
+				Version: "1.0.0",
+				OS:      "linux",
+				Arch:    "amd64",
+			},
+			setup: validArtifactSetup,
+			verifyFn: func(v *Verifier, ctx context.Context, desc *model.IndexArtifactDescriptor, path string) error {
+				return v.VerifyArtifact(ctx, desc, path)
+			},
+		},
+		{
+			name: "VerifyArtifact with mismatched name",
+			doc:  "Should fail when descriptor name doesn't match artifact metadata",
+			descriptor: &model.IndexArtifactDescriptor{
+				Name:    "wrong-name",
+				Version: "1.0.0",
+				OS:      "linux",
+				Arch:    "amd64",
+			},
+			setup:       validArtifactSetup,
+			verifyFn:    (*Verifier).VerifyArtifact,
+			expectError: true,
+			errorMsg:    "metadata mismatch",
+		},
+		{
+			name:       "VerifyArtifact with nil descriptor",
+			doc:        "Should successfully verify when no descriptor is provided",
+			descriptor: nil,
+			setup:      validArtifactSetup,
+			verifyFn: func(v *Verifier, ctx context.Context, _ *model.IndexArtifactDescriptor, path string) error {
+				return v.VerifyArtifactFile(ctx, path)
+			},
+			expectError: false,
+		},
+		{
+			name:       "VerifyArtifactFile with valid artifact",
+			doc:        "Should successfully verify a valid artifact file",
+			setup:      validArtifactSetup,
+			descriptor: nil,
+			verifyFn: func(v *Verifier, ctx context.Context, _ *model.IndexArtifactDescriptor, path string) error {
+				return v.VerifyArtifactFile(ctx, path)
+			},
+			expectError: false,
+		},
+		{
+			name: "VerifyArtifactFile with corrupted artifact",
+			doc:  "Should fail when verifying a corrupted artifact file",
+			setup: func(t *testing.T, tempDir string) string {
+				testArtifact := filepath.Join(tempDir, "corrupted.gotya")
+				f, err := os.Create(testArtifact)
+				require.NoError(t, err)
+				f.Close()
+				return testArtifact
+			},
+			verifyFn: func(v *Verifier, ctx context.Context, _ *model.IndexArtifactDescriptor, path string) error {
+				return v.VerifyArtifactFile(ctx, path)
+			},
+			expectError: true,
+			errorMsg:    "open meta/artifact.json: file does not exist",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			verifier := NewVerifier()
+
+			testArtifact := tt.setup(t, tempDir)
+
+			var err error
+			if tt.descriptor != nil {
+				err = verifier.VerifyArtifact(context.Background(), tt.descriptor, testArtifact)
+			} else {
+				err = tt.verifyFn(verifier, context.Background(), tt.descriptor, testArtifact)
+			}
+
+			if tt.expectError {
+				assert.Error(t, err, tt.doc)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg, "%s: error message mismatch", tt.doc)
+				}
+			} else {
+				assert.NoError(t, err, tt.doc)
+			}
+		})
+	}
 }
 
 func TestVerifier_extractArtifact_OverwriteProtection(t *testing.T) {
