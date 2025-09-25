@@ -73,6 +73,7 @@ func TestHelpCommand(t *testing.T) {
 	output := buf.String()
 
 	// Check for expected help text
-	assert.Contains(t, output, "A lightweight personal artifact manager", "help output should contain description")
+	expectedDescription := "gotya is a lightweight personal artifact manager (like apt) with:"
+	assert.Contains(t, output, expectedDescription, "help output should contain description")
 	assert.Contains(t, output, "Available Commands", "help output should list available commands")
 }
