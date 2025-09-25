@@ -1,4 +1,4 @@
-//go:generate mockgen -destination=./mocks/orchestrator.go . ArtifactResolver,ArtifactManager,Downloader
+//go:generate mockgen -destination=./mocks/orchestrator.go . ArtifactResolver,ArtifactReverseResolver,ArtifactManager,Downloader
 
 package orchestrator
 
@@ -24,6 +24,7 @@ type ArtifactReverseResolver interface {
 // ArtifactManager is the subset of the artifact manager used by the orchestrator.
 type ArtifactManager interface {
 	InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) error
+	UninstallArtifact(ctx context.Context, artifactName string, purge bool) error
 }
 
 type Downloader interface {
@@ -32,10 +33,11 @@ type Downloader interface {
 
 // Orchestrator ties Index, Download and Artifact managers together for installs.
 type Orchestrator struct {
-	Index    ArtifactResolver
-	DL       Downloader
-	Artifact ArtifactManager
-	Hooks    Hooks // Hooks for progress and event notifications
+	Index        ArtifactResolver
+	ReverseIndex ArtifactReverseResolver
+	DL           Downloader
+	Artifact     ArtifactManager
+	Hooks        Hooks // Hooks for progress and event notifications
 }
 
 // Event represents a simple progress notification.
@@ -160,13 +162,52 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 	return nil
 }
 
+// Uninstall resolves and uninstalls according to the reverse dependency plan (reverse order for dependencies).
+func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, opts Options) error {
+	if o.ReverseIndex == nil {
+		return fmt.Errorf("reverse index resolver is not configured")
+	}
+
+	emit(o.Hooks, Event{Phase: "planning", Msg: req.Name})
+	plan, err := o.ReverseIndex.ReverseResolve(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	// Dry run: just emit steps and return
+	if opts.DryRun {
+		for _, step := range plan.Artifacts {
+			emit(o.Hooks, Event{Phase: "planning", ID: step.ID, Msg: step.Name + "@" + step.Version})
+		}
+		emit(o.Hooks, Event{Phase: "done", Msg: "dry-run"})
+		return nil
+	}
+
+	if o.Artifact == nil {
+		return fmt.Errorf("artifact uninstaller is not configured")
+	}
+
+	// Process artifacts in reverse order to handle dependencies properly
+	// Reverse the slice to uninstall dependencies first
+	for i := len(plan.Artifacts) - 1; i >= 0; i-- {
+		step := plan.Artifacts[i]
+		emit(o.Hooks, Event{Phase: "uninstalling", ID: step.ID, Msg: step.Name + "@" + step.Version})
+		if err := o.Artifact.UninstallArtifact(ctx, step.Name, false); err != nil {
+			return err
+		}
+	}
+	emit(o.Hooks, Event{Phase: "done"})
+	return nil
+}
+
 // New constructs a default Orchestrator from existing managers. Helper for wiring.
 // Hooks can be nil if no event handling is needed.
-func New(idx ArtifactResolver, dl Downloader, am ArtifactManager, hooks Hooks) *Orchestrator {
+func New(idx ArtifactResolver, reverseIdx ArtifactReverseResolver, dl Downloader, am ArtifactManager, hooks Hooks) *Orchestrator {
 	return &Orchestrator{
-		Index:    idx,
-		DL:       dl,
-		Artifact: am,
-		Hooks:    hooks,
+		Index:        idx,
+		ReverseIndex: reverseIdx,
+		DL:           dl,
+		Artifact:     am,
+		Hooks:        hooks,
 	}
 }

@@ -16,4 +16,6 @@ type Manager interface {
 	UpdateArtifact(ctx context.Context, artifactName string, newArtifactPath string, newDescriptor *model.IndexArtifactDescriptor) error
 	// VerifyArtifact verifies an artifact in the cache without installing it.
 	VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error
+	// ReverseResolve returns the list of artifacts that depend on the given artifact recursively
+	ReverseResolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error)
 }

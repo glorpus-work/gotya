@@ -93,7 +93,7 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 	}}
 
 	// Create orchestrator with hooks
-	orch := orchestrator.New(planner, dlManager, artifactManager, hooks)
+	orch := orchestrator.New(planner, artifactManager, dlManager, artifactManager, hooks)
 
 	opts := orchestrator.Options{CacheDir: cacheDir, Concurrency: concurrency, DryRun: dryRun}
 	ctx := context.Background()
@@ -125,10 +125,10 @@ func runUpdate(packages []string, all bool) error {
 	}
 
 	// Create orchestrator with hooks
-	orch := orchestrator.New(planner, dlManager, artifactManager, hooks)
+	orch := orchestrator.New(planner, artifactManager, dlManager, artifactManager, hooks)
 
 	// Create orchestrator with nil hooks manager for now
-	pkgInstaller := orchestrator.New(cfg, dlManager, artifactManager)
+	pkgInstaller := orchestrator.New(cfg, artifactManager, dlManager, artifactManager, orchestrator.Hooks{})
 
 	// Get packages to update
 	var packagesToUpdate []string
