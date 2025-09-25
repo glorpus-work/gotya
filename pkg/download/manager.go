@@ -232,10 +232,3 @@ func rangeKeys(m map[string][]int) []string {
 	}
 	return keys
 }
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

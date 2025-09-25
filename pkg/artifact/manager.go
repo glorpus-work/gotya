@@ -161,7 +161,7 @@ func getAllFilesInDir(dir string) ([]string, error) {
 
 // addArtifactToDatabase adds an installed artifact to the database
 // Returns the list of installed files if successful, or an error
-func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledDatabase, desc *model.IndexArtifactDescriptor) ([]string, error) {
+func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor) ([]string, error) {
 	// Get all installed files
 	metaPath := m.getArtifactMetaInstallPath(desc.Name)
 	dataPath := m.getArtifactDataInstallPath(desc.Name)

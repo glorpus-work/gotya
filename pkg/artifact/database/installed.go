@@ -33,8 +33,8 @@ type InstalledArtifact struct {
 	Checksum      string    `json:"checksum"`       // Checksum of the original artifact
 }
 
-// InstalledDatabase represents the database of installed packages.
-type InstalledDatabase struct {
+// InstalledManagerImpl represents the database of installed packages.
+type InstalledManagerImpl struct {
 	FormatVersion string               `json:"format_version"`
 	LastUpdate    time.Time            `json:"last_update"`
 	Artifacts     []*InstalledArtifact `json:"artifacts"`
@@ -46,8 +46,8 @@ const (
 )
 
 // NewInstalledDatabase creates a new installed packages database.
-func NewInstalledDatabase() *InstalledDatabase {
-	return &InstalledDatabase{
+func NewInstalledDatabase() *InstalledManagerImpl {
+	return &InstalledManagerImpl{
 		FormatVersion: "1",
 		LastUpdate:    time.Now(),
 		Artifacts:     make([]*InstalledArtifact, 0, InitialArtifactCapacity),
@@ -55,7 +55,7 @@ func NewInstalledDatabase() *InstalledDatabase {
 }
 
 // LoadDatabase loads the installed packages database from file.
-func (installedDB *InstalledDatabase) LoadDatabase(dbPath string) error {
+func (installedDB *InstalledManagerImpl) LoadDatabase(dbPath string) error {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
@@ -79,14 +79,14 @@ func (installedDB *InstalledDatabase) LoadDatabase(dbPath string) error {
 }
 
 // parseInstalledDatabaseFromReader parses the database from an io.Reader.
-func (installedDB *InstalledDatabase) parseInstalledDatabaseFromReader(reader io.Reader) error {
+func (installedDB *InstalledManagerImpl) parseInstalledDatabaseFromReader(reader io.Reader) error {
 	data, err := io.ReadAll(reader)
 	if err != nil {
 		return fmt.Errorf("failed to read database: %w", err)
 	}
 
 	// First unmarshal into a temporary struct
-	var tempDB InstalledDatabase
+	var tempDB InstalledManagerImpl
 	if err := json.Unmarshal(data, &tempDB); err != nil {
 		return fmt.Errorf("failed to parse database: %w", err)
 	}
@@ -101,7 +101,7 @@ func (installedDB *InstalledDatabase) parseInstalledDatabaseFromReader(reader io
 }
 
 // SaveDatabase saves the installed packages database to file.
-func (installedDB *InstalledDatabase) SaveDatabase(dbPath string) (err error) {
+func (installedDB *InstalledManagerImpl) SaveDatabase(dbPath string) (err error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
@@ -157,7 +157,7 @@ func (installedDB *InstalledDatabase) SaveDatabase(dbPath string) (err error) {
 }
 
 // FindArtifact finds an installed artifact by name.
-func (installedDB *InstalledDatabase) FindArtifact(name string) *InstalledArtifact {
+func (installedDB *InstalledManagerImpl) FindArtifact(name string) *InstalledArtifact {
 	for _, pkg := range installedDB.Artifacts {
 		if pkg.Name == name {
 			return pkg
@@ -167,12 +167,12 @@ func (installedDB *InstalledDatabase) FindArtifact(name string) *InstalledArtifa
 }
 
 // IsArtifactInstalled checks if a artifact is installed.
-func (installedDB *InstalledDatabase) IsArtifactInstalled(name string) bool {
+func (installedDB *InstalledManagerImpl) IsArtifactInstalled(name string) bool {
 	return installedDB.FindArtifact(name) != nil
 }
 
 // AddArtifact adds an installed artifact to the database.
-func (installedDB *InstalledDatabase) AddArtifact(pkg *InstalledArtifact) {
+func (installedDB *InstalledManagerImpl) AddArtifact(pkg *InstalledArtifact) {
 	// Remove existing artifact with same name if it exists
 	for i, existingPkg := range installedDB.Artifacts {
 		if existingPkg.Name == pkg.Name {
@@ -188,7 +188,7 @@ func (installedDB *InstalledDatabase) AddArtifact(pkg *InstalledArtifact) {
 }
 
 // RemoveArtifact removes an installed artifact from the database.
-func (installedDB *InstalledDatabase) RemoveArtifact(name string) bool {
+func (installedDB *InstalledManagerImpl) RemoveArtifact(name string) bool {
 	for i, pkg := range installedDB.Artifacts {
 		if pkg.Name == name {
 			installedDB.Artifacts = append(installedDB.Artifacts[:i], installedDB.Artifacts[i+1:]...)
@@ -200,6 +200,6 @@ func (installedDB *InstalledDatabase) RemoveArtifact(name string) bool {
 }
 
 // GetInstalledArtifacts returns all installed packages.
-func (installedDB *InstalledDatabase) GetInstalledArtifacts() []*InstalledArtifact {
+func (installedDB *InstalledManagerImpl) GetInstalledArtifacts() []*InstalledArtifact {
 	return installedDB.Artifacts
 }

@@ -238,7 +238,7 @@ func TestInstallArtifact_AlreadyInstalled(t *testing.T) {
 }
 
 // loadInstalledDB loads the installed database from the given path
-func loadInstalledDB(t *testing.T, dbPath string) *database.InstalledDatabase {
+func loadInstalledDB(t *testing.T, dbPath string) *database.InstalledManagerImpl {
 	t.Helper()
 	db := database.NewInstalledDatabase()
 	err := db.LoadDatabase(dbPath)
