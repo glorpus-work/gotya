@@ -84,7 +84,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	installed = true // Mark that we've installed files that might need cleanup
 
 	// Add the installed artifact to the database
-	_, err = m.addArtifactToDatabase(db, desc)
+	err = m.addArtifactToDatabase(db, desc)
 	if err != nil {
 		return fmt.Errorf("failed to update artifact database: %w", err)
 	}
@@ -178,42 +178,32 @@ func calculateFileHash(filePath string) (string, error) {
 
 // addArtifactToDatabase adds an installed artifact to the database
 // Returns the list of installed files if successful, or an error
-func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor) ([]string, error) {
+func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor) error {
 	metaPath := m.getArtifactMetaInstallPath(desc.Name)
-	dataPath := m.getArtifactDataInstallPath(desc.Name)
 
 	// Read and parse the metadata file
-	metadataFile := filepath.Join(metaPath, metadataFile)
-	metadataData, err := os.ReadFile(metadataFile)
+	metadataFilePath := filepath.Join(metaPath, metadataFile)
+	metadata, err := ParseMetadataFromPath(metadataFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read metadata file: %w", err)
-	}
-
-	var metadata Metadata
-	if err := json.Unmarshal(metadataData, &metadata); err != nil {
-		return nil, fmt.Errorf("failed to parse metadata: %w", err)
+		return fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
 	// Process all files from the hashes map in a single loop
 	var (
 		metaFileEntries []database.InstalledFile
 		dataFileEntries []database.InstalledFile
-		allFiles        []string
 	)
 
-	// Add artifact.json first if it exists
-	artifactJSONPath := filepath.Join(metaPath, "artifact.json")
-	if _, err := os.Stat(artifactJSONPath); err == nil {
-		hash, err := calculateFileHash(artifactJSONPath)
-		if err == nil {
-			entry := database.InstalledFile{
-				Path: "artifact.json",
-				Hash: hash,
-			}
-			metaFileEntries = append(metaFileEntries, entry)
-			allFiles = append(allFiles, filepath.Join(metaPath, entry.Path))
-		}
+	hash, err := calculateFileHash(metadataFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to calculate hash: %w", err)
 	}
+
+	entry := database.InstalledFile{
+		Path: metadataFile,
+		Hash: hash,
+	}
+	metaFileEntries = append(metaFileEntries, entry)
 
 	// Process all other files
 	for relPath, hash := range metadata.Hashes {
@@ -226,38 +216,37 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 				Hash: hash,
 			}
 			dataFileEntries = append(dataFileEntries, entry)
-			allFiles = append(allFiles, filepath.Join(dataPath, dataRelPath))
 		} else {
+			metaRelPath := strings.TrimPrefix(relPath, artifactMetaDir+"/")
 			// It's a metadata file
 			entry := database.InstalledFile{
-				Path: relPath,
+				Path: metaRelPath,
 				Hash: hash,
 			}
 			metaFileEntries = append(metaFileEntries, entry)
-			allFiles = append(allFiles, filepath.Join(metaPath, relPath))
 		}
 	}
 
 	// Create and add the artifact to the database
 	installedArtifact := &database.InstalledArtifact{
-		Name:          desc.Name,
-		Version:       desc.Version,
-		Description:   desc.Description,
-		InstalledAt:   time.Now(),
-		InstalledFrom: desc.URL,
-		BaseMetaDir:   m.artifactMetaInstallDir,
-		BaseDataDir:   m.artifactDataInstallDir,
-		MetaFiles:     metaFileEntries,
-		DataFiles:     dataFileEntries,
+		Name:            desc.Name,
+		Version:         desc.Version,
+		Description:     desc.Description,
+		InstalledAt:     time.Now(),
+		InstalledFrom:   desc.URL,
+		ArtifactMetaDir: metaPath,
+		ArtifactDataDir: m.getArtifactDataInstallPath(desc.Name),
+		MetaFiles:       metaFileEntries,
+		DataFiles:       dataFileEntries,
 	}
 	db.AddArtifact(installedArtifact)
 
 	// Save the database
 	if err := db.SaveDatabase(m.installedDBPath); err != nil {
-		return nil, fmt.Errorf("failed to save installed database: %w", err)
+		return fmt.Errorf("failed to save installed database: %w", err)
 	}
 
-	return allFiles, nil
+	return nil
 }
 
 // verifyArtifactFile verifies an artifact from a local file path.

@@ -31,16 +31,16 @@ type InstalledFile struct {
 
 // InstalledArtifact represents an installed artifact with its files.
 type InstalledArtifact struct {
-	Name          string          `json:"name"`
-	Version       string          `json:"version"`
-	Description   string          `json:"description"`
-	InstalledAt   time.Time       `json:"installed_at"`
-	InstalledFrom string          `json:"installed_from"` // URL or index where it was installed from
-	BaseMetaDir   string          `json:"base_meta_dir"`  // Base directory for meta files
-	BaseDataDir   string          `json:"base_data_dir"`  // Base directory for data files
-	MetaFiles     []InstalledFile `json:"meta_files"`     // List of meta files with their hashes
-	DataFiles     []InstalledFile `json:"data_files"`     // List of data files with their hashes
-	Checksum      string          `json:"checksum"`       // Checksum of the original artifact
+	Name            string          `json:"name"`
+	Version         string          `json:"version"`
+	Description     string          `json:"description"`
+	InstalledAt     time.Time       `json:"installed_at"`
+	InstalledFrom   string          `json:"installed_from"`    // URL or index where it was installed from
+	ArtifactMetaDir string          `json:"artifact_meta_dir"` // Base directory for meta files
+	ArtifactDataDir string          `json:"artifact_data_dir"` // Base directory for data files
+	MetaFiles       []InstalledFile `json:"meta_files"`        // List of meta files with their hashes
+	DataFiles       []InstalledFile `json:"data_files"`        // List of data files with their hashes
+	Checksum        string          `json:"checksum"`          // Checksum of the original artifact
 }
 
 // InstalledManagerImpl represents the database of installed packages.

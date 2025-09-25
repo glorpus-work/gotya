@@ -121,12 +121,12 @@ func TestInstallArtifact_RegularPackage(t *testing.T) {
 	// Convert MetaFiles and DataFiles to full paths for comparison
 	var actualMetaFiles []string
 	for _, f := range installedArtifact.MetaFiles {
-		actualMetaFiles = append(actualMetaFiles, filepath.Join(installedArtifact.BaseMetaDir, artifactName, f.Path))
+		actualMetaFiles = append(actualMetaFiles, filepath.Join(installedArtifact.ArtifactMetaDir, f.Path))
 	}
 
 	var actualDataFiles []string
 	for _, f := range installedArtifact.DataFiles {
-		actualDataFiles = append(actualDataFiles, filepath.Join(installedArtifact.BaseDataDir, artifactName, f.Path))
+		actualDataFiles = append(actualDataFiles, filepath.Join(installedArtifact.ArtifactDataDir, f.Path))
 	}
 
 	assert.ElementsMatch(t, expectedMetaFiles, actualMetaFiles, "meta files in database don't match")
@@ -188,7 +188,7 @@ func TestInstallArtifact_MetaPackage(t *testing.T) {
 	// Convert MetaFiles to full paths for comparison
 	var actualMetaFiles []string
 	for _, f := range installedArtifact.MetaFiles {
-		actualMetaFiles = append(actualMetaFiles, filepath.Join(installedArtifact.BaseMetaDir, "test-meta", f.Path))
+		actualMetaFiles = append(actualMetaFiles, filepath.Join(installedArtifact.ArtifactMetaDir, "test-meta", f.Path))
 	}
 
 	assert.ElementsMatch(t, expectedMetaFiles, actualMetaFiles, "meta files in database don't match")
