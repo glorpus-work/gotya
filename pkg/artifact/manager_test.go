@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cperrin88/gotya/pkg/artifact/database"
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/cperrin88/gotya/pkg/platform"
@@ -57,7 +58,8 @@ func TestInstallArtifact_MissingLocalFile(t *testing.T) {
 
 func TestInstallArtifact_RegularPackage(t *testing.T) {
 	tempDir := t.TempDir()
-	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), filepath.Join(tempDir, "installed.db"))
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
 	artifactName := "test-artifact"
 
 	// Create a test artifact
@@ -91,29 +93,90 @@ func TestInstallArtifact_RegularPackage(t *testing.T) {
 	assert.FileExists(t, filepath.Join(tempDir, "install", "meta", artifactName, "artifact.json"))
 	assert.FileExists(t, filepath.Join(tempDir, "install", "data", artifactName, "datafile1.bin"))
 	assert.FileExists(t, filepath.Join(tempDir, "install", "data", artifactName, "datafile2.bin"))
+
+	db := loadInstalledDB(t, dbPath)
+
+	// Check if artifact is marked as installed
+	assert.True(t, db.IsArtifactInstalled(artifactName), "artifact should be marked as installed in database")
+
+	// Get the installed artifact details
+	installedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, installedArtifact, "installed artifact not found in database")
+
+	// Verify installed artifact details
+	assert.Equal(t, artifactName, installedArtifact.Name, "artifact name in database doesn't match")
+	assert.Equal(t, "1.0.0", installedArtifact.Version, "artifact version in database doesn't match")
+	assert.Equal(t, "http://example.com/test.gotya", installedArtifact.InstalledFrom, "installed from URL doesn't match")
+	assert.NotEmpty(t, installedArtifact.InstalledAt, "installed at timestamp should be set")
+
+	// Verify installed files in database
+	expectedFiles := []string{
+		filepath.Join(tempDir, "install", "meta", artifactName, "artifact.json"),
+		filepath.Join(tempDir, "install", "data", artifactName, "datafile1.bin"),
+		filepath.Join(tempDir, "install", "data", artifactName, "datafile2.bin"),
+	}
+	assert.ElementsMatch(t, expectedFiles, installedArtifact.Files, "installed files in database don't match")
 }
 
 func TestInstallArtifact_MetaPackage(t *testing.T) {
 	tempDir := t.TempDir()
-	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), filepath.Join(tempDir, "installed.db"))
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
 
 	// Create a test meta-package (no data directory)
-	testArtifact := filepath.Join(tempDir, "meta-package.gotya")
-	setupTestArtifact(t, testArtifact, false, DefaultMetadata)
+	testArtifact := filepath.Join(tempDir, "test-meta.gotya")
+	metadata := &Metadata{
+		Name:        "test-meta",
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test meta package",
+	}
+	setupTestArtifact(t, testArtifact, false, metadata)
 
-	// Install the meta-package
-	err := mgr.InstallArtifact(context.Background(), DefaultIndexArtifactDescriptor, testArtifact)
+	desc := &model.IndexArtifactDescriptor{
+		Name:    "test-meta",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/meta.gotya",
+	}
+
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
 	require.NoError(t, err)
 
 	// Verify only metadata was installed
-	assert.DirExists(t, filepath.Join(tempDir, "install"))
-	assert.FileExists(t, filepath.Join(tempDir, "install", "meta", DefaultArtifactName, "artifact.json"))
-	assert.NoDirExists(t, filepath.Join(tempDir, "install", "data", DefaultArtifactName))
+	assert.FileExists(t, filepath.Join(tempDir, "install", "meta", "test-meta", "artifact.json"))
+	assert.NoDirExists(t, filepath.Join(tempDir, "install", "data", "test-meta"))
+
+	db := loadInstalledDB(t, dbPath)
+
+	// Check if meta-package is marked as installed
+	assert.True(t, db.IsArtifactInstalled("test-meta"), "meta-package should be marked as installed in database")
+
+	// Get the installed meta-package details
+	installedArtifact := db.FindArtifact("test-meta")
+	require.NotNil(t, installedArtifact, "installed meta-package not found in database")
+
+	// Verify installed meta-package details
+	assert.Equal(t, "test-meta", installedArtifact.Name, "meta-package name in database doesn't match")
+	assert.Equal(t, "1.0.0", installedArtifact.Version, "meta-package version in database doesn't match")
+	assert.Equal(t, "http://example.com/meta.gotya", installedArtifact.InstalledFrom, "installed from URL doesn't match")
+	assert.NotEmpty(t, installedArtifact.InstalledAt, "installed at timestamp should be set")
+
+	// Verify only metadata file is recorded in database
+	expectedFiles := []string{
+		filepath.Join(tempDir, "install", "meta", "test-meta", "artifact.json"),
+	}
+	assert.ElementsMatch(t, expectedFiles, installedArtifact.Files, "installed files in database don't match")
 }
 
 func TestInstallArtifact_RollbackOnFailure(t *testing.T) {
 	tempDir := t.TempDir()
-	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, "instored.db"))
+
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactDataDir), dbPath)
 
 	// Create a test artifact with invalid data to cause installation failure
 	testArtifact := filepath.Join(tempDir, "bad-package.gotya")
@@ -140,11 +203,18 @@ func TestInstallArtifact_RollbackOnFailure(t *testing.T) {
 
 	// Verify rollback cleaned up everything
 	assert.NoDirExists(t, filepath.Join(tempDir, "bad-package"))
+
+	db := loadInstalledDB(t, dbPath)
+
+	assert.False(t, db.IsArtifactInstalled("bad-package"), "bad-package should not be marked as installed in database")
+	assert.Empty(t, db.GetInstalledArtifacts(), "no package should be installed at all")
 }
 
 func TestInstallArtifact_AlreadyInstalled(t *testing.T) {
 	tempDir := t.TempDir()
-	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
+
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create and install a test artifact
 	testArtifact := filepath.Join(tempDir, "test-pkg.gotya")
@@ -160,6 +230,20 @@ func TestInstallArtifact_AlreadyInstalled(t *testing.T) {
 	err = mgr.InstallArtifact(context.Background(), desc, testArtifact)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already installed")
+
+	db := loadInstalledDB(t, dbPath)
+
+	assert.True(t, db.IsArtifactInstalled(DefaultArtifactName), "artifact should be marked as installed in database")
+	assert.Len(t, db.GetInstalledArtifacts(), 1, "no package should be installed at all")
+}
+
+// loadInstalledDB loads the installed database from the given path
+func loadInstalledDB(t *testing.T, dbPath string) *database.InstalledDatabase {
+	t.Helper()
+	db := database.NewInstalledDatabase()
+	err := db.LoadDatabase(dbPath)
+	require.NoError(t, err, "failed to load installed database")
+	return db
 }
 
 // setupTestArtifact creates a test artifact file with the specified structure and metadata
