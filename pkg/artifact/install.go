@@ -103,16 +103,46 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 
 	// Create and add the artifact to the database
 	installedArtifact := &database.InstalledArtifact{
-		Name:            desc.Name,
-		Version:         desc.Version,
-		Description:     desc.Description,
-		InstalledAt:     time.Now(),
-		InstalledFrom:   desc.URL,
-		ArtifactMetaDir: metaPath,
-		ArtifactDataDir: m.getArtifactDataInstallPath(desc.Name),
-		MetaFiles:       metaFileEntries,
-		DataFiles:       dataFileEntries,
+		Name:                desc.Name,
+		Version:             desc.Version,
+		Description:         desc.Description,
+		InstalledAt:         time.Now(),
+		InstalledFrom:       desc.URL,
+		ArtifactMetaDir:     metaPath,
+		ArtifactDataDir:     m.getArtifactDataInstallPath(desc.Name),
+		MetaFiles:           metaFileEntries,
+		DataFiles:           dataFileEntries,
+		ReverseDependencies: make([]string, 0),
+		Status:              database.StatusInstalled,
+		Checksum:            "", // Assuming checksum is handled elsewhere or set later
 	}
+
+	// Record reverse dependencies for each dependency
+	for _, dep := range desc.Dependencies {
+		existingArtifact := db.FindArtifact(dep.Name)
+		if existingArtifact != nil {
+			// Add current artifact to existing dependency's reverse dependencies
+			existingArtifact.ReverseDependencies = append(existingArtifact.ReverseDependencies, desc.Name)
+		} else {
+			// Create a dummy entry for missing dependency
+			dummyArtifact := &database.InstalledArtifact{
+				Name:                dep.Name,
+				Version:             "invalid",
+				Description:         "invalid",
+				InstalledAt:         time.Time{},
+				InstalledFrom:       "invalid",
+				ArtifactMetaDir:     "invalid",
+				ArtifactDataDir:     "invalid",
+				MetaFiles:           make([]database.InstalledFile, 0),
+				DataFiles:           make([]database.InstalledFile, 0),
+				ReverseDependencies: []string{desc.Name},
+				Status:              database.StatusMissing,
+				Checksum:            "invalid",
+			}
+			db.AddArtifact(dummyArtifact)
+		}
+	}
+
 	db.AddArtifact(installedArtifact)
 
 	// Save the database
