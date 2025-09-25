@@ -269,6 +269,249 @@ func loadInstalledDB(t *testing.T, dbPath string) *database.InstalledManagerImpl
 	return db
 }
 
+// TestUninstallArtifact_NonExistent tests uninstalling a non-existent artifact
+func TestUninstallArtifact_NonExistent(t *testing.T) {
+	tempDir := t.TempDir()
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
+
+	// Try to uninstall a non-existent artifact
+	err := mgr.UninstallArtifact(context.Background(), "non-existent-artifact", false)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not installed")
+}
+
+// TestUninstallArtifact_PurgeMode tests uninstalling an artifact with purge=true
+func TestUninstallArtifact_PurgeMode(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install a test artifact
+	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
+	metadata := &Metadata{
+		Name:         artifactName,
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+		Maintainer:   "test@example.com",
+		Description:  "Test artifact for unit tests",
+		Dependencies: []string{"dep1", "dep2"},
+		Hooks:        make(map[string]string),
+	}
+	setupTestArtifact(t, testArtifact, true, metadata)
+
+	desc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test.gotya",
+	}
+
+	// Install the artifact
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	require.NoError(t, err)
+
+	// Verify it was installed
+	db := loadInstalledDB(t, dbPath)
+	assert.True(t, db.IsArtifactInstalled(artifactName), "artifact should be installed")
+
+	// Uninstall with purge=true
+	err = mgr.UninstallArtifact(context.Background(), artifactName, true)
+	require.NoError(t, err)
+
+	// Verify complete removal
+	assert.NoDirExists(t, filepath.Join(tempDir, "install", "meta", artifactName))
+	assert.NoDirExists(t, filepath.Join(tempDir, "install", "data", artifactName))
+
+	// Verify database is clean
+	db = loadInstalledDB(t, dbPath)
+	assert.False(t, db.IsArtifactInstalled(artifactName), "artifact should be removed from database")
+	assert.Empty(t, db.GetInstalledArtifacts(), "no artifacts should remain in database")
+}
+
+// TestUninstallArtifact_SelectiveMode tests uninstalling an artifact with purge=false
+func TestUninstallArtifact_SelectiveMode(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install a test artifact
+	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
+	metadata := &Metadata{
+		Name:         artifactName,
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+		Maintainer:   "test@example.com",
+		Description:  "Test artifact for unit tests",
+		Dependencies: []string{"dep1", "dep2"},
+		Hooks:        make(map[string]string),
+	}
+	setupTestArtifact(t, testArtifact, true, metadata)
+
+	desc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test.gotya",
+	}
+
+	// Install the artifact
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	require.NoError(t, err)
+
+	// Verify it was installed
+	db := loadInstalledDB(t, dbPath)
+	assert.True(t, db.IsArtifactInstalled(artifactName), "artifact should be installed")
+
+	installedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, installedArtifact)
+
+	// Get paths before uninstall
+	metaDir := installedArtifact.ArtifactMetaDir
+	dataDir := installedArtifact.ArtifactDataDir
+
+	// Uninstall with purge=false
+	err = mgr.UninstallArtifact(context.Background(), artifactName, false)
+	require.NoError(t, err)
+
+	// Verify files were removed
+	for _, file := range installedArtifact.MetaFiles {
+		assert.NoFileExists(t, filepath.Join(metaDir, file.Path))
+	}
+	for _, file := range installedArtifact.DataFiles {
+		assert.NoFileExists(t, filepath.Join(dataDir, file.Path))
+	}
+
+	// Verify directories are gone (should be cleaned up)
+	assert.NoDirExists(t, metaDir)
+	assert.NoDirExists(t, dataDir)
+
+	// Verify database is clean
+	db = loadInstalledDB(t, dbPath)
+	assert.False(t, db.IsArtifactInstalled(artifactName), "artifact should be removed from database")
+	assert.Empty(t, db.GetInstalledArtifacts(), "no artifacts should remain in database")
+}
+
+// TestUninstallArtifact_SelectiveMode_MissingFiles tests selective uninstall when some files are missing
+func TestUninstallArtifact_SelectiveMode_MissingFiles(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install a test artifact
+	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
+	metadata := &Metadata{
+		Name:         artifactName,
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+		Maintainer:   "test@example.com",
+		Description:  "Test artifact for unit tests",
+		Dependencies: []string{"dep1", "dep2"},
+		Hooks:        make(map[string]string),
+	}
+	setupTestArtifact(t, testArtifact, true, metadata)
+
+	desc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test.gotya",
+	}
+
+	// Install the artifact
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	require.NoError(t, err)
+
+	// Verify it was installed
+	db := loadInstalledDB(t, dbPath)
+	assert.True(t, db.IsArtifactInstalled(artifactName), "artifact should be installed")
+
+	installedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, installedArtifact)
+
+	// Remove one file manually to simulate missing file
+	metaFiles := installedArtifact.MetaFiles
+	if len(metaFiles) > 0 {
+		testFile := filepath.Join(installedArtifact.ArtifactMetaDir, metaFiles[0].Path)
+		err := os.Remove(testFile)
+		require.NoError(t, err)
+	}
+
+	// Uninstall with purge=false - should succeed despite missing file
+	err = mgr.UninstallArtifact(context.Background(), artifactName, false)
+	require.NoError(t, err)
+
+	// Verify database is clean
+	db = loadInstalledDB(t, dbPath)
+	assert.False(t, db.IsArtifactInstalled(artifactName), "artifact should be removed from database")
+	assert.Empty(t, db.GetInstalledArtifacts(), "no artifacts should remain in database")
+}
+
+// TestUninstallArtifact_MetaPackage tests uninstalling a meta-package (no data files)
+func TestUninstallArtifact_MetaPackage(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+
+	// Test both purge and selective modes
+	testCases := []struct {
+		name         string
+		purge        bool
+		artifactName string
+	}{
+		{"purge mode", true, "test-meta-purge"},
+		{"selective mode", false, "test-meta-selective"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a test meta-package (no data directory)
+			testArtifact := filepath.Join(tempDir, tc.artifactName+".gotya")
+			metadata := &Metadata{
+				Name:        tc.artifactName,
+				Version:     "1.0.0",
+				OS:          "linux",
+				Arch:        "amd64",
+				Maintainer:  "test@example.com",
+				Description: "Test meta package",
+			}
+			setupTestArtifact(t, testArtifact, false, metadata)
+
+			desc := &model.IndexArtifactDescriptor{
+				Name:    tc.artifactName,
+				Version: "1.0.0",
+				OS:      "linux",
+				Arch:    "amd64",
+				URL:     "http://example.com/meta.gotya",
+			}
+
+			// Install the meta-package
+			err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+			require.NoError(t, err)
+
+			// Verify it was installed
+			db := loadInstalledDB(t, dbPath)
+			assert.True(t, db.IsArtifactInstalled(tc.artifactName), "meta-package should be installed")
+
+			// Uninstall
+			err = mgr.UninstallArtifact(context.Background(), tc.artifactName, tc.purge)
+			require.NoError(t, err)
+
+			// Verify removal
+			db = loadInstalledDB(t, dbPath)
+			assert.False(t, db.IsArtifactInstalled(tc.artifactName), "meta-package should be removed from database")
+		})
+	}
+}
+
 // setupTestArtifact creates a test artifact file with the specified structure and metadata
 // If metadata is nil, default test metadata will be used
 func setupTestArtifact(t *testing.T, artifactPath string, includeDataDir bool, metadata *Metadata) {
@@ -299,7 +542,7 @@ func setupTestArtifact(t *testing.T, artifactPath string, includeDataDir bool, m
 	}
 
 	// Create output directory
-	outputDir := filepath.Join(tempDir, "input")
+	outputDir := filepath.Join(tempDir, "output")
 	require.NoError(t, os.MkdirAll(outputDir, 0755))
 
 	// Initialize the packer with the provided or default metadata
