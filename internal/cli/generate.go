@@ -12,6 +12,7 @@ import (
 func NewGenerateCmd() *cobra.Command {
 	var (
 		basePath string
+		baseline string
 		force    bool
 	)
 
@@ -43,6 +44,15 @@ and its subdirectories. The output will be written to the specified file.`,
 			gen.BasePath = basePath
 			gen.ForceOverwrite = force
 
+			// Set baseline if provided
+			if baseline != "" {
+				abosluteBaseline, err := filepath.Abs(baseline)
+				if err != nil {
+					return fmt.Errorf("invalid baseline file path: %w", err)
+				}
+				gen.WithBaseline(abosluteBaseline)
+			}
+
 			// Run the generation
 			if err := gen.Generate(cmd.Context()); err != nil {
 				return fmt.Errorf("failed to generate index: %w", err)
@@ -64,6 +74,8 @@ and its subdirectories. The output will be written to the specified file.`,
 	// Add flags
 	cmd.Flags().StringVarP(&basePath, "base-path", "b", "",
 		"Base path for artifact URLs in the index (e.g., 'packages')")
+	cmd.Flags().StringVar(&baseline, "baseline", "",
+		"Path to an existing index file to use as a baseline for merging")
 	cmd.Flags().BoolVarP(&force, "force", "f", false,
 		"Overwrite output file if it exists")
 
@@ -75,7 +87,10 @@ and its subdirectories. The output will be written to the specified file.`,
   gotya index generate --base-path=packages ./artifacts ./repo/index.json
 
   # Force overwrite of existing index
-  gotya index generate --force ./artifacts ./repo/index.json`
+  gotya index generate --force ./artifacts ./repo/index.json
+
+  # Use a baseline index for merging (only include new/changed artifacts)
+  gotya index generate --baseline=./old-index.json ./artifacts ./repo/updated-index.json`
 
 	return cmd
 }
