@@ -36,7 +36,7 @@ func (v *Verifier) VerifyArtifact(ctx context.Context, artifact *model.IndexArti
 		return err
 	}
 
-	metadataFile, err := fsys.Open(filepath.Join(artifactMetaDir, metadataFile))
+	metadataFile, err := fsys.Open(filepath.ToSlash(filepath.Join(artifactMetaDir, metadataFile)))
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (v *Verifier) verifyArtifactContents(fsys fs.FS, metadata *Metadata) error 
 			if !entry.Type().IsRegular() {
 				continue
 			}
-			artifactFile := filepath.Join(artifactDataDir, entry.Name())
+			artifactFile := filepath.ToSlash(filepath.Join(artifactDataDir, entry.Name()))
 			val, ok := metadata.Hashes[artifactFile]
 			if !ok {
 				return errors.Wrapf(errors.ErrArtifactInvalid, "hash for file %s not found", artifactFile)
@@ -154,9 +154,16 @@ func (v *Verifier) extractArtifact(ctx context.Context, filePath, destDir string
 
 		// Handle symlinks
 		if info.Mode()&os.ModeSymlink != 0 {
-			linkTarget, err := os.Readlink(filepath.Join(filePath, path))
+			linkTarget, err := fsys.Open(path)
 			if err != nil {
 				return errors.Wrapf(err, "failed to read symlink %s", path)
+			}
+			defer linkTarget.Close()
+
+			// Read the symlink target
+			targetBytes, err := io.ReadAll(linkTarget)
+			if err != nil {
+				return errors.Wrapf(err, "failed to read symlink target %s", path)
 			}
 
 			// Ensure the target directory exists
@@ -167,7 +174,7 @@ func (v *Verifier) extractArtifact(ctx context.Context, filePath, destDir string
 			// Remove existing file/symlink if it exists
 			_ = os.Remove(targetPath)
 
-			return os.Symlink(linkTarget, targetPath)
+			return os.Symlink(string(targetBytes), targetPath)
 		}
 
 		// Handle regular files
