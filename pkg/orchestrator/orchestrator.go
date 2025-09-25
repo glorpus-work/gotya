@@ -1,4 +1,4 @@
-//go:generate mockgen -destination=./mocks/orchestrator.go . IndexPlanner,ArtifactInstaller,Downloader
+//go:generate mockgen -destination=./mocks/orchestrator.go . ArtifactResolver,ArtifactManager,Downloader
 
 package orchestrator
 
@@ -17,8 +17,8 @@ type ArtifactResolver interface {
 	Resolve(ctx context.Context, req index.ResolveRequest) (index.ResolvedArtifacts, error)
 }
 
-// ArtifactInstaller is the subset of the artifact manager used by the orchestrator.
-type ArtifactInstaller interface {
+// ArtifactManager is the subset of the artifact manager used by the orchestrator.
+type ArtifactManager interface {
 	InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) error
 }
 
@@ -30,7 +30,7 @@ type Downloader interface {
 type Orchestrator struct {
 	Index    ArtifactResolver
 	DL       Downloader
-	Artifact ArtifactInstaller
+	Artifact ArtifactManager
 	Hooks    Hooks // Hooks for progress and event notifications
 }
 
@@ -158,7 +158,7 @@ func (o *Orchestrator) Install(ctx context.Context, req index.ResolveRequest, op
 
 // New constructs a default Orchestrator from existing managers. Helper for wiring.
 // Hooks can be nil if no event handling is needed.
-func New(idx ArtifactResolver, dl Downloader, am ArtifactInstaller, hooks Hooks) *Orchestrator {
+func New(idx ArtifactResolver, dl Downloader, am ArtifactManager, hooks Hooks) *Orchestrator {
 	return &Orchestrator{
 		Index:    idx,
 		DL:       dl,
