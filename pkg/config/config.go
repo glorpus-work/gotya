@@ -72,7 +72,6 @@ type Settings struct {
 	// Cache settings
 	CacheDir string        `yaml:"cache_dir,omitempty"`
 	CacheTTL time.Duration `yaml:"cache_ttl"`
-	AutoSync bool          `yaml:"auto_sync"`
 
 	// Installation settings
 	InstallDir string `yaml:"install_dir,omitempty"` // Base directory for artifact installations
@@ -87,8 +86,7 @@ type Settings struct {
 
 	// Output settings
 	OutputFormat string `yaml:"output_format"` // json, table, yaml
-	ColorOutput  bool   `yaml:"color_output"`
-	LogLevel     string `yaml:"log_level"` // panic, fatal, error, warn, info, debug, trace
+	LogLevel     string `yaml:"log_level"`     // panic, fatal, error, warn, info, debug, trace
 }
 
 // DefaultConfig returns a configuration with sensible defaults.
@@ -105,9 +103,7 @@ func DefaultConfig() *Config {
 			CacheTTL:      DefaultCacheTTL,
 			HTTPTimeout:   DefaultHTTPTimeout,
 			MaxConcurrent: DefaultMaxConcurrent,
-			AutoSync:      false,
-			OutputFormat:  "json",
-			ColorOutput:   true,
+			OutputFormat:  "text",
 			LogLevel:      "info",
 			InstallDir:    filepath.Join(userConfigDir, "bin"),
 			MetaDir:       filepath.Join(userConfigDir, "meta"),
@@ -316,11 +312,10 @@ func (c *Config) Validate() error {
 		return errors.ErrMaxConcurrentInvalid
 	}
 
-	// Validate output format
+	// Validate output format - only 'text' and 'json' are supported
 	validFormats := map[string]bool{
-		"json":  true,
-		"table": true,
-		"yaml":  true,
+		"text": true,
+		"json": true,
 	}
 	if !validFormats[c.Settings.OutputFormat] {
 		return errors.ErrInvalidOutputFormatWithDetails(c.Settings.OutputFormat)

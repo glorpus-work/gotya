@@ -11,7 +11,6 @@ import (
 // Supported keys:
 //   - cache_dir: string - Path to the cache directory
 //   - output_format: string - Output format (text, json, etc.)
-//   - color_output: bool - Whether to use colored output
 //   - log_level: string - Logging level (debug, info, warn, error, fatal)
 func (c *Config) SetValue(key, value string) error {
 	switch key {
@@ -19,12 +18,6 @@ func (c *Config) SetValue(key, value string) error {
 		c.Settings.CacheDir = value
 	case "output_format":
 		c.Settings.OutputFormat = value
-	case "color_output":
-		boolVal, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("invalid boolean value for %s: %s", key, value)
-		}
-		c.Settings.ColorOutput = boolVal
 	case "log_level":
 		c.Settings.LogLevel = value
 	default:
@@ -40,8 +33,6 @@ func (c *Config) GetValue(key string) (string, error) {
 		return c.Settings.CacheDir, nil
 	case "output_format":
 		return c.Settings.OutputFormat, nil
-	case "color_output":
-		return strconv.FormatBool(c.Settings.ColorOutput), nil
 	case "log_level":
 		return c.Settings.LogLevel, nil
 	default:
@@ -115,7 +106,6 @@ func NewDefaultConfig() *Config {
 	return &Config{
 		Settings: Settings{
 			CacheTTL:     DefaultCacheTTL,
-			ColorOutput:  true,
 			OutputFormat: "text",
 			LogLevel:     "info",
 		},

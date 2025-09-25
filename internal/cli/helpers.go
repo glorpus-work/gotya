@@ -46,15 +46,12 @@ func loadConfig() (*config.Config, error) {
 	if OutputFormat != nil && *OutputFormat != "" {
 		cfg.Settings.OutputFormat = *OutputFormat
 	}
-	if NoColor != nil && *NoColor {
-		cfg.Settings.ColorOutput = false
-	}
 	if Verbose != nil && *Verbose {
 		cfg.Settings.LogLevel = "debug"
 	}
 
 	// Initialize logger with config settings
-	logger.InitLogger(cfg.Settings.LogLevel, !cfg.Settings.ColorOutput)
+	logger.InitLogger(cfg.Settings.LogLevel, false) // Always use colored output
 
 	return cfg, nil
 }
