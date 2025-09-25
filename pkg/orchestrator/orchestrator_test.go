@@ -269,9 +269,9 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 
 	// Setup orchestrator and hooks
 	orch := &Orchestrator{
-		Index:    idx,
-		DL:       dl,
-		Artifact: art,
+		Index:           idx,
+		DL:              dl,
+		ArtifactManager: art,
 	}
 
 	var gotDone bool
@@ -313,7 +313,7 @@ func TestNew(t *testing.T) {
 	// Verify all fields are properly initialized
 	assert.Same(t, idx, orch.Index, "Index field should be set to the provided mock")
 	assert.Same(t, dl, orch.DL, "DL field should be set to the provided mock")
-	assert.Same(t, am, orch.Artifact, "Artifact field should be set to the provided mock")
+	assert.Same(t, am, orch.ArtifactManager, "ArtifactManager field should be set to the provided mock")
 }
 
 func TestEmit(t *testing.T) {
@@ -387,9 +387,9 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 
 	// Create orchestrator without download manager
 	orch := &Orchestrator{
-		Index:    idx,
-		Artifact: art,
-		Hooks:    Hooks{},
+		Index:           idx,
+		ArtifactManager: art,
+		Hooks:           Hooks{},
 		// DL is intentionally nil
 	}
 	// Execute test
@@ -427,9 +427,9 @@ func TestInstall_NoIndexPlanner(t *testing.T) {
 	}
 
 	torch := &Orchestrator{
-		DL:       mocks.NewMockDownloader(ctrl),
-		Artifact: mocks.NewMockArtifactManager(ctrl),
-		Hooks:    Hooks{},
+		DL:              mocks.NewMockDownloader(ctrl),
+		ArtifactManager: mocks.NewMockArtifactManager(ctrl),
+		Hooks:           Hooks{},
 		// Index is intentionally nil
 	}
 
@@ -540,9 +540,9 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 
 	// Create orchestrator
 	torch := &Orchestrator{
-		Index:    idx,
-		DL:       dl,
-		Artifact: art,
+		Index:           idx,
+		DL:              dl,
+		ArtifactManager: art,
 	}
 
 	// Execute test
@@ -602,9 +602,9 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 
 	// Create orchestrator
 	torch := &Orchestrator{
-		Index:    idx,
-		DL:       dl,
-		Artifact: art,
+		Index:           idx,
+		DL:              dl,
+		ArtifactManager: art,
 	}
 
 	// Execute test
@@ -623,4 +623,257 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 		"error message should indicate missing local file")
 	assert.Contains(t, errMsg, step.ID,
 		"error message should include the step ID")
+}
+
+func TestUninstall_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	testReq := model.ResolveRequest{
+		Name:    "test-artifact",
+		Version: "1.0.0",
+	}
+
+	// Create mocks
+	reverseIdx := mocks.NewMockArtifactReverseResolver(ctrl)
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Setup expectations
+	reverseIdx.EXPECT().
+		ReverseResolve(gomock.Any(), testReq).
+		Return(model.ResolvedArtifacts{
+			Artifacts: []model.ResolvedArtifact{
+				{ID: "dep1@1.0.0", Name: "dep1", Version: "1.0.0"},
+				{ID: "test-artifact@1.0.0", Name: "test-artifact", Version: "1.0.0"},
+			},
+		}, nil)
+
+	am.EXPECT().
+		UninstallArtifact(gomock.Any(), "dep1", false).
+		Return(nil)
+
+	am.EXPECT().
+		UninstallArtifact(gomock.Any(), "test-artifact", false).
+		Return(nil)
+
+	// Create orchestrator with mocks
+	orch := &Orchestrator{
+		ReverseIndex:    reverseIdx,
+		ArtifactManager: am,
+	}
+
+	// Execute test
+	err := orch.Uninstall(context.Background(), testReq, UninstallOptions{})
+
+	// Verify results
+	require.NoError(t, err, "uninstall should not return an error")
+}
+
+func TestUninstall_DryRun(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	testReq := model.ResolveRequest{
+		Name:    "test-artifact",
+		Version: "1.0.0",
+	}
+
+	// Create mocks
+	reverseIdx := mocks.NewMockArtifactReverseResolver(ctrl)
+
+	// Setup expectations - should not call any ArtifactManager methods in dry-run mode
+	reverseIdx.EXPECT().
+		ReverseResolve(gomock.Any(), testReq).
+		Return(model.ResolvedArtifacts{
+			Artifacts: []model.ResolvedArtifact{
+				{ID: "dep1@1.0.0", Name: "dep1", Version: "1.0.0"},
+				{ID: "test-artifact@1.0.0", Name: "test-artifact", Version: "1.0.0"},
+			},
+		}, nil)
+
+	// Create orchestrator with mocks
+	orch := &Orchestrator{
+		ReverseIndex: reverseIdx,
+		// No ArtifactManager needed for dry-run
+	}
+
+	// Execute test with dry-run
+	err := orch.Uninstall(context.Background(), testReq, UninstallOptions{DryRun: true})
+
+	// Verify results
+	require.NoError(t, err, "uninstall with dry-run should not return an error")
+}
+
+func TestUninstall_NoCascade_WithDependencies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	testReq := model.ResolveRequest{
+		Name:    "test-artifact",
+		Version: "1.0.0",
+	}
+
+	// Create mocks
+	reverseIdx := mocks.NewMockArtifactReverseResolver(ctrl)
+
+	// Setup expectations - return multiple artifacts to trigger cascade check
+	reverseIdx.EXPECT().
+		ReverseResolve(gomock.Any(), testReq).
+		Return(model.ResolvedArtifacts{
+			Artifacts: []model.ResolvedArtifact{
+				{ID: "dep1@1.0.0", Name: "dep1", Version: "1.0.0"},
+				{ID: "test-artifact@1.0.0", Name: "test-artifact", Version: "1.0.0"},
+			},
+		}, nil)
+
+	// Create orchestrator with mocks
+	orch := &Orchestrator{
+		ReverseIndex: reverseIdx,
+	}
+
+	// Execute test with NoCascade option
+	err := orch.Uninstall(context.Background(), testReq, UninstallOptions{NoCascade: true})
+
+	// Verify results
+	require.Error(t, err, "should return error when NoCascade is true and there are dependencies")
+	assert.Contains(t, err.Error(), "has 1 reverse dependencies", "error message should mention reverse dependencies")
+}
+
+func TestUninstall_ForceWithNoCascade(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	testReq := model.ResolveRequest{
+		Name:    "test-artifact",
+		Version: "1.0.0",
+	}
+
+	// Create mocks
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Setup expectations - with Force and NoCascade, it should create a minimal artifact list
+	// and only uninstall the requested artifact
+	am.EXPECT().
+		UninstallArtifact(gomock.Any(), "test-artifact", false).
+		Return(nil)
+
+	// Create orchestrator with mocks
+	orch := &Orchestrator{
+		ArtifactManager: am,
+		// No ReverseIndex needed as we're testing Force + NoCascade which skips reverse resolution
+	}
+
+	// Execute test with both Force and NoCascade
+	err := orch.Uninstall(context.Background(), testReq, UninstallOptions{
+		NoCascade: true,
+		Force:     true,
+	})
+
+	// Verify results
+	require.NoError(t, err, "uninstall with Force and NoCascade should not return an error")
+}
+
+func TestUninstall_NoReverseIndex(t *testing.T) {
+	// Setup test data
+	testReq := model.ResolveRequest{
+		Name:    "test-artifact",
+		Version: "1.0.0",
+	}
+
+	// Create orchestrator without ReverseIndex
+	orch := &Orchestrator{
+		ReverseIndex: nil,
+	}
+
+	// Execute test
+	err := orch.Uninstall(context.Background(), testReq, UninstallOptions{})
+
+	// Verify results
+	require.Error(t, err, "should return error when ReverseIndex is nil")
+	assert.Contains(t, err.Error(), "reverse index resolver is not configured",
+		"error message should indicate missing reverse index resolver")
+}
+
+func TestUninstall_NoArtifactManager(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	testReq := model.ResolveRequest{
+		Name:    "test-artifact",
+		Version: "1.0.0",
+	}
+
+	// Create mocks
+	reverseIdx := mocks.NewMockArtifactReverseResolver(ctrl)
+
+	// Setup expectations
+	reverseIdx.EXPECT().
+		ReverseResolve(gomock.Any(), testReq).
+		Return(model.ResolvedArtifacts{
+			Artifacts: []model.ResolvedArtifact{
+				{ID: "test-artifact@1.0.0", Name: "test-artifact", Version: "1.0.0"},
+			},
+		}, nil)
+
+	// Create orchestrator with mocks but without ArtifactManager
+	orch := &Orchestrator{
+		ReverseIndex: reverseIdx,
+		// ArtifactManager is nil
+	}
+
+	// Execute test
+	err := orch.Uninstall(context.Background(), testReq, UninstallOptions{})
+
+	// Verify results
+	require.Error(t, err, "should return error when ArtifactManager is nil")
+	assert.Contains(t, err.Error(), "artifact uninstaller is not configured",
+		"error message should indicate missing artifact uninstaller")
+}
+
+func TestUninstall_ArtifactUninstallError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	testReq := model.ResolveRequest{
+		Name:    "test-artifact",
+		Version: "1.0.0",
+	}
+
+	expectedErr := fmt.Errorf("failed to uninstall artifact")
+
+	// Create mocks
+	reverseIdx := mocks.NewMockArtifactReverseResolver(ctrl)
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Setup expectations
+	reverseIdx.EXPECT().
+		ReverseResolve(gomock.Any(), testReq).
+		Return(model.ResolvedArtifacts{
+			Artifacts: []model.ResolvedArtifact{
+				{ID: "test-artifact@1.0.0", Name: "test-artifact", Version: "1.0.0"},
+			},
+		}, nil)
+
+	am.EXPECT().
+		UninstallArtifact(gomock.Any(), "test-artifact", false).
+		Return(expectedErr)
+
+	// Create orchestrator with mocks
+	orch := &Orchestrator{
+		ReverseIndex:    reverseIdx,
+		ArtifactManager: am,
+	}
+
+	// Execute test
+	err := orch.Uninstall(context.Background(), testReq, UninstallOptions{})
+
+	// Verify results
+	require.Error(t, err, "should return error when uninstall fails")
+	assert.Equal(t, expectedErr, err, "should return the error from ArtifactManager")
 }

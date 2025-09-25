@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	"github.com/cperrin88/gotya/pkg/download"
 	"github.com/cperrin88/gotya/pkg/index"
@@ -31,13 +32,13 @@ type Downloader interface {
 	FetchAll(ctx context.Context, items []download.Item, opts download.Options) (map[string]string, error)
 }
 
-// Orchestrator ties Index, Download and Artifact managers together for installs.
+// Orchestrator ties Index, Download and ArtifactManager managers together for installs.
 type Orchestrator struct {
-	Index        ArtifactResolver
-	ReverseIndex ArtifactReverseResolver
-	DL           Downloader
-	Artifact     ArtifactManager
-	Hooks        Hooks // Hooks for progress and event notifications
+	Index           ArtifactResolver
+	ReverseIndex    ArtifactReverseResolver
+	DL              Downloader
+	ArtifactManager ArtifactManager
+	Hooks           Hooks // Hooks for progress and event notifications
 }
 
 // Event represents a simple progress notification.
@@ -144,7 +145,7 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 		}
 	}
 
-	if o.Artifact == nil {
+	if o.ArtifactManager == nil {
 		return fmt.Errorf("artifact installer is not configured")
 	}
 
@@ -168,7 +169,7 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 		if step.SourceURL != nil {
 			desc.URL = step.SourceURL.String()
 		}
-		if err := o.Artifact.InstallArtifact(ctx, desc, path); err != nil {
+		if err := o.ArtifactManager.InstallArtifact(ctx, desc, path); err != nil {
 			return err
 		}
 	}
@@ -185,11 +186,11 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 	emit(o.Hooks, Event{Phase: "planning", Msg: req.Name})
 
 	// If both NoCascade and Force are true, skip reverse dependency resolution
-	var plan model.ResolvedArtifacts
+	var artifacts model.ResolvedArtifacts
 	var err error
 	if opts.NoCascade && opts.Force {
-		// Create a minimal plan with just the target artifact
-		plan = model.ResolvedArtifacts{
+		// Create a minimal artifact list with just the target artifact
+		artifacts = model.ResolvedArtifacts{
 			Artifacts: []model.ResolvedArtifact{
 				{
 					ID:       req.Name + "@" + req.Version,
@@ -202,36 +203,35 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 			},
 		}
 	} else {
-		plan, err = o.ReverseIndex.ReverseResolve(ctx, req)
+		artifacts, err = o.ReverseIndex.ReverseResolve(ctx, req)
 		if err != nil {
 			return err
 		}
 
 		// Check NoCascade option
-		if opts.NoCascade && len(plan.Artifacts) > 1 {
-			return fmt.Errorf("artifact %s has %d reverse dependencies; use --force to uninstall anyway", req.Name, len(plan.Artifacts)-1)
+		if opts.NoCascade && len(artifacts.Artifacts) > 1 {
+			return fmt.Errorf("artifact %s has %d reverse dependencies; use --force to uninstall anyway", req.Name, len(artifacts.Artifacts)-1)
 		}
 	}
 
 	// Dry run: just emit steps and return
 	if opts.DryRun {
-		for _, step := range plan.Artifacts {
+		for _, step := range artifacts.Artifacts {
 			emit(o.Hooks, Event{Phase: "planning", ID: step.ID, Msg: step.Name + "@" + step.Version})
 		}
 		emit(o.Hooks, Event{Phase: "done", Msg: "dry-run"})
 		return nil
 	}
 
-	if o.Artifact == nil {
+	if o.ArtifactManager == nil {
 		return fmt.Errorf("artifact uninstaller is not configured")
 	}
 
 	// Process artifacts in reverse order to handle dependencies properly
 	// Reverse the slice to uninstall dependencies first
-	for i := len(plan.Artifacts) - 1; i >= 0; i-- {
-		step := plan.Artifacts[i]
-		emit(o.Hooks, Event{Phase: "uninstalling", ID: step.ID, Msg: step.Name + "@" + step.Version})
-		if err := o.Artifact.UninstallArtifact(ctx, step.Name, false); err != nil {
+	for _, artifact := range slices.Backward(artifacts.Artifacts) {
+		emit(o.Hooks, Event{Phase: "uninstalling", ID: artifact.ID, Msg: artifact.Name + "@" + artifact.Version})
+		if err := o.ArtifactManager.UninstallArtifact(ctx, artifact.Name, false); err != nil {
 			return err
 		}
 	}
@@ -243,10 +243,10 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 // Hooks can be nil if no event handling is needed.
 func New(idx ArtifactResolver, reverseIdx ArtifactReverseResolver, dl Downloader, am ArtifactManager, hooks Hooks) *Orchestrator {
 	return &Orchestrator{
-		Index:        idx,
-		ReverseIndex: reverseIdx,
-		DL:           dl,
-		Artifact:     am,
-		Hooks:        hooks,
+		Index:           idx,
+		ReverseIndex:    reverseIdx,
+		DL:              dl,
+		ArtifactManager: am,
+		Hooks:           hooks,
 	}
 }
