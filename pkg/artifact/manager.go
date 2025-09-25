@@ -3,12 +3,14 @@ package artifact
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/artifact/database"
@@ -159,30 +161,82 @@ func getAllFilesInDir(dir string) ([]string, error) {
 	return files, nil
 }
 
+func calculateFileHash(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
 // addArtifactToDatabase adds an installed artifact to the database
 // Returns the list of installed files if successful, or an error
 func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor) ([]string, error) {
-	// Get all installed files
 	metaPath := m.getArtifactMetaInstallPath(desc.Name)
 	dataPath := m.getArtifactDataInstallPath(desc.Name)
 
-	// Get all files from metadata directory (required)
-	metaFiles, err := getAllFilesInDir(metaPath)
+	// Read and parse the metadata file
+	metadataFile := filepath.Join(metaPath, metadataFile)
+	metadataData, err := os.ReadFile(metadataFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list installed metadata files: %w", err)
+		return nil, fmt.Errorf("failed to read metadata file: %w", err)
 	}
 
-	// Get all files from data directory (optional)
-	var dataFiles []string
-	if _, err := os.Stat(dataPath); err == nil {
-		dataFiles, err = getAllFilesInDir(dataPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list installed data files: %w", err)
+	var metadata Metadata
+	if err := json.Unmarshal(metadataData, &metadata); err != nil {
+		return nil, fmt.Errorf("failed to parse metadata: %w", err)
+	}
+
+	// Process all files from the hashes map in a single loop
+	var (
+		metaFileEntries []database.InstalledFile
+		dataFileEntries []database.InstalledFile
+		allFiles        []string
+	)
+
+	// Add artifact.json first if it exists
+	artifactJSONPath := filepath.Join(metaPath, "artifact.json")
+	if _, err := os.Stat(artifactJSONPath); err == nil {
+		hash, err := calculateFileHash(artifactJSONPath)
+		if err == nil {
+			entry := database.InstalledFile{
+				Path: "artifact.json",
+				Hash: hash,
+			}
+			metaFileEntries = append(metaFileEntries, entry)
+			allFiles = append(allFiles, filepath.Join(metaPath, entry.Path))
 		}
 	}
 
-	// Combine all files
-	allFiles := append(metaFiles, dataFiles...)
+	// Process all other files
+	for relPath, hash := range metadata.Hashes {
+		// Check if it's a data file (starts with artifactDataDir/)
+		if strings.HasPrefix(relPath, artifactDataDir+"/") {
+			// Remove the artifactDataDir/ prefix
+			dataRelPath := strings.TrimPrefix(relPath, artifactDataDir+"/")
+			entry := database.InstalledFile{
+				Path: dataRelPath,
+				Hash: hash,
+			}
+			dataFileEntries = append(dataFileEntries, entry)
+			allFiles = append(allFiles, filepath.Join(dataPath, dataRelPath))
+		} else {
+			// It's a metadata file
+			entry := database.InstalledFile{
+				Path: relPath,
+				Hash: hash,
+			}
+			metaFileEntries = append(metaFileEntries, entry)
+			allFiles = append(allFiles, filepath.Join(metaPath, relPath))
+		}
+	}
 
 	// Create and add the artifact to the database
 	installedArtifact := &database.InstalledArtifact{
@@ -191,7 +245,10 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		Description:   desc.Description,
 		InstalledAt:   time.Now(),
 		InstalledFrom: desc.URL,
-		Files:         allFiles, // Track all individual files
+		BaseMetaDir:   m.artifactMetaInstallDir,
+		BaseDataDir:   m.artifactDataInstallDir,
+		MetaFiles:     metaFileEntries,
+		DataFiles:     dataFileEntries,
 	}
 	db.AddArtifact(installedArtifact)
 

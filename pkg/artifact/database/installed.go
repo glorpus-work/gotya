@@ -23,15 +23,24 @@ type InstalledManager interface {
 	GetInstalledArtifacts() []*InstalledArtifact
 }
 
+// InstalledFile represents a file installed by an artifact with its hash.
+type InstalledFile struct {
+	Path string `json:"path"` // Relative path from its base directory
+	Hash string `json:"hash"` // SHA256 hash of the file contents
+}
+
 // InstalledArtifact represents an installed artifact with its files.
 type InstalledArtifact struct {
-	Name          string    `json:"name"`
-	Version       string    `json:"version"`
-	Description   string    `json:"description"`
-	InstalledAt   time.Time `json:"installed_at"`
-	InstalledFrom string    `json:"installed_from"` // URL or index where it was installed from
-	Files         []string  `json:"files"`          // List of files installed by this artifact
-	Checksum      string    `json:"checksum"`       // Checksum of the original artifact
+	Name          string          `json:"name"`
+	Version       string          `json:"version"`
+	Description   string          `json:"description"`
+	InstalledAt   time.Time       `json:"installed_at"`
+	InstalledFrom string          `json:"installed_from"` // URL or index where it was installed from
+	BaseMetaDir   string          `json:"base_meta_dir"`  // Base directory for meta files
+	BaseDataDir   string          `json:"base_data_dir"`  // Base directory for data files
+	MetaFiles     []InstalledFile `json:"meta_files"`     // List of meta files with their hashes
+	DataFiles     []InstalledFile `json:"data_files"`     // List of data files with their hashes
+	Checksum      string          `json:"checksum"`       // Checksum of the original artifact
 }
 
 // InstalledManagerImpl represents the database of installed packages.
@@ -87,17 +96,57 @@ func (installedDB *InstalledManagerImpl) parseInstalledDatabaseFromReader(reader
 		return fmt.Errorf("failed to read database: %w", err)
 	}
 
-	// First unmarshal into a temporary struct
-	var tempDB InstalledManagerImpl
-	if err := json.Unmarshal(data, &tempDB); err != nil {
-		return fmt.Errorf("failed to parse database: %w", err)
+	// Unmarshal directly into the target struct
+	if err := json.Unmarshal(data, installedDB); err != nil {
+		// Try to handle legacy format where Files was a []string
+		var legacyDB struct {
+			FormatVersion string    `json:"format_version"`
+			LastUpdate    time.Time `json:"last_update"`
+			Artifacts     []struct {
+				Name          string    `json:"name"`
+				Version       string    `json:"version"`
+				Description   string    `json:"description"`
+				InstalledAt   time.Time `json:"installed_at"`
+				InstalledFrom string    `json:"installed_from"`
+				Files         []string  `json:"files"`
+				Checksum      string    `json:"checksum"`
+			} `json:"artifacts"`
+		}
+
+		if legacyErr := json.Unmarshal(data, &legacyDB); legacyErr != nil {
+			return fmt.Errorf("failed to parse database (tried both current and legacy formats): %w", err)
+		}
+
+		// Convert legacy format to new format
+		installedDB.FormatVersion = "1"
+		installedDB.LastUpdate = legacyDB.LastUpdate
+		installedDB.Artifacts = make([]*InstalledArtifact, 0, len(legacyDB.Artifacts))
+
+		for _, legacyArtifact := range legacyDB.Artifacts {
+			artifact := &InstalledArtifact{
+				Name:          legacyArtifact.Name,
+				Version:       legacyArtifact.Version,
+				Description:   legacyArtifact.Description,
+				InstalledAt:   legacyArtifact.InstalledAt,
+				InstalledFrom: legacyArtifact.InstalledFrom,
+				Checksum:      legacyArtifact.Checksum,
+				MetaFiles:     make([]InstalledFile, 0),
+				DataFiles:     make([]InstalledFile, 0),
+			}
+
+			// Convert legacy Files to DataFiles (best effort, no hashes available)
+			for _, file := range legacyArtifact.Files {
+				artifact.DataFiles = append(artifact.DataFiles, InstalledFile{
+					Path: file,
+					Hash: "", // No hash available in legacy format
+				})
+			}
+
+			installedDB.Artifacts = append(installedDB.Artifacts, artifact)
+		}
 	}
 
-	// Convert each artifact to a pointer
-	for i := range tempDB.Artifacts {
-		pkg := tempDB.Artifacts[i] // Create a copy in the loop
-		installedDB.Artifacts = append(installedDB.Artifacts, pkg)
-	}
+	return nil
 
 	return nil
 }
