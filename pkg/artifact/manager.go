@@ -66,8 +66,19 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	}
 
 	// Check if the artifact is already installed
-	if db.IsArtifactInstalled(desc.Name) {
-		return fmt.Errorf("artifact %s is already installed", desc.Name)
+	existingArtifact := db.FindArtifact(desc.Name)
+	var existingReverseDeps []string
+	if existingArtifact != nil {
+		if existingArtifact.Status == database.StatusInstalled {
+			return fmt.Errorf("artifact %s is already installed", desc.Name)
+		} else if existingArtifact.Status == database.StatusMissing {
+			// This is a dummy entry, we'll replace it with the real artifact
+			// Save the reverse dependencies before removing the dummy entry
+			existingReverseDeps = existingArtifact.ReverseDependencies
+			db.RemoveArtifact(desc.Name)
+		} else {
+			return fmt.Errorf("artifact %s has unknown status: %s", desc.Name, existingArtifact.Status)
+		}
 	}
 
 	extractDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s", desc.Name))
@@ -89,7 +100,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	installed = true // Mark that we've installed files that might need cleanup
 
 	// Add the installed artifact to the database
-	err = m.addArtifactToDatabase(db, desc)
+	err = m.addArtifactToDatabase(db, desc, existingReverseDeps)
 	if err != nil {
 		return fmt.Errorf("failed to update artifact database: %w", err)
 	}

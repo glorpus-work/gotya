@@ -12,6 +12,19 @@ import (
 
 // uninstallWithPurge removes the entire artifact directories recursively
 func (m ManagerImpl) uninstallWithPurge(ctx context.Context, db *database.InstalledManagerImpl, artifact *database.InstalledArtifact) error {
+	// Clean up reverse dependencies from other artifacts
+	for _, dependentName := range artifact.ReverseDependencies {
+		if dependent := db.FindArtifact(dependentName); dependent != nil {
+			// Remove this artifact from the dependent's reverse dependencies
+			for i, revDep := range dependent.ReverseDependencies {
+				if revDep == artifact.Name {
+					dependent.ReverseDependencies = append(dependent.ReverseDependencies[:i], dependent.ReverseDependencies[i+1:]...)
+					break
+				}
+			}
+		}
+	}
+
 	// Remove meta directory
 	if err := os.RemoveAll(artifact.ArtifactMetaDir); err != nil {
 		return fmt.Errorf("failed to remove meta directory %s: %w", artifact.ArtifactMetaDir, err)
@@ -33,6 +46,19 @@ func (m ManagerImpl) uninstallWithPurge(ctx context.Context, db *database.Instal
 
 // uninstallSelectively removes only the files listed in the database, tracking directories for cleanup
 func (m ManagerImpl) uninstallSelectively(ctx context.Context, db *database.InstalledManagerImpl, artifact *database.InstalledArtifact) error {
+	// Clean up reverse dependencies from other artifacts
+	for _, dependentName := range artifact.ReverseDependencies {
+		if dependent := db.FindArtifact(dependentName); dependent != nil {
+			// Remove this artifact from the dependent's reverse dependencies
+			for i, revDep := range dependent.ReverseDependencies {
+				if revDep == artifact.Name {
+					dependent.ReverseDependencies = append(dependent.ReverseDependencies[:i], dependent.ReverseDependencies[i+1:]...)
+					break
+				}
+			}
+		}
+	}
+
 	dirsToCheck := make(map[string]bool)
 
 	// Delete meta files

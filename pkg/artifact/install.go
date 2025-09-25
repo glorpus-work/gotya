@@ -52,7 +52,7 @@ func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) error
 
 // addArtifactToDatabase adds an installed artifact to the database
 // Returns the list of installed files if successful, or an error
-func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor) error {
+func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor, existingReverseDeps []string) error {
 	metaPath := m.getArtifactMetaInstallPath(desc.Name)
 
 	// Read and parse the metadata file
@@ -112,7 +112,7 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		ArtifactDataDir:     m.getArtifactDataInstallPath(desc.Name),
 		MetaFiles:           metaFileEntries,
 		DataFiles:           dataFileEntries,
-		ReverseDependencies: make([]string, 0),
+		ReverseDependencies: existingReverseDeps, // Use the saved reverse dependencies if any
 		Status:              database.StatusInstalled,
 		Checksum:            "", // Assuming checksum is handled elsewhere or set later
 	}
@@ -121,8 +121,18 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 	for _, dep := range desc.Dependencies {
 		existingArtifact := db.FindArtifact(dep.Name)
 		if existingArtifact != nil {
-			// Add current artifact to existing dependency's reverse dependencies
-			existingArtifact.ReverseDependencies = append(existingArtifact.ReverseDependencies, desc.Name)
+			if existingArtifact.Status == database.StatusMissing {
+				// Update the dummy entry to a real installed artifact
+				// Note: We can't update the dummy entry with real metadata here because
+				// we don't have the dependency's actual metadata. The dummy entry will
+				// be replaced when the dependency is actually installed.
+				// For now, just update the status and reverse dependencies.
+				existingArtifact.Status = database.StatusInstalled
+				// Don't modify other fields as we don't have the real dependency metadata
+			} else {
+				// Add current artifact to existing dependency's reverse dependencies
+				existingArtifact.ReverseDependencies = append(existingArtifact.ReverseDependencies, desc.Name)
+			}
 		} else {
 			// Create a dummy entry for missing dependency
 			dummyArtifact := &database.InstalledArtifact{

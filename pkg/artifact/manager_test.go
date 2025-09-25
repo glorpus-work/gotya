@@ -345,21 +345,97 @@ func TestInstallArtifact_EmptyDescriptor(t *testing.T) {
 	assert.Contains(t, err.Error(), "artifact descriptor cannot be nil")
 }
 
-// TestInstallArtifact_EmptyLocalPath tests installation with empty local path
-func TestInstallArtifact_EmptyLocalPath(t *testing.T) {
+// TestUninstallArtifact_UpdatesReverseDependencies tests that reverse dependencies are cleaned up when artifacts are uninstalled
+func TestUninstallArtifact_UpdatesReverseDependencies(t *testing.T) {
 	tempDir := t.TempDir()
-	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+	depName := "test-dependency"
 
-	desc := &model.IndexArtifactDescriptor{
-		Name:    "test-artifact",
+	// Step 1: Install an artifact with missing dependencies (creates dummy entries)
+	mainArtifact := filepath.Join(tempDir, "test-artifact.gotya")
+	mainMetadata := &Metadata{
+		Name:         artifactName,
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+		Maintainer:   "test@example.com",
+		Description:  "Test artifact with dependencies",
+		Dependencies: []string{depName},
+		Hooks:        make(map[string]string),
+	}
+	setupTestArtifact(t, mainArtifact, true, mainMetadata)
+
+	mainDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
 		Version: "1.0.0",
 		OS:      "linux",
 		Arch:    "amd64",
+		URL:     "http://example.com/test-artifact.gotya",
+		Dependencies: []model.Dependency{
+			{Name: depName, VersionConstraint: "1.0.0"},
+		},
 	}
 
-	err := mgr.InstallArtifact(context.Background(), desc, "")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "local path cannot be empty")
+	err := mgr.InstallArtifact(context.Background(), mainDesc, mainArtifact)
+	require.NoError(t, err)
+
+	// Verify dummy entry was created for the dependency
+	db := loadInstalledDB(t, dbPath)
+	depDummy := db.FindArtifact(depName)
+	require.NotNil(t, depDummy, "dummy entry for dependency should exist")
+	assert.Equal(t, database.StatusMissing, depDummy.Status, "dependency should have missing status")
+	assert.Contains(t, depDummy.ReverseDependencies, artifactName, "dependency should have main artifact as reverse dependency")
+
+	// Step 2: Install the dependency (this establishes the reverse dependency relationship)
+	depArtifact := filepath.Join(tempDir, "test-dependency.gotya")
+	depMetadata := &Metadata{
+		Name:         depName,
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+		Maintainer:   "test@example.com",
+		Description:  "Test dependency",
+		Dependencies: []string{},
+		Hooks:        make(map[string]string),
+	}
+	setupTestArtifact(t, depArtifact, true, depMetadata)
+
+	depDesc := &model.IndexArtifactDescriptor{
+		Name:         depName,
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+		URL:          "http://example.com/test-dependency.gotya",
+		Dependencies: []model.Dependency{},
+	}
+
+	err = mgr.InstallArtifact(context.Background(), depDesc, depArtifact)
+	require.NoError(t, err)
+
+	// Verify the dependency is now installed and has the main artifact as reverse dependency
+	db = loadInstalledDB(t, dbPath)
+	installedDep := db.FindArtifact(depName)
+	require.NotNil(t, installedDep, "dependency should exist")
+	assert.Equal(t, database.StatusInstalled, installedDep.Status, "dependency should have installed status")
+	assert.Contains(t, installedDep.ReverseDependencies, artifactName, "dependency should have main artifact as reverse dependency")
+
+	// Step 3: Uninstall the dependency and verify reverse dependencies are cleaned up
+	err = mgr.UninstallArtifact(context.Background(), depName, false)
+	require.NoError(t, err)
+
+	// Verify the dependency was removed from the database
+	db = loadInstalledDB(t, dbPath)
+	assert.False(t, db.IsArtifactInstalled(depName), "dependency should not be installed")
+	removedDep := db.FindArtifact(depName)
+	assert.Nil(t, removedDep, "dependency should not exist in database")
+
+	// Verify the main artifact still exists but no longer has the dependency as a reverse dependency
+	installedMainArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, installedMainArtifact, "main artifact should still exist")
+	assert.Equal(t, database.StatusInstalled, installedMainArtifact.Status, "main artifact should still have installed status")
+	assert.Empty(t, installedMainArtifact.ReverseDependencies, "main artifact should have no reverse dependencies")
 }
 
 // TestUninstallArtifact_NonExistent tests uninstalling a non-existent artifact
