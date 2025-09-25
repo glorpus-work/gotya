@@ -10,7 +10,7 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
-// ResolveRequest describes what the user asked to install.
+// ResolveRequest describes what the user asked to resolve.
 type ResolveRequest struct {
 	Name    string
 	Version string // semver constraint (e.g., ">= 0.0.0" for latest)
@@ -34,7 +34,7 @@ type ResolvedArtifacts struct {
 	Artifacts []InstallStep
 }
 
-// Plan computes a plan with dependency resolution.
+// Resolve computes resolved artifacts with dependency resolution.
 // Rules:
 // - Resolve transitive dependencies.
 // - For each artifact name, select a single version that satisfies all accumulated constraints.

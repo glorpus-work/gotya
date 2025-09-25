@@ -15,7 +15,7 @@ func setupTestManager(t *testing.T, artifactsJSON string) *ManagerImpl {
 	return NewManager([]*Repository{repo}, dir)
 }
 
-func TestPlan_BasicDependencyResolution(t *testing.T) {
+func TestResolve_BasicDependencyResolution(t *testing.T) {
 	// Test a simple dependency chain: a -> b -> c
 	mgr := setupTestManager(t, `[
 		{"name":"a","version":"1.0.0","dependencies":[{"name":"b","version_constraint":">= 1.0.0"}],"url":"https://ex/a","checksum":"a1"},
@@ -37,7 +37,7 @@ func TestPlan_BasicDependencyResolution(t *testing.T) {
 	assert.Equal(t, "a@1.0.0", plan.Artifacts[2].ID)
 }
 
-func TestPlan_VersionConflictResolution(t *testing.T) {
+func TestResolve_VersionConflictResolution(t *testing.T) {
 	// Test version conflict resolution where two dependencies require different versions of the same package
 	mgr := setupTestManager(t, `[
 		{"name":"app","version":"1.0.0","dependencies":[
@@ -69,7 +69,7 @@ func TestPlan_VersionConflictResolution(t *testing.T) {
 	assert.True(t, len(plan.Artifacts) >= 3, "expected at least 3 steps in the plan")
 }
 
-func TestPlan_CyclicDependency(t *testing.T) {
+func TestResolve_CyclicDependency(t *testing.T) {
 	// Test detection of cyclic dependencies
 	mgr := setupTestManager(t, `[
 		{"name":"a","version":"1.0.0","dependencies":[{"name":"b","version_constraint":">= 1.0.0"}],"url":"https://ex/a","checksum":"a1"},
@@ -87,7 +87,7 @@ func TestPlan_CyclicDependency(t *testing.T) {
 	assert.Contains(t, err.Error(), "dependency cycle detected")
 }
 
-func TestPlan_ComplexDependencyGraph(t *testing.T) {
+func TestResolve_ComplexDependencyGraph(t *testing.T) {
 	// Test a more complex dependency graph with multiple versions and shared dependencies
 	mgr := setupTestManager(t, `[
 		{"name":"app","version":"1.0.0","dependencies":[
@@ -141,7 +141,7 @@ func TestPlan_ComplexDependencyGraph(t *testing.T) {
 	}
 }
 
-func TestPlan_PlatformSpecificDependencies(t *testing.T) {
+func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 	// Test that the correct platform-specific dependencies are selected
 	mgr := setupTestManager(t, `[
 		{"name":"app","version":"1.0.0","dependencies":[
@@ -184,7 +184,7 @@ func TestPlan_PlatformSpecificDependencies(t *testing.T) {
 	})
 }
 
-func TestPlan_NoDependencies(t *testing.T) {
+func TestResolve_NoDependencies(t *testing.T) {
 	// Test planning for a package with no dependencies
 	mgr := setupTestManager(t, `[{"name":"standalone","version":"1.0.0","url":"https://ex/standalone","checksum":"s1"}]`)
 
@@ -200,7 +200,7 @@ func TestPlan_NoDependencies(t *testing.T) {
 	assert.Equal(t, "standalone@1.0.0", plan.Artifacts[0].ID)
 }
 
-func TestPlan_NonExistentPackage(t *testing.T) {
+func TestResolve_NonExistentPackage(t *testing.T) {
 	// Test behavior when the requested package doesn't exist
 	mgr := setupTestManager(t, `[{"name":"exists","version":"1.0.0","url":"https://ex/exists","checksum":"e1"}]`)
 
