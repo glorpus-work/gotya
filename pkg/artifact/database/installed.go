@@ -31,16 +31,18 @@ type InstalledFile struct {
 
 // InstalledArtifact represents an installed artifact with its files.
 type InstalledArtifact struct {
-	Name            string          `json:"name"`
-	Version         string          `json:"version"`
-	Description     string          `json:"description"`
-	InstalledAt     time.Time       `json:"installed_at"`
-	InstalledFrom   string          `json:"installed_from"`    // URL or index where it was installed from
-	ArtifactMetaDir string          `json:"artifact_meta_dir"` // Base directory for meta files
-	ArtifactDataDir string          `json:"artifact_data_dir"` // Base directory for data files
-	MetaFiles       []InstalledFile `json:"meta_files"`        // List of meta files with their hashes
-	DataFiles       []InstalledFile `json:"data_files"`        // List of data files with their hashes
-	Checksum        string          `json:"checksum"`          // Checksum of the original artifact
+	Name                string          `json:"name"`
+	Version             string          `json:"version"`
+	Description         string          `json:"description"`
+	InstalledAt         time.Time       `json:"installed_at"`
+	InstalledFrom       string          `json:"installed_from"`       // URL or index where it was installed from
+	ArtifactMetaDir     string          `json:"artifact_meta_dir"`    // Base directory for meta files
+	ArtifactDataDir     string          `json:"artifact_data_dir"`    // Base directory for data files
+	MetaFiles           []InstalledFile `json:"meta_files"`           // List of meta files with their hashes
+	DataFiles           []InstalledFile `json:"data_files"`           // List of data files with their hashes
+	ReverseDependencies []string        `json:"reverse_dependencies"` // List of artifact names that depend on this artifact
+	Status              ArtifactStatus  `json:"status"`               // Status of the artifact (use constants StatusInstalled or StatusMissing)
+	Checksum            string          `json:"checksum"`
 }
 
 // InstalledManagerImpl represents the database of installed packages.
@@ -48,12 +50,17 @@ type InstalledManagerImpl struct {
 	FormatVersion string               `json:"format_version"`
 	LastUpdate    time.Time            `json:"last_update"`
 	Artifacts     []*InstalledArtifact `json:"artifacts"`
-	rwMutex       sync.RWMutex         `json:"-"` // Mutex for concurrent access
+	rwMutex       sync.RWMutex
 }
 
+type ArtifactStatus string
+
 const (
-	// InitialArtifactCapacity is the initial capacity for the installed packages slice.
 	InitialArtifactCapacity = 100
+	// StatusInstalled indicates the artifact is fully installed.
+	StatusInstalled ArtifactStatus = "installed"
+	// StatusMissing indicates the artifact is not installed but referenced as a dependency.
+	StatusMissing ArtifactStatus = "missing"
 )
 
 // NewInstalledDatabase creates a new installed packages database.
@@ -145,8 +152,6 @@ func (installedDB *InstalledManagerImpl) parseInstalledDatabaseFromReader(reader
 			installedDB.Artifacts = append(installedDB.Artifacts, artifact)
 		}
 	}
-
-	return nil
 
 	return nil
 }
