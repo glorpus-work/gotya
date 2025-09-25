@@ -231,33 +231,34 @@ func (m ManagerImpl) ReverseResolve(ctx context.Context, req model.ResolveReques
 }
 
 func (m ManagerImpl) collectReverseDependencies(db *database.InstalledManagerImpl, targetArtifact string) map[string]*database.InstalledArtifact {
-	visited := make(map[string]bool)
 	result := make(map[string]*database.InstalledArtifact)
 
-	m.dfsReverseDependencies(db, targetArtifact, visited, result)
+	// Find all artifacts that depend on the target artifact
+	m.findArtifactsDependingOn(db, targetArtifact, result)
+
 	return result
 }
 
-// dfsReverseDependencies performs depth-first search to find all reverse dependencies
-func (m ManagerImpl) dfsReverseDependencies(db *database.InstalledManagerImpl, artifactName string, visited map[string]bool, result map[string]*database.InstalledArtifact) {
-	// Mark as visited to prevent cycles
-	if visited[artifactName] {
-		return
-	}
-	visited[artifactName] = true
+// findArtifactsDependingOn finds all artifacts that depend on the given artifact
+func (m ManagerImpl) findArtifactsDependingOn(db *database.InstalledManagerImpl, targetArtifact string, result map[string]*database.InstalledArtifact) {
+	// Iterate through all installed artifacts to find those that depend on the target
+	for _, artifact := range db.GetInstalledArtifacts() {
+		if artifact.Status != database.StatusInstalled {
+			continue
+		}
 
-	// Find the artifact in the database
-	artifact := db.FindArtifact(artifactName)
-	if artifact == nil || artifact.Status != database.StatusInstalled {
-		return
-	}
-
-	// Add this artifact to results
-	result[artifactName] = artifact
-
-	// Recursively process all artifacts that depend on this one
-	for _, dependentName := range artifact.ReverseDependencies {
-		m.dfsReverseDependencies(db, dependentName, visited, result)
+		// Check if this artifact depends on the target
+		for _, depName := range artifact.ReverseDependencies {
+			if depName == targetArtifact {
+				// This artifact depends on the target, add it to results
+				if _, exists := result[artifact.Name]; !exists {
+					result[artifact.Name] = artifact
+					// Recursively find artifacts that depend on this one
+					m.findArtifactsDependingOn(db, artifact.Name, result)
+				}
+				break
+			}
+		}
 	}
 }
 

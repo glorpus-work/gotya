@@ -2,9 +2,11 @@ package artifact
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/cperrin88/gotya/pkg/artifact/database"
 	"github.com/cperrin88/gotya/pkg/errors"
@@ -1296,4 +1298,245 @@ func loadInstalledDB(t *testing.T, dbPath string) *database.InstalledManagerImpl
 	err := db.LoadDatabase(dbPath)
 	require.NoError(t, err, "failed to load installed database")
 	return db
+}
+
+// setupTestDatabaseWithArtifacts creates a test database with the specified artifacts
+func setupTestDatabaseWithArtifacts(t *testing.T, dbPath string, artifacts []*database.InstalledArtifact) {
+	t.Helper()
+	db := database.NewInstalledDatabase()
+	for _, artifact := range artifacts {
+		db.AddArtifact(artifact)
+	}
+	err := db.SaveDatabase(dbPath)
+	require.NoError(t, err, "failed to save test database")
+}
+
+// createTestArtifact creates a basic test artifact for database testing
+func createTestArtifact(name, version string, reverseDeps []string) *database.InstalledArtifact {
+	return &database.InstalledArtifact{
+		Name:                name,
+		Version:             version,
+		Description:         fmt.Sprintf("Test artifact %s", name),
+		InstalledAt:         time.Now(),
+		InstalledFrom:       "http://example.com/test.gotya",
+		ArtifactMetaDir:     "/test/meta",
+		ArtifactDataDir:     "/test/data",
+		MetaFiles:           []database.InstalledFile{{Path: "artifact.json", Hash: "abc123"}},
+		DataFiles:           []database.InstalledFile{{Path: "data.bin", Hash: "def456"}},
+		ReverseDependencies: reverseDeps,
+		Status:              database.StatusInstalled,
+		Checksum:            "checksum123",
+	}
+}
+
+// TestReverseResolve_Basic tests basic reverse dependency resolution
+func TestReverseResolve_Basic(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create test artifacts with reverse dependencies
+	dependency := createTestArtifact("dep1", "1.0.0", []string{})
+	mainArtifact := createTestArtifact("main", "1.0.0", []string{"dep1"})
+
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{dependency, mainArtifact})
+
+	// Test resolving reverse dependencies for dep1
+	req := model.ResolveRequest{
+		Name:    "dep1",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	result, err := mgr.ReverseResolve(context.Background(), req)
+	require.NoError(t, err)
+
+	// Should find main artifact as reverse dependency
+	require.Len(t, result.Artifacts, 1)
+	assert.Equal(t, "main", result.Artifacts[0].Name)
+	assert.Equal(t, "1.0.0", result.Artifacts[0].Version)
+	assert.Equal(t, "linux", result.Artifacts[0].OS)
+	assert.Equal(t, "amd64", result.Artifacts[0].Arch)
+	assert.Equal(t, "checksum123", result.Artifacts[0].Checksum)
+}
+
+// TestReverseResolve_ComplexDependencies tests reverse dependency resolution with complex dependency graph
+func TestReverseResolve_ComplexDependencies(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create a complex dependency graph:
+	// app -> libA -> core
+	// app -> libB -> core
+	// tool -> libA
+	core := createTestArtifact("core", "1.0.0", []string{})
+	libA := createTestArtifact("libA", "1.0.0", []string{"core"})
+	libB := createTestArtifact("libB", "1.0.0", []string{"core"})
+	app := createTestArtifact("app", "1.0.0", []string{"libA", "libB"})
+	tool := createTestArtifact("tool", "1.0.0", []string{"libA"})
+
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{core, libA, libB, app, tool})
+
+	// Test resolving reverse dependencies for core
+	req := model.ResolveRequest{
+		Name:    "core",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	result, err := mgr.ReverseResolve(context.Background(), req)
+	require.NoError(t, err)
+
+	// Should find libA, libB, app, tool as reverse dependencies (no specific order guaranteed)
+	require.Len(t, result.Artifacts, 4)
+
+	artifactNames := make(map[string]bool)
+	for _, artifact := range result.Artifacts {
+		artifactNames[artifact.Name] = true
+	}
+
+	expectedNames := []string{"libA", "libB", "app", "tool"}
+	for _, expected := range expectedNames {
+		assert.True(t, artifactNames[expected], "expected artifact %s not found in reverse dependencies", expected)
+	}
+}
+
+// TestReverseResolve_NonExistentArtifact tests reverse dependency resolution for non-existent artifact
+func TestReverseResolve_NonExistentArtifact(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create empty database
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{})
+
+	// Test resolving reverse dependencies for non-existent artifact
+	req := model.ResolveRequest{
+		Name:    "nonexistent",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	result, err := mgr.ReverseResolve(context.Background(), req)
+	require.NoError(t, err)
+
+	// Should return empty result
+	assert.Empty(t, result.Artifacts)
+}
+
+// TestReverseResolve_DatabaseLoadError tests error handling when database loading fails
+func TestReverseResolve_DatabaseLoadError(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "corrupted.db")
+
+	// Create a corrupted database file (invalid JSON)
+	require.NoError(t, os.WriteFile(dbPath, []byte("invalid json content"), 0644))
+
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Test resolving reverse dependencies when database is corrupted
+	req := model.ResolveRequest{
+		Name:    "test",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	_, err := mgr.ReverseResolve(context.Background(), req)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load installed database")
+}
+
+// TestReverseResolve_EmptyDatabase tests reverse dependency resolution with empty database
+func TestReverseResolve_EmptyDatabase(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "empty.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create empty database
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{})
+
+	// Test resolving reverse dependencies
+	req := model.ResolveRequest{
+		Name:    "any-artifact",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	result, err := mgr.ReverseResolve(context.Background(), req)
+	require.NoError(t, err)
+
+	// Should return empty result
+	assert.Empty(t, result.Artifacts)
+}
+
+// TestReverseResolve_SelfDependency tests reverse dependency resolution when artifact has itself as dependency
+func TestReverseResolve_SelfDependency(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create artifact with self-dependency (edge case)
+	artifact := createTestArtifact("self", "1.0.0", []string{"self"})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{artifact})
+
+	// Test resolving reverse dependencies for self
+	req := model.ResolveRequest{
+		Name:    "self",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	result, err := mgr.ReverseResolve(context.Background(), req)
+	require.NoError(t, err)
+
+	// Should find self as reverse dependency (due to DFS cycle detection)
+	require.Len(t, result.Artifacts, 1)
+	assert.Equal(t, "self", result.Artifacts[0].Name)
+}
+
+// TestReverseResolve_MissingStatusArtifact tests reverse dependency resolution for artifact with missing status
+func TestReverseResolve_MissingStatusArtifact(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create artifact with missing status
+	missingArtifact := &database.InstalledArtifact{
+		Name:                "missing",
+		Version:             "1.0.0",
+		Description:         "Missing artifact",
+		InstalledAt:         time.Now(),
+		InstalledFrom:       "http://example.com/missing.gotya",
+		ArtifactMetaDir:     "/test/meta",
+		ArtifactDataDir:     "/test/data",
+		MetaFiles:           []database.InstalledFile{},
+		DataFiles:           []database.InstalledFile{},
+		ReverseDependencies: []string{"main"},
+		Status:              database.StatusMissing,
+		Checksum:            "checksum123",
+	}
+	mainArtifact := createTestArtifact("main", "1.0.0", []string{})
+
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{missingArtifact, mainArtifact})
+
+	// Test resolving reverse dependencies for missing artifact
+	req := model.ResolveRequest{
+		Name:    "missing",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	result, err := mgr.ReverseResolve(context.Background(), req)
+	require.NoError(t, err)
+
+	// Should return empty result since missing artifacts are not included
+	assert.Empty(t, result.Artifacts)
 }
