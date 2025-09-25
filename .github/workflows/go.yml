@@ -28,8 +28,13 @@ jobs:
         run: task test
 
   integration-test:
-    name: Integration Test
-    runs-on: ubuntu-latest
+    name: Integration Test (${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest, ubuntu-24.04-arm]
+
     steps:
       - name: Set up Go
         uses: actions/setup-go@v6
