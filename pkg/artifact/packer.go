@@ -101,21 +101,14 @@ func (p *Packer) Pack() (string, error) {
 }
 
 func (p *Packer) verify() error {
-	manager := NewManager(
-		p.os,
-		p.arch,
-		p.outputDir,
-		"",
-		"",
-		"",
-	)
+	verifier := NewVerifier()
 	desc := &model.IndexArtifactDescriptor{
 		Name:    p.name,
 		Version: p.version,
 		OS:      p.os,
 		Arch:    p.arch,
 	}
-	if err := manager.VerifyArtifact(context.Background(), desc); err != nil {
+	if err := verifier.VerifyArtifact(context.Background(), desc, p.getOutputFile()); err != nil {
 		return err
 	}
 	return nil

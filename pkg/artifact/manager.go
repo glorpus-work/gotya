@@ -18,6 +18,7 @@ type ManagerImpl struct {
 	artifactDataInstallDir string
 	artifactMetaInstallDir string
 	installedDBPath        string
+	verifier               *Verifier
 }
 
 func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInstallDir, installedDBPath string) *ManagerImpl {
@@ -28,6 +29,7 @@ func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInst
 		artifactDataInstallDir: artifactInstallDir,
 		artifactMetaInstallDir: artifactMetaInstallDir,
 		installedDBPath:        installedDBPath,
+		verifier:               NewVerifier(),
 	}
 }
 
@@ -42,7 +44,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 		}
 	}()
 
-	if err = m.verifyArtifactFile(ctx, desc, localPath); err != nil {
+	if err = m.verifier.VerifyArtifact(ctx, desc, localPath); err != nil {
 		return err
 	}
 
@@ -63,7 +65,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	}
 	defer os.RemoveAll(extractDir)
 
-	if err = m.extractArtifact(ctx, localPath, extractDir); err != nil {
+	if err = m.verifier.extractArtifact(ctx, localPath, extractDir); err != nil {
 		return fmt.Errorf("failed to extract artifact: %w", err)
 	}
 
@@ -148,7 +150,7 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 	}
 
 	// Verify the new artifact before proceeding
-	if err := m.verifyArtifactFile(ctx, newDescriptor, newArtifactPath); err != nil {
+	if err := m.verifier.VerifyArtifact(ctx, newDescriptor, newArtifactPath); err != nil {
 		return fmt.Errorf("failed to verify new artifact: %w", err)
 	}
 
@@ -183,7 +185,7 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 
 func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
 	filePath := filepath.Join(m.artifactCacheDir, fmt.Sprintf("%s_%s_%s_%s.gotya", artifact.Name, artifact.Version, artifact.OS, artifact.Arch))
-	return m.verifyArtifactFile(ctx, artifact, filePath)
+	return m.verifier.VerifyArtifact(ctx, artifact, filePath)
 }
 
 func (m ManagerImpl) getArtifactMetaInstallPath(artifactName string) string {

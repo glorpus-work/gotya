@@ -749,7 +749,8 @@ func TestUpdateArtifact_UninstallFailure(t *testing.T) {
 	}
 
 	// Verify the updated artifact is valid before testing
-	err = mgr.verifyArtifactFile(context.Background(), updatedDesc, updatedArtifact)
+	verifier := NewVerifier()
+	err = verifier.VerifyArtifact(context.Background(), updatedDesc, updatedArtifact)
 	require.NoError(t, err)
 
 	// Now test the update - it should work normally

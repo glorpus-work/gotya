@@ -15,9 +15,17 @@ import (
 	"github.com/mholt/archives"
 )
 
-// verifyArtifactFile verifies an artifact from a local file path.
+// Verifier handles artifact verification operations
+type Verifier struct{}
+
+// NewVerifier creates a new Verifier instance
+func NewVerifier() *Verifier {
+	return &Verifier{}
+}
+
+// VerifyArtifact verifies an artifact from a local file path.
 // TODO rewrite to use a local filepath instead of archives.FileSystem.
-func (m ManagerImpl) verifyArtifactFile(ctx context.Context, artifact *model.IndexArtifactDescriptor, filePath string) error {
+func (v *Verifier) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor, filePath string) error {
 	if _, err := os.Stat(filePath); err != nil {
 		return errors.ErrArtifactNotFound
 	}
@@ -92,7 +100,7 @@ func (m ManagerImpl) verifyArtifactFile(ctx context.Context, artifact *model.Ind
 }
 
 // extractArtifact extracts an artifact from a local file path to a directory.
-func (m ManagerImpl) extractArtifact(ctx context.Context, filePath, destDir string) error {
+func (v *Verifier) extractArtifact(ctx context.Context, filePath, destDir string) error {
 	// Open the artifact file
 	fsys, err := archives.FileSystem(ctx, filePath, nil)
 	if err != nil {
