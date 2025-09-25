@@ -47,6 +47,9 @@ type Generator struct {
 	BasePath string
 	// ForceOverwrite controls whether to overwrite an existing output file.
 	ForceOverwrite bool
+	// BaselineIndexPath is an optional path to an existing index file to use as a baseline.
+	// The new index will include all artifacts from the baseline that don't conflict with new artifacts.
+	BaselineIndexPath string
 }
 
 // NewGenerator creates a new Generator with default values.
@@ -55,6 +58,14 @@ func NewGenerator(dir, outputPath string) *Generator {
 		Dir:        dir,
 		OutputPath: outputPath,
 	}
+}
+
+// WithBaseline sets the path to a baseline index file that will be used to extend the new index.
+// The baseline index will be loaded and its artifacts will be included in the new index,
+// unless they conflict with newly discovered artifacts.
+func (g *Generator) WithBaseline(baselinePath string) *Generator {
+	g.BaselineIndexPath = baselinePath
+	return g
 }
 
 // Validate checks if the generator is properly configured.
@@ -118,69 +129,202 @@ func (g *Generator) CountArtifacts() (int, error) {
 	return count, err
 }
 
+// artifactsEqual compares two IndexArtifactDescriptor structs for equality.
+// It checks all relevant fields that should be identical for artifacts with the same name and version.
+func artifactsEqual(a, b *model.IndexArtifactDescriptor) bool {
+	if a == b {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+
+	// Compare all relevant fields
+	if a.Name != b.Name ||
+		a.Version != b.Version ||
+		a.Description != b.Description ||
+		a.URL != b.URL ||
+		a.Checksum != b.Checksum ||
+		a.Size != b.Size ||
+		a.OS != b.OS ||
+		a.Arch != b.Arch ||
+		len(a.Dependencies) != len(b.Dependencies) {
+		return false
+	}
+
+	// Compare dependencies
+	for i := range a.Dependencies {
+		if a.Dependencies[i] != b.Dependencies[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// findConflicts checks for conflicts between a new artifact and existing artifacts in the baseline.
+// Returns an error if a conflict is found, nil otherwise.
+func findConflicts(newArtifact *model.IndexArtifactDescriptor, baselineArtifacts []*model.IndexArtifactDescriptor) error {
+	for _, existing := range baselineArtifacts {
+		if existing.Name == newArtifact.Name && existing.Version == newArtifact.Version {
+			// Found an artifact with the same name and version, check if they're identical
+			if !artifactsEqual(existing, newArtifact) {
+				return errors.Wrapf(errors.ErrIndexConflict,
+					"conflict for artifact %s@%s: artifacts with the same name and version must be identical",
+					existing.Name, existing.Version)
+			}
+		}
+	}
+	return nil
+}
+
+// mergeArtifacts merges new artifacts with baseline artifacts, checking for conflicts.
+// Returns the merged list of artifacts.
+func mergeArtifacts(baselineArtifacts, newArtifacts []*model.IndexArtifactDescriptor) ([]*model.IndexArtifactDescriptor, error) {
+	// Create a map of existing artifacts for quick lookup
+	existingArtifacts := make(map[string]map[string]*model.IndexArtifactDescriptor)
+	for _, artifact := range baselineArtifacts {
+		if _, exists := existingArtifacts[artifact.Name]; !exists {
+			existingArtifacts[artifact.Name] = make(map[string]*model.IndexArtifactDescriptor)
+		}
+		existingArtifacts[artifact.Name][artifact.Version] = artifact
+	}
+
+	// Process new artifacts, checking for conflicts
+	for _, artifact := range newArtifacts {
+		if versions, exists := existingArtifacts[artifact.Name]; exists {
+			// Artifact with this name exists, check versions
+			if existing, versionExists := versions[artifact.Version]; versionExists {
+				// Version exists, check for conflicts
+				if !artifactsEqual(existing, artifact) {
+					return nil, errors.Wrapf(errors.ErrIndexConflict,
+						"conflict for artifact %s@%s: artifacts with the same name and version must be identical",
+						artifact.Name, artifact.Version)
+				}
+				// No conflict, skip adding this artifact as it already exists
+				continue
+			}
+		}
+
+		// No conflict, add the artifact to the baseline
+		baselineArtifacts = append(baselineArtifacts, artifact)
+	}
+
+	return baselineArtifacts, nil
+}
+
 // Generate scans Dir, builds an Index, and writes it to OutputPath.
+// If a baseline index is specified, it will be loaded and used as a starting point.
+// New artifacts will be added to the baseline, with conflicts detected and reported.
 func (g *Generator) Generate(ctx context.Context) error {
-	// Validate configuration
+	// Validate generator configuration
 	if err := g.Validate(); err != nil {
 		return err
 	}
 
 	// Count artifacts to provide better error messages
-	count, countErr := g.CountArtifacts()
-	if countErr != nil {
-		return errors.Wrap(countErr, "failed to count artifacts")
-	}
-	if count == 0 {
-		return errors.Wrap(errors.ErrValidation, "no .gotya artifacts found in source directory")
-	}
-	index := &Index{
-		FormatVersion: CurrentFormatVersion,
-		LastUpdate:    time.Now(),
-		Artifacts:     make([]*model.IndexArtifactDescriptor, 0, InitialArtifactCapacity),
+	if _, err := g.CountArtifacts(); err != nil {
+		return errors.Wrap(err, "failed to count artifacts")
 	}
 
-	// Walk the directory tree and find .gotya files
-	walkErr := filepath.WalkDir(g.Dir, func(p string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(strings.ToLower(d.Name()), ".gotya") {
-			return nil
-		}
-		// Parse this artifact and convert to descriptor
-		desc, err := g.describeArtifact(ctx, p)
-		if err != nil {
-			return fmt.Errorf("failed to process artifact %s: %w", p, err)
-		}
-		index.Artifacts = append(index.Artifacts, desc)
-		return nil
-	})
-
-	if walkErr != nil {
-		return fmt.Errorf("error walking directory: %w", walkErr)
-	}
-
-	// Write index to file
-	if err := os.MkdirAll(filepath.Dir(g.OutputPath), 0o755); err != nil {
-		return err
-	}
-	f, err := os.Create(g.OutputPath)
+	// Load baseline index if specified
+	baselineIndex, err := g.loadBaselineIndex()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to load baseline index")
 	}
-	defer f.Close()
 
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(index); err != nil {
-		return err
+	// Process artifacts from the directory
+	artifacts, err := g.processArtifacts(ctx, baselineIndex)
+	if err != nil {
+		return errors.Wrap(err, "failed to process artifacts")
 	}
+
+	// If we have artifacts, create and write the index
+	if len(artifacts) > 0 {
+		index := &Index{
+			FormatVersion: CurrentFormatVersion,
+			LastUpdate:    time.Now(),
+			Artifacts:     artifacts,
+		}
+
+		if err := g.writeIndex(index); err != nil {
+			return fmt.Errorf("failed to write index: %w", err)
+		}
+	}
+
 	return nil
 }
 
+// loadBaselineIndex loads an index file to use as a baseline for generating a new index.
+// It validates the format version and returns the loaded index or an error.
+// If no baseline path is set, it returns nil without an error.
+func (g *Generator) loadBaselineIndex() (*Index, error) {
+	if g.BaselineIndexPath == "" {
+		return nil, nil
+	}
+
+	// Use the existing ParseIndexFromFile function to load and validate the index
+	index, err := ParseIndexFromFile(g.BaselineIndexPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load baseline index: %w", err)
+	}
+
+	return index, nil
+}
+
+// processArtifacts scans the directory for .gotya files and processes them.
+// If a baseline is provided, it will be used to initialize the artifacts map.
+// Returns a slice of artifact descriptors or an error if processing fails.
+func (g *Generator) processArtifacts(ctx context.Context, baseline *Index) ([]*model.IndexArtifactDescriptor, error) {
+	// Create a map to store artifacts by name@version
+	artifacts := make(map[string]*model.IndexArtifactDescriptor)
+
+	// If we have a baseline, add its artifacts to our map
+	if baseline != nil {
+		for _, artifact := range baseline.Artifacts {
+			key := fmt.Sprintf("%s@%s", artifact.Name, artifact.Version)
+			artifacts[key] = artifact
+		}
+	}
+
+	// Walk the directory to find .gotya files
+	err := filepath.Walk(g.Dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return fmt.Errorf("error walking directory: %w", err)
+		}
+
+		// Skip directories and non-.gotya files
+		if info.IsDir() || !strings.HasSuffix(strings.ToLower(info.Name()), ".gotya") {
+			return nil
+		}
+
+		// Process the artifact file
+		desc, err := g.describeArtifact(ctx, path)
+		if err != nil {
+			return fmt.Errorf("failed to process artifact %s: %w", path, err)
+		}
+
+		// Add or update the artifact in our map
+		key := fmt.Sprintf("%s@%s", desc.Name, desc.Version)
+		artifacts[key] = desc
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("error processing artifacts: %w", err)
+	}
+
+	// Convert the map to a slice
+	artifactList := make([]*model.IndexArtifactDescriptor, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		artifactList = append(artifactList, artifact)
+	}
+
+	return artifactList, nil
+}
+
+// describeArtifact opens an artifact file, reads its metadata, and returns a descriptor.
 func (g *Generator) describeArtifact(ctx context.Context, filePath string) (*model.IndexArtifactDescriptor, error) {
 	// Open as archive filesystem and read meta/metadata.json
 	fsys, err := archives.FileSystem(ctx, filePath, nil)
@@ -232,6 +376,30 @@ func (g *Generator) describeArtifact(ctx context.Context, filePath string) (*mod
 	return desc, nil
 }
 
+// writeIndex writes the index to the output file.
+func (g *Generator) writeIndex(index *Index) error {
+	// Ensure the output directory exists
+	if err := os.MkdirAll(filepath.Dir(g.OutputPath), 0o755); err != nil {
+		return errors.Wrapf(err, "failed to create output directory for %s", g.OutputPath)
+	}
+
+	// Create the output file
+	f, err := os.Create(g.OutputPath)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create output file %s", g.OutputPath)
+	}
+	defer f.Close()
+
+	// Encode and write the index with pretty-printing
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(index); err != nil {
+		return errors.Wrapf(err, "failed to encode index to %s", g.OutputPath)
+	}
+
+	return nil
+}
+
 func (g *Generator) makeURL(artifactPath string) (string, error) {
 	// URL must be relative to the index file location
 	indexDir := filepath.Dir(g.OutputPath)
@@ -252,6 +420,7 @@ func (g *Generator) makeURL(artifactPath string) (string, error) {
 	return relURL, nil
 }
 
+// sha256File computes the SHA256 checksum of a file.
 func sha256File(p string) (string, error) {
 	f, err := os.Open(p)
 	if err != nil {

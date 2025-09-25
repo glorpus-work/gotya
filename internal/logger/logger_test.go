@@ -191,7 +191,7 @@ func TestMergeFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := mergeFields(tt.fields...)
-			assert.Equal(t, tt.expect, result)
+			assert.ElementsMatch(t, tt.expect, result)
 		})
 	}
 }

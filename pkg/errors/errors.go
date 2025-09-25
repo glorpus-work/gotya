@@ -22,6 +22,7 @@ var (
 	// Index errors are related to package index operations.
 	ErrAlreadyExists = fmt.Errorf("resource already exists")
 	ErrValidation    = fmt.Errorf("validation failed")
+	ErrIndexConflict = fmt.Errorf("index conflict")
 	// Config errors are related to configuration file operations and validation.
 	// These errors typically occur during application startup or config reload.
 	ErrEmptyConfigPath = fmt.Errorf(
