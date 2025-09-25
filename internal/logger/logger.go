@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -45,7 +44,7 @@ func getOutput() io.Writer {
 	return os.Stdout
 }
 
-func InitLogger(logLevel string, noColor bool) {
+func InitLogger(logLevel string) {
 	var level slog.Level
 	switch strings.ToLower(logLevel) {
 	case "debug":
@@ -60,22 +59,10 @@ func InitLogger(logLevel string, noColor bool) {
 		level = slog.LevelInfo // fallback to info level
 	}
 
-	// Configure handler options
-	opts := &slog.HandlerOptions{
+	// Configure handler
+	handler := slog.NewTextHandler(getOutput(), &slog.HandlerOptions{
 		Level: level,
-	}
-
-	output := getOutput()
-
-	var handler slog.Handler
-	if noColor {
-		handler = slog.NewTextHandler(output, opts)
-	} else {
-		// For colored output, we'll use a custom handler that adds colors
-		handler = &coloredTextHandler{
-			Handler: slog.NewTextHandler(output, opts),
-		}
-	}
+	})
 
 	logger = slog.New(handler)
 }
@@ -84,29 +71,9 @@ func InitLogger(logLevel string, noColor bool) {
 func GetLogger() *slog.Logger {
 	if logger == nil {
 		// Initialize with default settings if not already initialized
-		InitLogger("info", false)
+		InitLogger("info")
 	}
 	return logger
-}
-
-// coloredTextHandler wraps a slog.Handler to add colors
-type coloredTextHandler struct {
-	slog.Handler
-}
-
-func (h *coloredTextHandler) Handle(ctx context.Context, r slog.Record) error {
-	// Add colors based on level
-	switch r.Level {
-	case slog.LevelDebug:
-		r.Message = "\033[36m" + r.Message + "\033[0m" // Cyan
-	case slog.LevelInfo:
-		r.Message = "\033[32m" + r.Message + "\033[0m" // Green
-	case slog.LevelWarn:
-		r.Message = "\033[33m" + r.Message + "\033[0m" // Yellow
-	case slog.LevelError:
-		r.Message = "\033[31m" + r.Message + "\033[0m" // Red
-	}
-	return h.Handler.Handle(ctx, r)
 }
 
 // Info logs an info message.
@@ -199,17 +166,16 @@ func Success(msg string, fields ...Fields) {
 
 // Successf logs a formatted success message.
 func Successf(format string, args ...interface{}) {
-	GetLogger().Info(fmt.Sprintf(format, args...), "status", "success")
+	GetLogger().Info(fmt.Sprintf("SUCCESS: "+format, args...))
 }
 
 // SuccessfWithFields logs a formatted success message with additional fields.
 func SuccessfWithFields(fields Fields, format string, args ...interface{}) {
-	fields["status"] = "success"
 	attrs := make([]interface{}, 0, len(fields)*2)
 	for k, v := range fields {
 		attrs = append(attrs, k, v)
 	}
-	GetLogger().Info(fmt.Sprintf(format, args...), attrs...)
+	GetLogger().Info(fmt.Sprintf("SUCCESS: "+format, args...), attrs...)
 }
 
 // mergeFields merges multiple field maps into one slice of key-value pairs for slog.
