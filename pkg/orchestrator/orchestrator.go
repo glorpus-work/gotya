@@ -52,6 +52,20 @@ type Hooks struct {
 	OnEvent func(Event)
 }
 
+// InstallOptions control orchestrator install execution.
+type InstallOptions struct {
+	CacheDir    string
+	Concurrency int
+	DryRun      bool
+}
+
+// UninstallOptions control orchestrator uninstall execution.
+type UninstallOptions struct {
+	DryRun    bool
+	NoCascade bool // Only uninstall if no reverse dependencies, unless Force is true
+	Force     bool // Force uninstall even with reverse dependencies
+}
+
 // Options control orchestrator execution.
 type Options struct {
 	CacheDir    string
@@ -90,7 +104,7 @@ func emit(h Hooks, e Event) {
 }
 
 // Install resolves and installs according to the plan (sequentially for now).
-func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, opts Options) error {
+func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, opts InstallOptions) error {
 	if o.Index == nil {
 		return fmt.Errorf("index planner is not configured")
 	}
@@ -163,15 +177,40 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 }
 
 // Uninstall resolves and uninstalls according to the reverse dependency plan (reverse order for dependencies).
-func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, opts Options) error {
+func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, opts UninstallOptions) error {
 	if o.ReverseIndex == nil {
 		return fmt.Errorf("reverse index resolver is not configured")
 	}
 
 	emit(o.Hooks, Event{Phase: "planning", Msg: req.Name})
-	plan, err := o.ReverseIndex.ReverseResolve(ctx, req)
-	if err != nil {
-		return err
+
+	// If both NoCascade and Force are true, skip reverse dependency resolution
+	var plan model.ResolvedArtifacts
+	var err error
+	if opts.NoCascade && opts.Force {
+		// Create a minimal plan with just the target artifact
+		plan = model.ResolvedArtifacts{
+			Artifacts: []model.ResolvedArtifact{
+				{
+					ID:       req.Name + "@" + req.Version,
+					Name:     req.Name,
+					Version:  req.Version,
+					OS:       req.OS,
+					Arch:     req.Arch,
+					Checksum: "",
+				},
+			},
+		}
+	} else {
+		plan, err = o.ReverseIndex.ReverseResolve(ctx, req)
+		if err != nil {
+			return err
+		}
+
+		// Check NoCascade option
+		if opts.NoCascade && len(plan.Artifacts) > 1 {
+			return fmt.Errorf("artifact %s has %d reverse dependencies; use --force to uninstall anyway", req.Name, len(plan.Artifacts)-1)
+		}
 	}
 
 	// Dry run: just emit steps and return

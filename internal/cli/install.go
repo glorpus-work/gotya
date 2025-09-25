@@ -95,7 +95,7 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 	// Create orchestrator with hooks
 	orch := orchestrator.New(planner, artifactManager, dlManager, artifactManager, hooks)
 
-	opts := orchestrator.Options{CacheDir: cacheDir, Concurrency: concurrency, DryRun: dryRun}
+	opts := orchestrator.InstallOptions{CacheDir: cacheDir, Concurrency: concurrency, DryRun: dryRun}
 	ctx := context.Background()
 
 	// Process each artifact
