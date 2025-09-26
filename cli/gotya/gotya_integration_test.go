@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	idx "github.com/cperrin88/gotya/pkg/index"
+	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -55,20 +55,20 @@ func startRepoServer(t *testing.T, repoDir string) (*httptest.Server, string) {
 func writeTempConfig(t *testing.T, path, repoName, indexURL, cacheDir string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	yaml := "settings:\n" +
+	yamlContent := "settings:\n" +
 		"  cache_dir: " + strings.ReplaceAll(cacheDir, "\\", "\\\\") + "\n" +
 		"  http_timeout: 5s\n" +
 		"  max_concurrent_syncs: 2\n"
 	if indexURL != "" {
-		yaml += "repositories:\n" +
+		yamlContent += "repositories:\n" +
 			"  - name: " + repoName + "\n" +
 			"    url: " + indexURL + "\n" +
 			"    enabled: true\n" +
 			"    priority: 1\n"
 	} else {
-		yaml += "repositories: []\n"
+		yamlContent += "repositories: []\n"
 	}
-	require.NoError(t, os.WriteFile(path, []byte(yaml), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(yamlContent), 0o600))
 }
 
 func TestSync_SuccessDownloadsIndex(t *testing.T) {
@@ -96,7 +96,7 @@ func TestSync_SuccessDownloadsIndex(t *testing.T) {
 	}
 
 	// Parse and validate content
-	parsed, err := idx.ParseIndexFromFile(downloaded)
+	parsed, err := index.ParseIndexFromFile(downloaded)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
 	assert.GreaterOrEqual(t, len(parsed.Artifacts), 2)
@@ -331,7 +331,7 @@ func TestIndex_Generate_SimpleSuccess(t *testing.T) {
 		t.Fatalf("expected index file to be created at %s: %v", outFile, err)
 	}
 
-	indexFile, err := idx.ParseIndexFromFile(outFile)
+	indexFile, err := index.ParseIndexFromFile(outFile)
 	require.NoError(t, err)
 	require.NotNil(t, indexFile)
 	require.GreaterOrEqual(t, len(indexFile.Artifacts), 2)
@@ -384,7 +384,7 @@ func TestIndex_Generate_OverwriteBehavior(t *testing.T) {
 
 	// With --force succeeds and produces valid index
 	generateIndexViaCLI(t, artifactsDir, outFile, "", true)
-	parsed, perr := idx.ParseIndexFromFile(outFile)
+	parsed, perr := index.ParseIndexFromFile(outFile)
 	require.NoError(t, perr)
 	require.NotNil(t, parsed)
 	assert.GreaterOrEqual(t, len(parsed.Artifacts), 1)
@@ -457,8 +457,7 @@ func TestConfigShowDefault(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Set up environment for the test
-	os.Setenv("GOTYA_CONFIG_DIR", tempDir)
-	defer os.Unsetenv("GOTYA_CONFIG_DIR")
+	t.Setenv("GOTYA_CONFIG_DIR", tempDir)
 
 	// Redirect stdout to capture output
 	oldStdout := os.Stdout
@@ -541,8 +540,7 @@ func TestConfigSetAndGet(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Set up environment for the test
-	os.Setenv("GOTYA_CONFIG_DIR", tempDir)
-	defer os.Unsetenv("GOTYA_CONFIG_DIR")
+	t.Setenv("GOTYA_CONFIG_DIR", tempDir)
 
 	// Test setting a value
 	t.Run("set value", func(t *testing.T) {

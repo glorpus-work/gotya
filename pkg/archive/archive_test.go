@@ -9,11 +9,7 @@ import (
 
 func TestArchiveManager_ExtractAll(t *testing.T) {
 	// Create a temporary directory for testing
-	tempDir, err := os.MkdirTemp("", "gotya-archive-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create test files and directories
 	testFiles := map[string]string{
@@ -81,11 +77,7 @@ func TestArchiveManager_ExtractAll(t *testing.T) {
 
 func TestArchiveManager_ExtractFile(t *testing.T) {
 	// Create a temporary directory for testing
-	tempDir, err := os.MkdirTemp("", "gotya-archive-test-file")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create test files and directories
 	testFiles := map[string]string{
