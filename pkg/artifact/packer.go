@@ -206,16 +206,17 @@ func (p *Packer) copyInputDir() error {
 			if err != nil {
 				return errors.Wrapf(err, "error creating file %s", path)
 			}
-			defer out.Close()
 
 			in, err := os.Open(path)
 			if err != nil {
+				out.Close()
 				return errors.Wrapf(err, "error opening file %s", path)
 			}
-			defer in.Close()
 
 			hash := sha256.New()
 			if _, err := io.Copy(hash, in); err != nil {
+				in.Close()
+				out.Close()
 				return errors.Wrapf(err, "error copying file %s", path)
 			}
 
@@ -223,11 +224,23 @@ func (p *Packer) copyInputDir() error {
 			p.metadata.Hashes[filepath.ToSlash(relPath)] = fmt.Sprintf("%x", hash.Sum(nil))
 
 			if _, err := in.Seek(0, 0); err != nil {
+				in.Close()
+				out.Close()
 				return err
 			}
 
 			if _, err := io.Copy(out, in); err != nil {
+				in.Close()
+				out.Close()
 				return errors.Wrapf(err, "error copying file %s", path)
+			}
+			// Close both files to avoid handle leaks (important on Windows)
+			if err := in.Close(); err != nil {
+				out.Close()
+				return err
+			}
+			if err := out.Close(); err != nil {
+				return err
 			}
 		}
 

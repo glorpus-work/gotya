@@ -35,6 +35,10 @@ func (v *Verifier) VerifyArtifact(ctx context.Context, artifact *model.IndexArti
 	if err != nil {
 		return err
 	}
+	// Close the underlying archive filesystem when done (important on Windows)
+	if closer, ok := fsys.(io.Closer); ok {
+		defer closer.Close()
+	}
 
 	metadataFile, err := fsys.Open(filepath.ToSlash(filepath.Join(artifactMetaDir, metadataFile)))
 	if err != nil {
@@ -123,6 +127,10 @@ func (v *Verifier) extractArtifact(ctx context.Context, filePath, destDir string
 	if err != nil {
 		return errors.Wrap(err, "failed to open artifact file")
 	}
+	// Ensure archive FS is closed after extraction
+	if closer, ok := fsys.(io.Closer); ok {
+		defer closer.Close()
+	}
 
 	// Ensure the destination directory exists
 	if err := os.MkdirAll(destDir, 0755); err != nil {
@@ -158,12 +166,16 @@ func (v *Verifier) extractArtifact(ctx context.Context, filePath, destDir string
 			if err != nil {
 				return errors.Wrapf(err, "failed to read symlink %s", path)
 			}
-			defer linkTarget.Close()
+			// Read the symlink target then close immediately
 
 			// Read the symlink target
 			targetBytes, err := io.ReadAll(linkTarget)
 			if err != nil {
+				linkTarget.Close()
 				return errors.Wrapf(err, "failed to read symlink target %s", path)
+			}
+			if err := linkTarget.Close(); err != nil {
+				return errors.Wrapf(err, "failed to close symlink %s", path)
 			}
 
 			// Ensure the target directory exists
@@ -182,31 +194,44 @@ func (v *Verifier) extractArtifact(ctx context.Context, filePath, destDir string
 		if err != nil {
 			return errors.Wrapf(err, "failed to open source file %s", path)
 		}
-		defer srcFile.Close()
+		// Ensure source file is closed promptly to avoid handle leaks
 
 		// Ensure the target directory exists
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			srcFile.Close()
 			return errors.Wrapf(err, "failed to create parent directory for %s", path)
 		}
 
 		dstFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
 		if err != nil {
+			srcFile.Close()
 			return errors.Wrapf(err, "failed to create destination file %s", targetPath)
 		}
-		defer dstFile.Close()
 
 		if _, err := io.Copy(dstFile, srcFile); err != nil {
+			srcFile.Close()
+			dstFile.Close()
 			return errors.Wrapf(err, "failed to copy file %s", path)
+		}
+		if err := srcFile.Close(); err != nil {
+			dstFile.Close()
+			return errors.Wrapf(err, "failed to close source file %s", path)
 		}
 
 		// Preserve file permissions
 		if err := os.Chmod(targetPath, info.Mode().Perm()); err != nil {
+			dstFile.Close()
 			return errors.Wrapf(err, "failed to set permissions for %s", targetPath)
 		}
 
 		// Preserve modification time if possible
 		if err := os.Chtimes(targetPath, info.ModTime(), info.ModTime()); err != nil {
+			dstFile.Close()
 			return errors.Wrapf(err, "failed to set modification time for %s", targetPath)
+		}
+
+		if err := dstFile.Close(); err != nil {
+			return errors.Wrapf(err, "failed to close destination file %s", targetPath)
 		}
 
 		return nil
