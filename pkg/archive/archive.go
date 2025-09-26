@@ -166,6 +166,9 @@ func (am *ArchiveManager) ExtractFile(ctx context.Context, archivePath, filePath
 func (am *ArchiveManager) Create(ctx context.Context, sourceDir, archivePath string) error {
 	// Compute absolute native and forward-slash normalized roots
 	absolutePath, err := filepath.Abs(sourceDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for source directory: %w", err)
+	}
 
 	// Get files from disk with robust root variants
 	archiveFiles, err := archives.FilesFromDisk(ctx, nil, map[string]string{

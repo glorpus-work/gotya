@@ -106,9 +106,11 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 			OS:      cfg.Settings.Platform.OS,
 			Arch:    cfg.Settings.Platform.Arch,
 		}
-		if skipDeps {
-			// currently no dependency expansion; reserved for future
-		}
+		// TODO: Implement --skip-deps functionality
+		// Currently, dependency resolution is always performed by the orchestrator.
+		// The skipDeps flag is accepted for future implementation but has no effect yet.
+		// To skip dependencies, the ResolveRequest would need a flag or the orchestrator
+		// would need a parameter to control dependency resolution.
 		if err := orch.Install(ctx, req, opts); err != nil {
 			return fmt.Errorf("failed to install %s: %w", pkgName, err)
 		}

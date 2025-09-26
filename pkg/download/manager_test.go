@@ -175,9 +175,8 @@ func TestFetch_WithChecksum(t *testing.T) {
 func TestFetchAll_Concurrent(t *testing.T) {
 	const numItems = 5
 	var serverResponses = make(map[string]string)
-	var server *httptest.Server
 
-	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Extract the item ID from the URL path
 		id := r.URL.Path[1:] // remove leading slash
 		content, exists := serverResponses[id]

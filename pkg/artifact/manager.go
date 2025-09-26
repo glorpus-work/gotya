@@ -72,14 +72,15 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	existingArtifact := db.FindArtifact(desc.Name)
 	var existingReverseDeps []string
 	if existingArtifact != nil {
-		if existingArtifact.Status == database.StatusInstalled {
+		switch existingArtifact.Status {
+		case database.StatusInstalled:
 			return fmt.Errorf("artifact %s is already installed", desc.Name)
-		} else if existingArtifact.Status == database.StatusMissing {
+		case database.StatusMissing:
 			// This is a dummy entry, we'll replace it with the real artifact
 			// Save the reverse dependencies before removing the dummy entry
 			existingReverseDeps = existingArtifact.ReverseDependencies
 			db.RemoveArtifact(desc.Name)
-		} else {
+		default:
 			return fmt.Errorf("artifact %s has unknown status: %s", desc.Name, existingArtifact.Status)
 		}
 	}
