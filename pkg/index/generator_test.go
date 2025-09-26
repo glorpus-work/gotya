@@ -76,13 +76,11 @@ func LoadIndex(path string) (*Index, error) {
 
 func TestGenerator_Generate(t *testing.T) {
 	// Create a temporary directory for test artifacts
-	tempDir, err := os.MkdirTemp("", "gotya-test-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create a test artifact
 	artifactsDir := filepath.Join(tempDir, "artifacts")
-	err = os.MkdirAll(artifactsDir, 0o755)
+	err := os.MkdirAll(artifactsDir, 0o755)
 	require.NoError(t, err)
 
 	// Create a test artifact file
@@ -184,11 +182,6 @@ func TestGenerator_Generate(t *testing.T) {
 }
 
 func TestGenerator_describeArtifact(t *testing.T) {
-	tempFile, err := os.CreateTemp("", "test-artifact-*.gotya")
-	require.NoError(t, err)
-	tempFile.Close()
-	defer os.Remove(tempFile.Name())
-
 	generator := &Generator{
 		OutputPath: filepath.Join(os.TempDir(), "index.json"),
 	}
@@ -235,9 +228,7 @@ func TestGenerator_describeArtifact(t *testing.T) {
 
 func TestGenerator_WithBaseline(t *testing.T) {
 	// Create a temporary directory for the test
-	tempDir, err := os.MkdirTemp("", "gotya-test-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create a test artifact in the temp directory
 	testArtifactPath := filepath.Join(tempDir, "test.gotya")
@@ -261,7 +252,7 @@ func TestGenerator_WithBaseline(t *testing.T) {
 	generator := NewGenerator(tempDir, outputPath).WithBaseline(baselineIndexPath)
 
 	// Generate the index
-	err = generator.Generate(context.Background())
+	err := generator.Generate(context.Background())
 	require.NoError(t, err)
 
 	// Verify the output file exists
@@ -298,9 +289,7 @@ func TestGenerator_WithBaseline(t *testing.T) {
 
 func TestGenerator_WithBaseline_Conflict(t *testing.T) {
 	// Create a temporary directory for the test
-	tempDir, err := os.MkdirTemp("", "gotya-test-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create a baseline index file with an artifact
 	baselineIndexPath := filepath.Join(tempDir, "baseline.json")
@@ -348,9 +337,7 @@ func TestGenerator_WithBaseline_Conflict(t *testing.T) {
 
 func TestGenerator_WithBaseline_NoNewArtifacts(t *testing.T) {
 	// Create a temporary directory for the test
-	tempDir, err := os.MkdirTemp("", "gotya-test-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	// Create a baseline index file
 	baselineIndexPath := filepath.Join(tempDir, "baseline.json")
@@ -366,16 +353,14 @@ func TestGenerator_WithBaseline_NoNewArtifacts(t *testing.T) {
 	})
 
 	// Create an empty directory for the generator
-	tempDir2, err := os.MkdirTemp("", "gotya-test-empty-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir2)
+	tempDir2 := t.TempDir()
 
 	// Create a generator with baseline but no new artifacts
 	outputPath := filepath.Join(tempDir, "output.json")
 	generator := NewGenerator(tempDir2, outputPath).WithBaseline(baselineIndexPath)
 
 	// Generate the index - should succeed with just the baseline artifacts
-	err = generator.Generate(context.Background())
+	err := generator.Generate(context.Background())
 	require.NoError(t, err)
 
 	// Verify the output file exists
