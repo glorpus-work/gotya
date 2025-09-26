@@ -28,7 +28,7 @@ func (am *ArchiveManager) ExtractAll(ctx context.Context, archivePath, destDir s
 	}
 	// Ensure archive FS is closed after extraction
 	if closer, ok := fsys.(io.Closer); ok {
-		defer closer.Close()
+		defer func() { _ = closer.Close() }()
 	}
 
 	// Ensure the destination directory exists
@@ -65,7 +65,7 @@ func (am *ArchiveManager) ExtractAll(ctx context.Context, archivePath, destDir s
 			if err != nil {
 				return fmt.Errorf("failed to read symlink %s: %w", path, err)
 			}
-			defer linkTarget.Close()
+			defer func() { _ = linkTarget.Close() }()
 
 			// Read the symlink target
 			targetBytes, err := io.ReadAll(linkTarget)
@@ -89,7 +89,7 @@ func (am *ArchiveManager) ExtractAll(ctx context.Context, archivePath, destDir s
 		if err != nil {
 			return fmt.Errorf("failed to open source file %s: %w", path, err)
 		}
-		defer srcFile.Close()
+		defer func() { _ = srcFile.Close() }()
 
 		// Ensure the target directory exists
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
@@ -100,7 +100,7 @@ func (am *ArchiveManager) ExtractAll(ctx context.Context, archivePath, destDir s
 		if err != nil {
 			return fmt.Errorf("failed to create destination file %s: %w", targetPath, err)
 		}
-		defer dstFile.Close()
+		defer func() { _ = dstFile.Close() }()
 
 		if _, err := io.Copy(dstFile, srcFile); err != nil {
 			return fmt.Errorf("failed to copy file %s: %w", path, err)
@@ -132,7 +132,7 @@ func (am *ArchiveManager) ExtractFile(ctx context.Context, archivePath, filePath
 	}
 	// Ensure archive FS is closed after extraction
 	if closer, ok := fsys.(io.Closer); ok {
-		defer closer.Close()
+		defer func() { _ = closer.Close() }()
 	}
 
 	// Open the source file in the archive
@@ -140,7 +140,7 @@ func (am *ArchiveManager) ExtractFile(ctx context.Context, archivePath, filePath
 	if err != nil {
 		return fmt.Errorf("failed to open source file %s: %w", filePath, err)
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	// Ensure the destination directory exists
 	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
@@ -152,7 +152,7 @@ func (am *ArchiveManager) ExtractFile(ctx context.Context, archivePath, filePath
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", destPath, err)
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
 	// Copy the file content
 	if _, err := io.Copy(dstFile, srcFile); err != nil {

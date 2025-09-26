@@ -147,7 +147,7 @@ including file hashes and metadata structure.`,
 	cmd.Flags().StringVarP(&filePath, "file", "f", "", "Path to the artifact file to verify")
 
 	// Mark the file flag as required if not provided as an argument
-	cmd.MarkFlagFilename("file", "gotya")
+	_ = cmd.MarkFlagFilename("file", "gotya")
 
 	// Allow passing the file path as a positional argument
 	cmd.Args = cobra.MaximumNArgs(1)

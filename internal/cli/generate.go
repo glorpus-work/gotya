@@ -62,10 +62,10 @@ and its subdirectories. The output will be written to the specified file.`,
 			count, err := gen.CountArtifacts()
 			if err != nil {
 				// Non-fatal, just log a warning
-				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Failed to count artifacts: %v\n", err)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Failed to count artifacts: %v\n", err)
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Successfully generated index with %d artifacts at %s\n",
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Successfully generated index with %d artifacts at %s\n",
 				count, abosluteOutputFile)
 			return nil
 		},

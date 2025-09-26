@@ -100,8 +100,8 @@ func runConfigShow(*cobra.Command, []string) error {
 	}
 
 	tabWriter := tabwriter.NewWriter(os.Stdout, 0, 0, TabWidth, ' ', 0)
-	fmt.Fprintln(tabWriter, "SETTING\tVALUE")
-	fmt.Fprintln(tabWriter, "-------\t-----")
+	_, _ = fmt.Fprintln(tabWriter, "SETTING\tVALUE")
+	_, _ = fmt.Fprintln(tabWriter, "-------\t-----")
 
 	// Display settings using reflection to access fields
 	settingsValue := reflect.ValueOf(cfg.Settings)
@@ -113,10 +113,10 @@ func runConfigShow(*cobra.Command, []string) error {
 
 		// Convert field name to snake_case
 		fieldName := toSnakeCase(field.Name)
-		fmt.Fprintf(tabWriter, "%s\t%v\n", fieldName, value.Interface())
+		_, _ = fmt.Fprintf(tabWriter, "%s\t%v\n", fieldName, value.Interface())
 	}
 
-	tabWriter.Flush()
+	_ = tabWriter.Flush()
 
 	fmt.Printf("\nRepositories (%d):\n", len(cfg.Repositories))
 	for _, repo := range cfg.Repositories {

@@ -91,7 +91,7 @@ func (installedDB *InstalledManagerImpl) LoadDatabase(dbPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open database file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	return installedDB.parseInstalledDatabaseFromReader(file)
 }

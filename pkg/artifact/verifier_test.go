@@ -238,7 +238,7 @@ func TestVerifier_Verify(t *testing.T) {
 				testArtifact := filepath.Join(tempDir, "corrupted.gotya")
 				f, err := os.Create(testArtifact)
 				require.NoError(t, err)
-				f.Close()
+				_ = f.Close()
 				return testArtifact
 			},
 			verifyFn: func(v *Verifier, ctx context.Context, _ *model.IndexArtifactDescriptor, path string) error {

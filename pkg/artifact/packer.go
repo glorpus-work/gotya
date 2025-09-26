@@ -63,7 +63,7 @@ func (p *Packer) Pack() (string, error) {
 
 	p.tempDir = dir
 
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 
 	if err := p.checkInput(); err != nil {
 		return "", err
@@ -270,7 +270,7 @@ func (p *Packer) createMetadataFile() error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if _, err := file.Write(metaJSON); err != nil {
 		return err

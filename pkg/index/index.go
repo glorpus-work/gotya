@@ -77,7 +77,7 @@ func ParseIndexFromFile(filePath string) (*Index, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "Cannot open index file %s for parsing", filePath)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	return ParseIndexFromReader(file)
 }
 

@@ -36,7 +36,7 @@ func (v *Verifier) VerifyArtifact(ctx context.Context, artifact *model.IndexArti
 	if err != nil {
 		return errors.Wrap(err, "failed to create temp directory")
 	}
-	defer os.RemoveAll(tempDir) // Clean up temp directory
+	defer func() { _ = os.RemoveAll(tempDir) }() // Clean up temp directory
 
 	// Extract the archive to the temporary directory
 	if err := v.extractArchive(ctx, filePath, tempDir); err != nil {
