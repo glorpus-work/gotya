@@ -13,10 +13,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/cperrin88/gotya/pkg/archive"
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
 	"github.com/cperrin88/gotya/pkg/model"
-	"github.com/mholt/archives"
 )
 
 var allowedTopLevelFiles = []string{
@@ -89,7 +89,8 @@ func (p *Packer) Pack() (string, error) {
 		return "", err
 	}
 
-	if err := p.createArchive(); err != nil {
+	archiveManager := archive.NewArchiveManager()
+	if err := archiveManager.Create(context.Background(), p.tempDir, p.getOutputFile()); err != nil {
 		return "", err
 	}
 
@@ -271,45 +272,6 @@ func (p *Packer) createMetadataFile() error {
 	defer file.Close()
 
 	if _, err := file.Write(metaJSON); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *Packer) createArchive() error {
-	archivePath := p.getOutputFile()
-	ctx := context.Background()
-
-	// Normalize source root to forward slashes to avoid mixed separators on Windows
-	srcRoot := filepath.ToSlash(p.tempDir)
-	if !strings.HasSuffix(srcRoot, "/") {
-		srcRoot += "/"
-	}
-	archiveFiles, err := archives.FilesFromDisk(ctx, nil, map[string]string{
-		srcRoot: "",
-	})
-	if err != nil {
-		return errors.Wrapf(err, "failed to read files from disk")
-	}
-	// Create the output file
-	file, err := os.Create(archivePath)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create output file %s", archivePath)
-	}
-	// Ensure data is flushed and handle is released promptly on Windows
-	defer func() {
-		_ = file.Sync()
-		_ = file.Close()
-	}()
-
-	format := archives.CompressedArchive{
-		Compression: archives.Gz{},
-		Archival:    archives.Tar{},
-	}
-
-	// create the archive
-	err = format.Archive(ctx, file, archiveFiles)
-	if err != nil {
 		return err
 	}
 	return nil

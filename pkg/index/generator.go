@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cperrin88/gotya/pkg/archive"
 	"github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/model"
-	"github.com/mholt/archives"
 )
 
 // Generator builds an index.json from a directory of .gotya artifact files.
@@ -331,24 +331,31 @@ func (g *Generator) processArtifacts(ctx context.Context, baseline *Index) ([]*m
 
 // describeArtifact opens an artifact file, reads its metadata, and returns a descriptor.
 func (g *Generator) describeArtifact(ctx context.Context, filePath string) (*model.IndexArtifactDescriptor, error) {
-	// Open as archive filesystem and read meta/metadata.json
-	fsys, err := archives.FileSystem(ctx, filePath, nil)
+	// Create a temporary directory to extract the metadata file
+	tempDir, err := os.MkdirTemp("", "gotya-describe")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	if closer, ok := fsys.(io.Closer); ok {
-		defer closer.Close()
-	}
-	// Use path.Join for archive-internal paths (always forward slashes)
-	metaFile, err := fsys.Open(path.Join("meta", "artifact.json"))
+	defer os.RemoveAll(tempDir)
+
+	// Extract the metadata file from the artifact
+	archiveManager := archive.NewArchiveManager()
+	metaFilePath := filepath.Join(tempDir, "artifact.json")
+	err = archiveManager.ExtractFile(ctx, filePath, path.Join("meta", "artifact.json"), metaFilePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to extract metadata: %w", err)
+	}
+
+	// Read and parse the metadata file
+	metaFile, err := os.Open(metaFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open metadata file: %w", err)
 	}
 	defer metaFile.Close()
 
 	md := &artifact.Metadata{}
 	if err := json.NewDecoder(metaFile).Decode(md); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decode metadata: %w", err)
 	}
 
 	// Filesize and checksum of the artifact itself

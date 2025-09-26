@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cperrin88/gotya/pkg/archive"
 	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,7 +14,7 @@ import (
 
 func TestVerifier_extractArtifact_Success(t *testing.T) {
 	tempDir := t.TempDir()
-	verifier := NewVerifier()
+	archiveManager := archive.NewArchiveManager()
 
 	// Create a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
@@ -30,7 +31,7 @@ func TestVerifier_extractArtifact_Success(t *testing.T) {
 	destDir := filepath.Join(tempDir, "extracted")
 
 	// Extract the artifact
-	err := verifier.extractArtifact(context.Background(), testArtifact, destDir)
+	err := archiveManager.ExtractAll(context.Background(), testArtifact, destDir)
 	require.NoError(t, err)
 
 	// Verify extraction
@@ -49,27 +50,27 @@ func TestVerifier_extractArtifact_Success(t *testing.T) {
 
 func TestVerifier_extractArtifact_NonExistentFile(t *testing.T) {
 	tempDir := t.TempDir()
-	verifier := NewVerifier()
+	archiveManager := archive.NewArchiveManager()
 
 	// Try to extract a non-existent artifact
-	err := verifier.extractArtifact(context.Background(), "/nonexistent/path.gotya", tempDir)
+	err := archiveManager.ExtractAll(context.Background(), "/nonexistent/path.gotya", tempDir)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to open artifact file")
+	assert.Contains(t, err.Error(), "failed to open archive file")
 }
 
 func TestVerifier_extractArtifact_InvalidArchive(t *testing.T) {
 	tempDir := t.TempDir()
-	verifier := NewVerifier()
+	archiveManager := archive.NewArchiveManager()
 
 	// Try to extract a non-existent artifact file
-	err := verifier.extractArtifact(context.Background(), "/nonexistent/path.gotya", tempDir)
+	err := archiveManager.ExtractAll(context.Background(), "/nonexistent/path.gotya", tempDir)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to open artifact file")
+	assert.Contains(t, err.Error(), "failed to open archive file")
 }
 
 func TestVerifier_extractArtifact_MetaPackage(t *testing.T) {
 	tempDir := t.TempDir()
-	verifier := NewVerifier()
+	archiveManager := archive.NewArchiveManager()
 
 	// Create a test meta-package (no data directory)
 	testArtifact := filepath.Join(tempDir, "test-meta.gotya")
@@ -86,7 +87,7 @@ func TestVerifier_extractArtifact_MetaPackage(t *testing.T) {
 	destDir := filepath.Join(tempDir, "extracted")
 
 	// Extract the meta-package
-	err := verifier.extractArtifact(context.Background(), testArtifact, destDir)
+	err := archiveManager.ExtractAll(context.Background(), testArtifact, destDir)
 	require.NoError(t, err)
 
 	// Verify extraction
@@ -101,7 +102,7 @@ func TestVerifier_extractArtifact_MetaPackage(t *testing.T) {
 
 func TestVerifier_extractArtifact_WithSymlinks(t *testing.T) {
 	tempDir := t.TempDir()
-	verifier := NewVerifier()
+	archiveManager := archive.NewArchiveManager()
 
 	// Create a test artifact using the standard setup
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
@@ -117,7 +118,7 @@ func TestVerifier_extractArtifact_WithSymlinks(t *testing.T) {
 
 	// Extract the artifact
 	destDir := filepath.Join(tempDir, "extracted")
-	err := verifier.extractArtifact(context.Background(), testArtifact, destDir)
+	err := archiveManager.ExtractAll(context.Background(), testArtifact, destDir)
 	require.NoError(t, err)
 
 	// Verify the files were extracted correctly
@@ -131,7 +132,7 @@ func TestVerifier_extractArtifact_WithSymlinks(t *testing.T) {
 
 func TestVerifier_extractArtifact_Permissions(t *testing.T) {
 	tempDir := t.TempDir()
-	verifier := NewVerifier()
+	archiveManager := archive.NewArchiveManager()
 
 	// Create a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
@@ -150,7 +151,7 @@ func TestVerifier_extractArtifact_Permissions(t *testing.T) {
 	require.NoError(t, os.Mkdir(destDir, 0444)) // Read-only directory
 
 	// Try to extract to read-only directory
-	err := verifier.extractArtifact(context.Background(), testArtifact, destDir)
+	err := archiveManager.ExtractAll(context.Background(), testArtifact, destDir)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "permission denied")
 }
@@ -272,7 +273,7 @@ func TestVerifier_Verify(t *testing.T) {
 
 func TestVerifier_extractArtifact_OverwriteProtection(t *testing.T) {
 	tempDir := t.TempDir()
-	verifier := NewVerifier()
+	archiveManager := archive.NewArchiveManager()
 
 	// Create a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
@@ -289,11 +290,11 @@ func TestVerifier_extractArtifact_OverwriteProtection(t *testing.T) {
 	destDir := filepath.Join(tempDir, "extracted")
 
 	// First extraction should succeed
-	err := verifier.extractArtifact(context.Background(), testArtifact, destDir)
+	err := archiveManager.ExtractAll(context.Background(), testArtifact, destDir)
 	require.NoError(t, err)
 
 	// Second extraction to the same directory should also succeed (should overwrite)
-	err = verifier.extractArtifact(context.Background(), testArtifact, destDir)
+	err = archiveManager.ExtractAll(context.Background(), testArtifact, destDir)
 	require.NoError(t, err)
 
 	// Verify files still exist

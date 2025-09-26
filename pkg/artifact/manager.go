@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cperrin88/gotya/pkg/archive"
 	"github.com/cperrin88/gotya/pkg/artifact/database"
 	"github.com/cperrin88/gotya/pkg/model"
 )
@@ -19,6 +20,7 @@ type ManagerImpl struct {
 	artifactMetaInstallDir string
 	installedDBPath        string
 	verifier               *Verifier
+	archiveManager         *archive.ArchiveManager
 }
 
 func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInstallDir, installedDBPath string) *ManagerImpl {
@@ -30,6 +32,7 @@ func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInst
 		artifactMetaInstallDir: artifactMetaInstallDir,
 		installedDBPath:        installedDBPath,
 		verifier:               NewVerifier(),
+		archiveManager:         archive.NewArchiveManager(),
 	}
 }
 
@@ -87,7 +90,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	}
 	defer os.RemoveAll(extractDir)
 
-	if err = m.verifier.extractArtifact(ctx, localPath, extractDir); err != nil {
+	if err = m.archiveManager.ExtractAll(ctx, localPath, extractDir); err != nil {
 		return fmt.Errorf("failed to extract artifact: %w", err)
 	}
 
