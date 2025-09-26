@@ -18,11 +18,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func newTestServer(t *testing.T, dir string) *httptest.Server {
-	handler := http.FileServer(http.Dir(dir))
-	return httptest.NewServer(handler)
-}
-
 // buildRepoDirWithArtifacts creates a temporary repo directory structure containing artifacts and an index.json.
 // Returns repoDir and the list of created artifact file paths.
 func buildRepoDirWithArtifacts(t *testing.T, root string, artifactDefs [][2]string) (string, []string) {

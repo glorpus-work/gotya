@@ -162,57 +162,6 @@ func artifactsEqual(a, b *model.IndexArtifactDescriptor) bool {
 	return true
 }
 
-// findConflicts checks for conflicts between a new artifact and existing artifacts in the baseline.
-// Returns an error if a conflict is found, nil otherwise.
-func findConflicts(newArtifact *model.IndexArtifactDescriptor, baselineArtifacts []*model.IndexArtifactDescriptor) error {
-	for _, existing := range baselineArtifacts {
-		if existing.Name == newArtifact.Name && existing.Version == newArtifact.Version {
-			// Found an artifact with the same name and version, check if they're identical
-			if !artifactsEqual(existing, newArtifact) {
-				return errors.Wrapf(errors.ErrIndexConflict,
-					"conflict for artifact %s@%s: artifacts with the same name and version must be identical",
-					existing.Name, existing.Version)
-			}
-		}
-	}
-	return nil
-}
-
-// mergeArtifacts merges new artifacts with baseline artifacts, checking for conflicts.
-// Returns the merged list of artifacts.
-func mergeArtifacts(baselineArtifacts, newArtifacts []*model.IndexArtifactDescriptor) ([]*model.IndexArtifactDescriptor, error) {
-	// Create a map of existing artifacts for quick lookup
-	existingArtifacts := make(map[string]map[string]*model.IndexArtifactDescriptor)
-	for _, artifact := range baselineArtifacts {
-		if _, exists := existingArtifacts[artifact.Name]; !exists {
-			existingArtifacts[artifact.Name] = make(map[string]*model.IndexArtifactDescriptor)
-		}
-		existingArtifacts[artifact.Name][artifact.Version] = artifact
-	}
-
-	// Process new artifacts, checking for conflicts
-	for _, artifact := range newArtifacts {
-		if versions, exists := existingArtifacts[artifact.Name]; exists {
-			// Artifact with this name exists, check versions
-			if existing, versionExists := versions[artifact.Version]; versionExists {
-				// Version exists, check for conflicts
-				if !artifactsEqual(existing, artifact) {
-					return nil, errors.Wrapf(errors.ErrIndexConflict,
-						"conflict for artifact %s@%s: artifacts with the same name and version must be identical",
-						artifact.Name, artifact.Version)
-				}
-				// No conflict, skip adding this artifact as it already exists
-				continue
-			}
-		}
-
-		// No conflict, add the artifact to the baseline
-		baselineArtifacts = append(baselineArtifacts, artifact)
-	}
-
-	return baselineArtifacts, nil
-}
-
 // Generate scans Dir, builds an Index, and writes it to OutputPath.
 // If a baseline index is specified, it will be loaded and used as a starting point.
 // New artifacts will be added to the baseline, with conflicts detected and reported.

@@ -131,7 +131,7 @@ Task aliases are provided for convenience (requires `task`):
 
 - Unit tests: `go test ./...`
 - Integration tests: see `cli/gotya/gotya_integration_test.go`. They use `net/http/httptest` to create local HTTP servers for testing artifact downloads and installations.
-- Test helpers available in `cli/gotya/gotya_integration_test.go`: `newTestServer`, `buildRepoDirWithArtifacts`, `startRepoServer`, `createArtifactViaCLI`, `generateIndexViaCLI`
+- Test helpers available in `cli/gotya/gotya_integration_test.go`: `buildRepoDirWithArtifacts`, `startRepoServer`, `createArtifactViaCLI`, `generateIndexViaCLI`
 
 Some tests use the following environment variables solely within the test harness: `GOTYA_CONFIG_DIR`, `GOTYA_CACHE_DIR`, `GOTYA_INSTALL_DIR`, `NO_COLOR`. These are set by tests to isolate state; they are not currently honored by the application runtime unless implemented.
 
