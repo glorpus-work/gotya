@@ -296,7 +296,11 @@ func (p *Packer) createArchive() error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to create output file %s", archivePath)
 	}
-	defer file.Close()
+	// Ensure data is flushed and handle is released promptly on Windows
+	defer func() {
+		_ = file.Sync()
+		_ = file.Close()
+	}()
 
 	format := archives.CompressedArchive{
 		Compression: archives.Gz{},
