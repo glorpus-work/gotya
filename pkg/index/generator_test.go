@@ -1,7 +1,6 @@
 package index
 
 import (
-	"archive/zip"
 	"context"
 	"encoding/json"
 	"os"
@@ -15,49 +14,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// createTestArtifact creates a test artifact file with the given metadata
+// createTestArtifact creates a test artifact file with the given metadata using the packer
 func createTestArtifact(t *testing.T, path string, md *artifact.Metadata) {
 	t.Helper()
 
-	// Create the artifact file
-	f, err := os.Create(path)
+	// Create a temporary directory for the packer input
+	tempDir := t.TempDir()
+
+	// Create empty meta and data directories (packer will create the metadata file)
+	err := os.MkdirAll(filepath.Join(tempDir, "meta"), 0o755)
 	require.NoError(t, err)
-	defer f.Close()
-
-	// Create a zip writer
-	zw := zip.NewWriter(f)
-
-	// Create the meta directory
-	hdr := &zip.FileHeader{
-		Name:     "meta/",
-		Method:   zip.Store,
-		Modified: time.Now(),
-	}
-	hdr.SetMode(0755)
-	_, err = zw.CreateHeader(hdr)
+	err = os.MkdirAll(filepath.Join(tempDir, "data"), 0o755)
 	require.NoError(t, err)
 
-	// Create the artifact.json file
-	artifactHdr := &zip.FileHeader{
-		Name:     "meta/artifact.json",
-		Method:   zip.Store,
-		Modified: time.Now(),
-	}
-	artifactHdr.SetMode(0644)
-	artifactW, err := zw.CreateHeader(artifactHdr)
+	// Use the packer to create the artifact
+	packer := artifact.NewPacker(
+		md.Name,
+		md.Version,
+		md.OS,
+		md.Arch,
+		md.Maintainer,
+		md.Description,
+		md.Dependencies,
+		md.Hooks,
+		tempDir,
+		filepath.Dir(path),
+	)
+
+	outputPath, err := packer.Pack()
 	require.NoError(t, err)
 
-	// Write the artifact metadata
-	metadata, err := json.MarshalIndent(md, "", "  ")
-	if err != nil {
-		t.Fatalf("failed to marshal metadata: %v", err)
-	}
-
-	_, err = artifactW.Write([]byte(metadata))
-	require.NoError(t, err)
-
-	// Close the zip writer
-	err = zw.Close()
+	// Move the created artifact to the desired path
+	err = os.Rename(outputPath, path)
 	require.NoError(t, err)
 }
 
