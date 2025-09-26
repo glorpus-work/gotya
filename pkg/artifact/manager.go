@@ -89,7 +89,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	if err != nil {
 		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(extractDir)
+	defer func() { _ = os.RemoveAll(extractDir) }()
 
 	if err = m.archiveManager.ExtractAll(ctx, localPath, extractDir); err != nil {
 		return fmt.Errorf("failed to extract artifact: %w", err)

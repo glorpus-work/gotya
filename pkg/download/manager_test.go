@@ -313,8 +313,10 @@ func TestFetch_InvalidDirectory(t *testing.T) {
 	// Create a temp file to use as an invalid directory
 	tempFile, err := os.CreateTemp("", "test-*")
 	require.NoError(t, err)
-	defer os.Remove(tempFile.Name())
-	defer tempFile.Close()
+	defer func() {
+		_ = os.Remove(tempFile.Name())
+		_ = tempFile.Close()
+	}()
 
 	item := Item{
 		ID:  "test",

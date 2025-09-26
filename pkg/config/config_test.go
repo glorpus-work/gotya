@@ -142,8 +142,8 @@ func TestGetUserDataDir(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	originalXDGDataHome := os.Getenv("XDG_DATA_HOME")
 	defer func() {
-		os.Setenv("HOME", originalHome)
-		os.Setenv("XDG_DATA_HOME", originalXDGDataHome)
+		_ = os.Setenv("HOME", originalHome)
+		_ = os.Setenv("XDG_DATA_HOME", originalXDGDataHome)
 	}()
 
 	tests := []struct {
@@ -163,7 +163,7 @@ func TestGetUserDataDir(t *testing.T) {
 		{
 			name: "Linux default",
 			setup: func() {
-				os.Unsetenv("XDG_DATA_HOME")
+				_ = os.Unsetenv("XDG_DATA_HOME")
 				t.Setenv("HOME", "/home/testuser")
 			},
 			wantPath: "/home/testuser/.local/share",
@@ -178,8 +178,8 @@ func TestGetUserDataDir(t *testing.T) {
 				oldHome := os.Getenv("HOME")
 				oldXDGDataHome := os.Getenv("XDG_DATA_HOME")
 				defer func() {
-					os.Setenv("HOME", oldHome)
-					os.Setenv("XDG_DATA_HOME", oldXDGDataHome)
+					_ = os.Setenv("HOME", oldHome)
+					_ = os.Setenv("XDG_DATA_HOME", oldXDGDataHome)
 				}()
 				testCase.setup()
 			}
@@ -206,14 +206,14 @@ func TestGetUserDataDir(t *testing.T) {
 func TestGetDatabasePath(t *testing.T) {
 	// Save original environment and restore after test
 	originalXDGDataHome := os.Getenv("XDG_DATA_HOME")
-	defer os.Setenv("XDG_DATA_HOME", originalXDGDataHome)
+	defer func() { _ = os.Setenv("XDG_DATA_HOME", originalXDGDataHome) }()
 
 	// Create a test config
 	cfg := &Config{}
 
 	t.Run("default path", func(t *testing.T) {
 		// Clear XDG_DATA_HOME for this test case
-		os.Unsetenv("XDG_DATA_HOME")
+		_ = os.Unsetenv("XDG_DATA_HOME")
 
 		// Test that it returns a path with the correct suffix
 		path := cfg.GetDatabasePath()
@@ -224,7 +224,7 @@ func TestGetDatabasePath(t *testing.T) {
 	t.Run("with XDG_DATA_HOME set", func(t *testing.T) {
 		// Set a test XDG_DATA_HOME
 		testDataHome := "/test/data/home"
-		os.Setenv("XDG_DATA_HOME", testDataHome)
+		_ = os.Setenv("XDG_DATA_HOME", testDataHome)
 
 		path := cfg.GetDatabasePath()
 		// On Windows, the path might be converted, so we check the base names

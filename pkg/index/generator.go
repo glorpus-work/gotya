@@ -106,8 +106,8 @@ func (g *Generator) Validate() error {
 	if f, err := os.Create(testFile); err != nil {
 		return errors.Wrapf(err, "output directory is not writable: %s", outputDir)
 	} else {
-		f.Close()
-		os.Remove(testFile) // Clean up test file
+		_ = f.Close()
+		_ = os.Remove(testFile) // Clean up test file
 	}
 
 	return nil
@@ -285,7 +285,7 @@ func (g *Generator) describeArtifact(ctx context.Context, filePath string) (*mod
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Extract the metadata file from the artifact
 	archiveManager := archive.NewArchiveManager()
@@ -300,7 +300,7 @@ func (g *Generator) describeArtifact(ctx context.Context, filePath string) (*mod
 	if err != nil {
 		return nil, fmt.Errorf("failed to open metadata file: %w", err)
 	}
-	defer metaFile.Close()
+	defer func() { _ = metaFile.Close() }()
 
 	md := &artifact.Metadata{}
 	if err := json.NewDecoder(metaFile).Decode(md); err != nil {
@@ -353,7 +353,7 @@ func (g *Generator) writeIndex(index *Index) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to create output file %s", g.OutputPath)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Encode and write the index with pretty-printing
 	enc := json.NewEncoder(f)

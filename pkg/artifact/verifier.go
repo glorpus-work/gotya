@@ -62,7 +62,7 @@ func (v *Verifier) VerifyArtifactFromPath(ctx context.Context, artifact *model.I
 	if err != nil {
 		return errors.Wrap(err, "failed to open metadata file")
 	}
-	defer metadataFile.Close()
+	defer func() { _ = metadataFile.Close() }()
 
 	metadata := &Metadata{}
 	if err := json.NewDecoder(metadataFile).Decode(metadata); err != nil {
@@ -92,7 +92,7 @@ func (v *Verifier) extractArchive(ctx context.Context, archivePath, destDir stri
 	}
 	// Ensure archive FS is closed after extraction
 	if closer, ok := fsys.(io.Closer); ok {
-		defer closer.Close()
+		defer func() { _ = closer.Close() }()
 	}
 
 	// Ensure the destination directory exists
@@ -129,7 +129,7 @@ func (v *Verifier) extractArchive(ctx context.Context, archivePath, destDir stri
 			if err != nil {
 				return fmt.Errorf("failed to read symlink %s: %w", path, err)
 			}
-			defer linkTarget.Close()
+			defer func() { _ = linkTarget.Close() }()
 
 			// Read the symlink target
 			targetBytes, err := io.ReadAll(linkTarget)
@@ -153,7 +153,7 @@ func (v *Verifier) extractArchive(ctx context.Context, archivePath, destDir stri
 		if err != nil {
 			return fmt.Errorf("failed to open source file %s: %w", path, err)
 		}
-		defer srcFile.Close()
+		defer func() { _ = srcFile.Close() }()
 
 		// Ensure the target directory exists
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
@@ -164,7 +164,7 @@ func (v *Verifier) extractArchive(ctx context.Context, archivePath, destDir stri
 		if err != nil {
 			return fmt.Errorf("failed to create destination file %s: %w", targetPath, err)
 		}
-		defer dstFile.Close()
+		defer func() { _ = dstFile.Close() }()
 
 		if _, err := io.Copy(dstFile, srcFile); err != nil {
 			return fmt.Errorf("failed to copy file %s: %w", path, err)

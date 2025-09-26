@@ -137,7 +137,7 @@ func LoadConfig(path string) (*Config, error) {
 		}
 		return nil, errors.Wrapf(err, "failed to open config file: %s", path)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	return LoadConfigFromReader(file)
 }
@@ -195,18 +195,18 @@ func (c *Config) SaveConfig(path string) error {
 	encoder.SetIndent(YAMLIndent)
 
 	if err := encoder.Encode(c); err != nil {
-		file.Close()
-		os.Remove(tempPath)
+		_ = file.Close()
+		_ = os.Remove(tempPath)
 		return errors.Wrap(errors.ErrConfigEncode, err.Error())
 	}
 
-	encoder.Close()
-	file.Close()
+	_ = encoder.Close()
+	_ = file.Close()
 
 	// Atomically replace the config file
 	if err := os.Rename(tempPath, absPath); err != nil {
 		// Clean up temp file if rename fails
-		os.Remove(tempPath)
+		_ = os.Remove(tempPath)
 		return errors.Wrap(errors.ErrConfigFileRename, err.Error())
 	}
 

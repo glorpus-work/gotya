@@ -160,7 +160,7 @@ func (m *ManagerImpl) fetchOne(ctx context.Context, item Item, opts Options) (st
 	if err != nil {
 		return "", pkgerrors.Wrap(err, "download failed")
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
@@ -214,7 +214,7 @@ func verifySHA256(path string, wantHex string) (bool, error) {
 	if err != nil {
 		return false, pkgerrors.Wrap(err, "open for checksum")
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return false, pkgerrors.Wrap(err, "hashing")
