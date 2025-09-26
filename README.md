@@ -11,13 +11,17 @@ A lightweight personal artifact/package manager (think apt, but for personal use
 
 - Entry point (CLI): `cli/gotya/gotya.go` (uses spf13/cobra)
 - Core domains:
+  - `pkg/artifact`: artifact metadata, packing, install state, manager, database operations
   - `pkg/index`: repository indexes and syncing
-  - `pkg/artifact`: artifact metadata, packing, install state, manager
-  - `pkg/hooks`: hooks execution (Tengo-based), loader and manager
+  - `pkg/archive`: centralized archive operations (extract, create archives)
   - `pkg/cache`: cache manager and operations for indexes/packages
   - `pkg/config`: configuration model, defaults, load/save (YAML)
+  - `pkg/download`: HTTP client for downloading artifacts and indexes
+  - `pkg/orchestrator`: high-level artifact installation orchestration
+  - `pkg/model`: shared data models and types
+  - `pkg/errors`: centralized error definitions
   - `internal/cli`: cobra commands wiring and helpers
-  - `internal/logger`: simple leveled logger
+  - `internal/logger`: structured logging with configurable output formats
 
 ## Stack
 
@@ -25,7 +29,8 @@ A lightweight personal artifact/package manager (think apt, but for personal use
 - Go version: 1.24 (see go.mod)
 - CLI framework: github.com/spf13/cobra
 - Config format: YAML (gopkg.in/yaml.v3)
-- Scripting/DSL for hooks: github.com/d5/tengo/v2
+- HTTP client: net/http with custom wrapper
+- Archive handling: github.com/mholt/archives
 - Testing: go test, github.com/stretchr/testify
 - Package manager: Go modules (go, go mod)
 
@@ -35,7 +40,6 @@ A lightweight personal artifact/package manager (think apt, but for personal use
 - Optional developer tools:
   - task (Taskfile runner) if you want to use Taskfile.yml scripts
   - golangci-lint for `task lint`
-  - docker and docker-compose for the local test repo service
   - act (optional) for running GitHub Actions locally via Taskfile
 
 ## Installation
@@ -111,8 +115,8 @@ TODO:
 Task aliases are provided for convenience (requires `task`):
 
 - Build/install:
-  - `task build` — go build -o ./bin/gotya ./cmd/gotya  [NOTE: path appears stale]
-  - `task install` — go install ./cmd/gotya             [NOTE: path appears stale]
+  - `task build` — go build -o ./bin/gotya ./cli/gotya
+  - `task install` — go install ./cli/gotya
 - Tests:
   - `task test` — run unit tests (short)
   - `task test-integration` — run integration tests with `-tags=integration`
@@ -123,23 +127,11 @@ Task aliases are provided for convenience (requires `task`):
 - Cleanup: `task clean`
 - CI helpers (local): `task ci`, and various `act-*` tasks
 
-IMPORTANT: The build/install tasks reference `./cmd/gotya` which is not present in this repo snapshot. The correct module path for the CLI is `./cli/gotya`. TODO: Update Taskfile.yml to use `./cli/gotya`.
-
-## Running a local test repo
-
-An nginx-based static server is defined for serving the test repository:
-
-```bash
-docker compose up -d test-repo
-# serves ./test/repo on http://localhost:52221
-```
-
-This is useful for manual `gotya sync` and `gotya search` experiments against the provided sample repo in `test/repo`.
-
 ## Tests
 
 - Unit tests: `go test ./...`
-- Integration tests: see `cli/gotya/gotya_integration_test.go`. They start a local HTTP server from `test/testutil/server.go` that serves `test/repo/` on port 52221. You can also run `docker compose up -d test-repo` to replicate the environment manually.
+- Integration tests: see `cli/gotya/gotya_integration_test.go`. They use `net/http/httptest` to create local HTTP servers for testing artifact downloads and installations.
+- Test helpers available in `cli/gotya/gotya_integration_test.go`: `newTestServer`, `buildRepoDirWithArtifacts`, `startRepoServer`, `createArtifactViaCLI`, `generateIndexViaCLI`
 
 Some tests use the following environment variables solely within the test harness: `GOTYA_CONFIG_DIR`, `GOTYA_CACHE_DIR`, `GOTYA_INSTALL_DIR`, `NO_COLOR`. These are set by tests to isolate state; they are not currently honored by the application runtime unless implemented.
 
@@ -147,16 +139,18 @@ Some tests use the following environment variables solely within the test harnes
 
 - `cli/gotya/` — CLI entrypoint (main) and integration tests
 - `internal/cli/` — cobra commands: sync, install, uninstall, search, list, config, cache, version
-- `internal/logger/` — logger and tests
-- `pkg/artifact/` — artifact types, manager, packer, installed DB
-- `pkg/cache/` — cache manager and operations
-- `pkg/config/` — configuration, defaults, helpers
-- `pkg/hooks/` — hook interfaces, Tengo executor, loader/manager
-- `pkg/http/` — simple HTTP client interface/impl
-- `pkg/index/` — index types, repository, manager
+- `internal/logger/` — structured logging with configurable output formats
+- `pkg/archive/` — centralized archive operations (extract, create archives)
+- `pkg/artifact/` — artifact types, manager, packer, installed DB, database operations
+- `pkg/cache/` — cache manager and operations for indexes/packages
+- `pkg/config/` — configuration, defaults, helpers, YAML handling
+- `pkg/download/` — HTTP client interface and implementation for downloads
+- `pkg/errors/` — centralized error definitions and handling
+- `pkg/index/` — index types, repository, manager, syncing operations
+- `pkg/model/` — shared data models and types
+- `pkg/orchestrator/` — high-level artifact installation orchestration
 - `pkg/platform/` — platform constants and validation
 - `pkg/fsutil/` — directories and paths helpers
-- `docs/` — design documents
 - `test/` — fixtures and test utilities, sample repo under test/repo
 
 ## License

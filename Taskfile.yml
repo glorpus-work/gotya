@@ -14,7 +14,7 @@ tasks:
   build:
     desc: Build the project
     cmds:
-      - go build -o {{.BIN_DIR}}/gotya ./cmd/gotya
+      - go build -o {{.BIN_DIR}}/gotya ./cli/gotya
 
   generate:
     desc: Generate code
@@ -26,7 +26,7 @@ tasks:
   install:
     desc: Install the application
     cmds:
-      - go install ./cmd/gotya
+      - go install ./cli/gotya
 
   # Test tasks
   test:
