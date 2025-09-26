@@ -336,7 +336,8 @@ func (g *Generator) describeArtifact(ctx context.Context, filePath string) (*mod
 	if err != nil {
 		return nil, err
 	}
-	metaFile, err := fsys.Open(filepath.Join("meta", "artifact.json"))
+	// Use path.Join for archive-internal paths (always forward slashes)
+	metaFile, err := fsys.Open(path.Join("meta", "artifact.json"))
 	if err != nil {
 		return nil, err
 	}

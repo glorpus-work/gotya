@@ -103,7 +103,7 @@ func TestEnsureDir(t *testing.T) {
 				assert.DirExists(t, path)
 
 				// Verify permissions (only check on Unix-like systems)
-				if testCase.checkPerms && runtime.GOOS == platform.OSWindows {
+				if testCase.checkPerms && runtime.GOOS != platform.OSWindows {
 					info, err := os.Stat(path)
 					require.NoError(t, err)
 					assert.Equal(t, os.FileMode(DirModeDefault), info.Mode().Perm())

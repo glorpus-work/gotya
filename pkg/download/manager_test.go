@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -327,6 +328,9 @@ func TestFetch_InvalidDirectory(t *testing.T) {
 }
 
 func TestFetch_WriteError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping write error simulation on Windows; chmod does not reliably block writes")
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("test content"))

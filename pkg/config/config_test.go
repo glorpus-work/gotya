@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -181,6 +182,11 @@ func TestGetUserDataDir(t *testing.T) {
 					os.Setenv("XDG_DATA_HOME", oldXDGDataHome)
 				}()
 				testCase.setup()
+			}
+
+			// The "Linux default" expectation applies only on Linux
+			if testCase.name == "Linux default" && runtime.GOOS != "linux" {
+				t.Skip("skipping Linux-specific default path assertion on non-Linux platform")
 			}
 
 			path, err := getUserDataDir()

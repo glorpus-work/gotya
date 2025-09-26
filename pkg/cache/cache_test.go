@@ -16,10 +16,11 @@ func TestNewDefaultManager(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, mgr)
 
-	homeDir, err := os.UserHomeDir()
+	// Use OS-aware user cache directory for expectation
+	userCacheDir, err := os.UserCacheDir()
 	require.NoError(t, err)
 
-	expectedDir := filepath.Join(homeDir, ".cache", "gotya")
+	expectedDir := filepath.Join(userCacheDir, "gotya")
 	assert.Equal(t, expectedDir, mgr.GetDirectory())
 }
 
