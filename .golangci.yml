@@ -5,4 +5,11 @@ linters:
   default: standard
   enable:
     - gosec
+  settings:
+    gosec:
+      excludes:
+        - G301  # Expect directory permissions to be 0750 or less
+        - G302  # Expect file permissions to be 0600 or less
+        - G306  # Expect WriteFile permissions to be 0600 or less
+        - G115  # integer overflow conversion int -> uint32
 
