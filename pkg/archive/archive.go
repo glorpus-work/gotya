@@ -37,6 +37,35 @@ func (am *ArchiveManager) ExtractAll(ctx context.Context, archivePath, destDir s
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
+	// Helper to sanitize and validate archive entry paths
+	sanitize := func(p string) (string, error) {
+		// Normalize to forward slashes for processing
+		n := strings.ReplaceAll(p, "\\", "/")
+		// Strip Windows drive letter like C:
+		if len(n) >= 2 && n[1] == ':' {
+			n = n[2:]
+		}
+		// Trim any leading slashes to keep it relative
+		n = strings.TrimLeft(n, "/")
+		// Clean the path
+		n = filepath.ToSlash(filepath.Clean(n))
+		if n == "." || n == "" {
+			return "", nil
+		}
+		// Convert to OS-specific separators for actual FS ops
+		rel := filepath.FromSlash(n)
+		// Join and ensure the result stays within destDir (no traversal)
+		target := filepath.Join(destDir, rel)
+		destClean := filepath.Clean(destDir)
+		targetClean := filepath.Clean(target)
+		// Ensure trailing separator for accurate prefix check
+		prefix := destClean + string(os.PathSeparator)
+		if targetClean != destClean && !strings.HasPrefix(targetClean, prefix) {
+			return "", fmt.Errorf("invalid path outside destination: %s", p)
+		}
+		return rel, nil
+	}
+
 	// Walk through all files in the archive and extract them
 	walkFn := func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -48,7 +77,14 @@ func (am *ArchiveManager) ExtractAll(ctx context.Context, archivePath, destDir s
 			return nil
 		}
 
-		targetPath := filepath.Join(destDir, path)
+		relPath, err := sanitize(path)
+		if err != nil {
+			return err
+		}
+		if relPath == "" {
+			return nil
+		}
+		targetPath := filepath.Join(destDir, relPath)
 
 		if d.IsDir() {
 			return os.MkdirAll(targetPath, 0755)
