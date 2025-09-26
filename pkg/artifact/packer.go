@@ -109,7 +109,8 @@ func (p *Packer) verify() error {
 		OS:      p.os,
 		Arch:    p.arch,
 	}
-	if err := verifier.VerifyArtifact(context.Background(), desc, p.getOutputFile()); err != nil {
+	// Use VerifyArtifactFromPath since we already have the artifact unpacked in tempDir
+	if err := verifier.VerifyArtifactFromPath(context.Background(), desc, p.tempDir); err != nil {
 		return err
 	}
 	return nil

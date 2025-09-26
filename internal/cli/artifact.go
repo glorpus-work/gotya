@@ -134,7 +134,7 @@ including file hashes and metadata structure.`,
 			log.Printf("Verifying artifact: %s\n", absPath)
 
 			verifier := artifact.NewVerifier()
-			if err := verifier.VerifyArtifactFile(context.Background(), absPath); err != nil {
+			if err := verifier.VerifyArtifact(context.Background(), nil, absPath); err != nil {
 				return fmt.Errorf("verification failed: %w", err)
 			}
 

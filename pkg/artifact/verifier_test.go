@@ -213,7 +213,7 @@ func TestVerifier_Verify(t *testing.T) {
 			descriptor: nil,
 			setup:      validArtifactSetup,
 			verifyFn: func(v *Verifier, ctx context.Context, _ *model.IndexArtifactDescriptor, path string) error {
-				return v.VerifyArtifactFile(ctx, path)
+				return v.VerifyArtifact(ctx, nil, path)
 			},
 			expectError: false,
 		},
@@ -223,7 +223,7 @@ func TestVerifier_Verify(t *testing.T) {
 			setup:      validArtifactSetup,
 			descriptor: nil,
 			verifyFn: func(v *Verifier, ctx context.Context, _ *model.IndexArtifactDescriptor, path string) error {
-				return v.VerifyArtifactFile(ctx, path)
+				return v.VerifyArtifact(ctx, nil, path)
 			},
 			expectError: false,
 		},
@@ -238,10 +238,20 @@ func TestVerifier_Verify(t *testing.T) {
 				return testArtifact
 			},
 			verifyFn: func(v *Verifier, ctx context.Context, _ *model.IndexArtifactDescriptor, path string) error {
-				return v.VerifyArtifactFile(ctx, path)
+				return v.VerifyArtifact(ctx, nil, path)
 			},
 			expectError: true,
-			errorMsg:    "open meta/artifact.json: file does not exist",
+			errorMsg:    "failed to open metadata file",
+		},
+		{
+			name:       "VerifyArtifact with valid artifact and nil descriptor",
+			doc:        "Should successfully verify a valid artifact when no descriptor is provided",
+			setup:      validArtifactSetup,
+			descriptor: nil,
+			verifyFn: func(v *Verifier, ctx context.Context, _ *model.IndexArtifactDescriptor, path string) error {
+				return v.VerifyArtifact(ctx, nil, path)
+			},
+			expectError: false,
 		},
 	}
 
