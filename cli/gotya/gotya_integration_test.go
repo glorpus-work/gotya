@@ -197,7 +197,7 @@ func TestArtifact_CreateAndVerify_Success(t *testing.T) {
 	err := cmd.ExecuteContext(context.Background())
 
 	// Restore stdout and read output
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 	var buf bytes.Buffer
 	_, _ = buf.ReadFrom(r)
@@ -285,7 +285,7 @@ func createArtifactViaCLI(t *testing.T, src, name, version, outDir string) strin
 	})
 	err := cmd.ExecuteContext(context.Background())
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 	var buf bytes.Buffer
 	_, _ = buf.ReadFrom(r)
@@ -408,7 +408,7 @@ func TestVersionCommand(t *testing.T) {
 	err := cmd.ExecuteContext(context.Background())
 
 	// Restore stdout
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	// Check results
@@ -416,7 +416,7 @@ func TestVersionCommand(t *testing.T) {
 
 	// Read the captured output
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Basic check that the output contains version-like information
@@ -435,7 +435,7 @@ func TestHelpCommand(t *testing.T) {
 	err := cmd.ExecuteContext(context.Background())
 
 	// Restore stdout
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	// Check results
@@ -443,7 +443,7 @@ func TestHelpCommand(t *testing.T) {
 
 	// Read the captured output
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Check for expected help text
@@ -470,7 +470,7 @@ func TestConfigShowDefault(t *testing.T) {
 	err := cmd.ExecuteContext(context.Background())
 
 	// Restore stdout
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	// Check results
@@ -478,7 +478,7 @@ func TestConfigShowDefault(t *testing.T) {
 
 	// Read the captured output
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Check for expected output
@@ -517,7 +517,7 @@ settings:
 	err = cmd.ExecuteContext(context.Background())
 
 	// Restore stdout
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	// Check results
@@ -525,7 +525,7 @@ settings:
 
 	// Read the captured output
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Check for expected output from custom config
@@ -560,7 +560,7 @@ func TestConfigSetAndGet(t *testing.T) {
 		err := getCmd.ExecuteContext(context.Background())
 
 		// Restore stdout
-		w.Close()
+		_ = w.Close()
 		os.Stdout = oldStdout
 
 		// Check results
@@ -568,7 +568,7 @@ func TestConfigSetAndGet(t *testing.T) {
 
 		// Read the captured output
 		var buf bytes.Buffer
-		buf.ReadFrom(r)
+		_, _ = buf.ReadFrom(r)
 		output := strings.TrimSpace(buf.String())
 
 		// Check the output contains the expected value
@@ -588,7 +588,7 @@ func TestConfigSetAndGet(t *testing.T) {
 		err := cmd.ExecuteContext(context.Background())
 
 		// Restore stdout
-		w.Close()
+		_ = w.Close()
 		os.Stdout = oldStdout
 
 		// Check results
@@ -596,7 +596,7 @@ func TestConfigSetAndGet(t *testing.T) {
 
 		// Read the captured output
 		var buf bytes.Buffer
-		buf.ReadFrom(r)
+		_, _ = buf.ReadFrom(r)
 		output := strings.TrimSpace(buf.String())
 
 		// Check the output contains the expected value
@@ -622,7 +622,7 @@ func TestConfigInit(t *testing.T) {
 		err := cmd.ExecuteContext(context.Background())
 
 		// Restore stdout
-		w.Close()
+		_ = w.Close()
 		os.Stdout = oldStdout
 
 		// Check results
