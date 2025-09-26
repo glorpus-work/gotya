@@ -212,13 +212,15 @@ func (p *Packer) copyInputDir() error {
 			if err != nil {
 				return errors.Wrapf(err, "error opening file %s", path)
 			}
+			defer in.Close()
 
 			hash := sha256.New()
 			if _, err := io.Copy(hash, in); err != nil {
 				return errors.Wrapf(err, "error copying file %s", path)
 			}
 
-			p.metadata.Hashes[relPath] = fmt.Sprintf("%x", hash.Sum(nil))
+			// Normalize to forward slashes for archive-internal paths
+			p.metadata.Hashes[filepath.ToSlash(relPath)] = fmt.Sprintf("%x", hash.Sum(nil))
 
 			if _, err := in.Seek(0, 0); err != nil {
 				return err
@@ -253,6 +255,7 @@ func (p *Packer) createMetadataFile() error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 
 	if _, err := file.Write(metaJSON); err != nil {
 		return err
@@ -264,8 +267,13 @@ func (p *Packer) createArchive() error {
 	archivePath := p.getOutputFile()
 	ctx := context.Background()
 
+	// Normalize source root to forward slashes to avoid mixed separators on Windows
+	srcRoot := filepath.ToSlash(p.tempDir)
+	if !strings.HasSuffix(srcRoot, "/") {
+		srcRoot += "/"
+	}
 	archiveFiles, err := archives.FilesFromDisk(ctx, nil, map[string]string{
-		p.tempDir + "/": "",
+		srcRoot: "",
 	})
 	if err != nil {
 		return errors.Wrapf(err, "failed to read files from disk")
