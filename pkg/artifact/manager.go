@@ -3,10 +3,10 @@ package artifact
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/archive"
 	"github.com/cperrin88/gotya/pkg/artifact/database"
 	"github.com/cperrin88/gotya/pkg/model"
@@ -206,7 +206,7 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 	if err := m.InstallArtifact(ctx, newDescriptor, newArtifactPath); err != nil {
 		// Installation failed - we should try to rollback by reinstalling the old version
 		// However, we don't have the old artifact file anymore, so we can only log a warning
-		log.Printf("Warning: Failed to install new version of %s: %v. The old version has been uninstalled but cannot be restored.", artifactName, err)
+		logger.Warn("Failed to install new version - old version uninstalled but cannot be restored", logger.Fields{"artifact": artifactName, "error": err})
 		return fmt.Errorf("failed to install new version of %s: %w", artifactName, err)
 	}
 
