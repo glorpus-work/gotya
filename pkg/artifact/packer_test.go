@@ -3,6 +3,7 @@ package artifact
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/cperrin88/gotya/pkg/errors"
@@ -245,6 +246,9 @@ func TestPackSymlinks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" && tt.name == "valid relative symlink" {
+				t.Skip("skipping relative symlink test on Windows")
+			}
 			inputDir, outputDir, _ := tt.setup(t)
 
 			p := &Packer{

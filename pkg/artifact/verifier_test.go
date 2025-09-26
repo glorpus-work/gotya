@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/cperrin88/gotya/pkg/archive"
@@ -131,6 +132,9 @@ func TestVerifier_extractArtifact_WithSymlinks(t *testing.T) {
 }
 
 func TestVerifier_extractArtifact_Permissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping permission test on Windows")
+	}
 	tempDir := t.TempDir()
 	archiveManager := archive.NewArchiveManager()
 
