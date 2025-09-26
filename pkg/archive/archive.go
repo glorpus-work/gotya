@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/mholt/archives"
 )
@@ -37,35 +36,6 @@ func (am *ArchiveManager) ExtractAll(ctx context.Context, archivePath, destDir s
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
-	// Helper to sanitize and validate archive entry paths
-	sanitize := func(p string) (string, error) {
-		// Normalize to forward slashes for processing
-		n := strings.ReplaceAll(p, "\\", "/")
-		// Strip Windows drive letter like C:
-		if len(n) >= 2 && n[1] == ':' {
-			n = n[2:]
-		}
-		// Trim any leading slashes to keep it relative
-		n = strings.TrimLeft(n, "/")
-		// Clean the path
-		n = filepath.ToSlash(filepath.Clean(n))
-		if n == "." || n == "" {
-			return "", nil
-		}
-		// Convert to OS-specific separators for actual FS ops
-		rel := filepath.FromSlash(n)
-		// Join and ensure the result stays within destDir (no traversal)
-		target := filepath.Join(destDir, rel)
-		destClean := filepath.Clean(destDir)
-		targetClean := filepath.Clean(target)
-		// Ensure trailing separator for accurate prefix check
-		prefix := destClean + string(os.PathSeparator)
-		if targetClean != destClean && !strings.HasPrefix(targetClean, prefix) {
-			return "", fmt.Errorf("invalid path outside destination: %s", p)
-		}
-		return rel, nil
-	}
-
 	// Walk through all files in the archive and extract them
 	walkFn := func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -77,14 +47,7 @@ func (am *ArchiveManager) ExtractAll(ctx context.Context, archivePath, destDir s
 			return nil
 		}
 
-		relPath, err := sanitize(path)
-		if err != nil {
-			return err
-		}
-		if relPath == "" {
-			return nil
-		}
-		targetPath := filepath.Join(destDir, relPath)
+		targetPath := filepath.Join(destDir, path)
 
 		if d.IsDir() {
 			return os.MkdirAll(targetPath, 0755)
@@ -201,22 +164,12 @@ func (am *ArchiveManager) ExtractFile(ctx context.Context, archivePath, filePath
 
 // Create creates an archive from the specified source directory
 func (am *ArchiveManager) Create(ctx context.Context, sourceDir, archivePath string) error {
-	// Normalize source root to forward slashes to avoid mixed separators on Windows
-	srcRoot := filepath.ToSlash(sourceDir)
-	if !filepath.IsAbs(srcRoot) {
-		absSrcRoot, err := filepath.Abs(srcRoot)
-		if err != nil {
-			return fmt.Errorf("failed to get absolute path of source directory: %w", err)
-		}
-		srcRoot = filepath.ToSlash(absSrcRoot)
-	}
-	if !strings.HasSuffix(srcRoot, "/") {
-		srcRoot += "/"
-	}
+	// Compute absolute native and forward-slash normalized roots
+	absolutePath, err := filepath.Abs(sourceDir)
 
-	// Get files from disk
+	// Get files from disk with robust root variants
 	archiveFiles, err := archives.FilesFromDisk(ctx, nil, map[string]string{
-		srcRoot: "",
+		absolutePath + string(os.PathSeparator): "",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to read files from disk: %w", err)
