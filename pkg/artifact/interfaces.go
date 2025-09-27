@@ -20,4 +20,6 @@ type Manager interface {
 	ReverseResolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error)
 	// GetOrphanedAutomaticArtifacts returns all installed artifacts that are automatic and have no reverse dependencies
 	GetOrphanedAutomaticArtifacts() ([]string, error)
+	// GetInstalledArtifacts returns all installed artifacts
+	GetInstalledArtifacts() ([]*model.InstalledArtifact, error)
 }

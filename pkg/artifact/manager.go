@@ -74,7 +74,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	var existingReverseDeps []string
 	if existingArtifact != nil {
 		switch existingArtifact.Status {
-		case database.StatusInstalled:
+		case model.StatusInstalled:
 			// Check if this is a transition from automatic to manual installation
 			if existingArtifact.InstallationReason == model.InstallationReasonAutomatic && reason == model.InstallationReasonManual {
 				// User is explicitly installing an artifact that was previously installed as dependency
@@ -92,7 +92,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 				return fmt.Errorf("artifact %s is already installed manually and cannot be downgraded to automatic", desc.Name)
 			}
 			return fmt.Errorf("artifact %s is already installed", desc.Name)
-		case database.StatusMissing:
+		case model.StatusMissing:
 			// This is a dummy entry, we'll replace it with the real artifact
 			// Save the reverse dependencies before removing the dummy entry
 			existingReverseDeps = existingArtifact.ReverseDependencies
@@ -266,8 +266,8 @@ func (m ManagerImpl) ReverseResolve(ctx context.Context, req model.ResolveReques
 	return m.convertToResolvedArtifacts(dependentArtifacts), nil
 }
 
-func (m ManagerImpl) collectReverseDependencies(db *database.InstalledManagerImpl, targetArtifact string) map[string]*database.InstalledArtifact {
-	result := make(map[string]*database.InstalledArtifact)
+func (m ManagerImpl) collectReverseDependencies(db *database.InstalledManagerImpl, targetArtifact string) map[string]*model.InstalledArtifact {
+	result := make(map[string]*model.InstalledArtifact)
 
 	// Find all artifacts that depend on the target artifact
 	m.findArtifactsDependingOn(db, targetArtifact, result)
@@ -276,10 +276,10 @@ func (m ManagerImpl) collectReverseDependencies(db *database.InstalledManagerImp
 }
 
 // findArtifactsDependingOn finds all artifacts that depend on the given artifact
-func (m ManagerImpl) findArtifactsDependingOn(db *database.InstalledManagerImpl, targetArtifact string, result map[string]*database.InstalledArtifact) {
+func (m ManagerImpl) findArtifactsDependingOn(db *database.InstalledManagerImpl, targetArtifact string, result map[string]*model.InstalledArtifact) {
 	// Iterate through all installed artifacts to find those that depend on the target
 	for _, artifact := range db.GetInstalledArtifacts() {
-		if artifact.Status != database.StatusInstalled {
+		if artifact.Status != model.StatusInstalled {
 			continue
 		}
 
@@ -299,7 +299,7 @@ func (m ManagerImpl) findArtifactsDependingOn(db *database.InstalledManagerImpl,
 }
 
 // convertToResolvedArtifacts converts database artifacts to the expected ResolvedArtifacts format
-func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*database.InstalledArtifact) model.ResolvedArtifacts {
+func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*model.InstalledArtifact) model.ResolvedArtifacts {
 	resolved := make([]model.ResolvedArtifact, 0, len(artifacts))
 
 	for _, artifact := range artifacts {
@@ -331,7 +331,7 @@ func (m ManagerImpl) GetOrphanedAutomaticArtifacts() ([]string, error) {
 	// Iterate through all installed artifacts
 	for _, artifact := range db.GetInstalledArtifacts() {
 		// Only consider installed artifacts (not missing)
-		if artifact.Status != database.StatusInstalled {
+		if artifact.Status != model.StatusInstalled {
 			continue
 		}
 
@@ -347,6 +347,28 @@ func (m ManagerImpl) GetOrphanedAutomaticArtifacts() ([]string, error) {
 	}
 
 	return orphaned, nil
+}
+
+// GetInstalledArtifacts returns all installed artifacts
+func (m ManagerImpl) GetInstalledArtifacts() ([]*model.InstalledArtifact, error) {
+	// Load the installed database
+	db := database.NewInstalledDatabase()
+	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+		return nil, fmt.Errorf("failed to load installed database: %w", err)
+	}
+
+	// Get all installed artifacts
+	artifacts := db.GetInstalledArtifacts()
+
+	// Filter to only return actually installed artifacts (not missing ones)
+	var installed []*model.InstalledArtifact
+	for _, artifact := range artifacts {
+		if artifact.Status == model.StatusInstalled {
+			installed = append(installed, artifact)
+		}
+	}
+
+	return installed, nil
 }
 
 func (m ManagerImpl) getArtifactMetaInstallPath(artifactName string) string {

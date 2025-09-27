@@ -38,22 +38,30 @@ func (rm *ManagerImpl) Resolve(ctx context.Context, req model.ResolveRequest) (m
 // --- Internal planning helpers ---
 
 type resolver struct {
-	manager     *ManagerImpl
-	installReq  model.ResolveRequest
-	constraints map[string][]string                       // name -> constraints (AND)
-	selected    map[string]*model.IndexArtifactDescriptor // name -> chosen descriptor
-	deps        map[string][]string                       // name -> dep names
-	visiting    map[string]struct{}                       // for cycle detection
+	manager            *ManagerImpl
+	installReq         model.ResolveRequest
+	constraints        map[string][]string                       // name -> constraints (AND)
+	selected           map[string]*model.IndexArtifactDescriptor // name -> chosen descriptor
+	deps               map[string][]string                       // name -> dep names
+	visiting           map[string]struct{}                       // for cycle detection
+	installedArtifacts map[string]*model.InstalledArtifact       // name -> installed artifact
 }
 
 func newResolver(mgr *ManagerImpl, request model.ResolveRequest) *resolver {
+	// Build installed artifacts map for quick lookup
+	installedArtifacts := make(map[string]*model.InstalledArtifact)
+	for _, artifact := range request.InstalledArtifacts {
+		installedArtifacts[artifact.Name] = artifact
+	}
+
 	return &resolver{
-		manager:     mgr,
-		installReq:  request,
-		constraints: make(map[string][]string),
-		selected:    make(map[string]*model.IndexArtifactDescriptor),
-		deps:        make(map[string][]string),
-		visiting:    make(map[string]struct{}),
+		manager:            mgr,
+		installReq:         request,
+		constraints:        make(map[string][]string),
+		selected:           make(map[string]*model.IndexArtifactDescriptor),
+		deps:               make(map[string][]string),
+		visiting:           make(map[string]struct{}),
+		installedArtifacts: installedArtifacts,
 	}
 }
 
@@ -145,6 +153,22 @@ func (r *resolver) resolveArtifacts(order []string) []model.ResolvedArtifact {
 		if d == nil {
 			continue
 		}
+
+		// Determine the action to take
+		action := model.ResolvedActionInstall
+		reason := "new artifact installation"
+
+		// Check if this artifact is already installed
+		if installedArtifact := r.findInstalledArtifact(name); installedArtifact != nil {
+			if installedArtifact.Version == d.Version {
+				action = model.ResolvedActionSkip
+				reason = "already at the required version"
+			} else {
+				action = model.ResolvedActionUpdate
+				reason = fmt.Sprintf("updating from %s to %s", installedArtifact.Version, d.Version)
+			}
+		}
+
 		steps = append(steps, model.ResolvedArtifact{
 			ID:        d.Name + "@" + d.Version,
 			Name:      d.Name,
@@ -153,9 +177,16 @@ func (r *resolver) resolveArtifacts(order []string) []model.ResolvedArtifact {
 			Arch:      d.GetArch(),
 			SourceURL: d.GetURL(),
 			Checksum:  d.Checksum,
+			Action:    action,
+			Reason:    reason,
 		})
 	}
 	return steps
+}
+
+// findInstalledArtifact looks up an installed artifact by name
+func (r *resolver) findInstalledArtifact(name string) *model.InstalledArtifact {
+	return r.installedArtifacts[name]
 }
 
 // ToGraph returns a trivially resolved graph for the descriptor (placeholder for future deps).

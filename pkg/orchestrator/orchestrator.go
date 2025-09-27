@@ -47,7 +47,21 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 		return fmt.Errorf("index planner is not configured")
 	}
 
+	if o.ArtifactManager == nil {
+		return fmt.Errorf("artifact installer is not configured")
+	}
+
 	emit(o.Hooks, Event{Phase: "planning", Msg: req.Name})
+
+	// Load currently installed artifacts for compatibility checking
+	installedArtifacts, err := o.ArtifactManager.GetInstalledArtifacts()
+	if err != nil {
+		return fmt.Errorf("failed to load installed artifacts: %w", err)
+	}
+
+	// Add installed artifacts to the resolve request
+	req.InstalledArtifacts = installedArtifacts
+
 	plan, err := o.Index.Resolve(ctx, req)
 	if err != nil {
 		return err
@@ -87,7 +101,20 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 	}
 
 	for _, step := range plan.Artifacts {
-		emit(o.Hooks, Event{Phase: "installing", ID: step.ID, Msg: step.Name + "@" + step.Version})
+		var actionMsg string
+		switch step.Action {
+		case model.ResolvedActionInstall:
+			actionMsg = "installing"
+		case model.ResolvedActionUpdate:
+			actionMsg = "updating"
+		case model.ResolvedActionSkip:
+			emit(o.Hooks, Event{Phase: "skipping", ID: step.ID, Msg: step.Reason})
+			continue
+		default:
+			actionMsg = "processing"
+		}
+
+		emit(o.Hooks, Event{Phase: actionMsg, ID: step.ID, Msg: step.Name + "@" + step.Version + " (" + step.Reason + ")"})
 		path := ""
 		if fetched != nil {
 			path = fetched[step.ID]

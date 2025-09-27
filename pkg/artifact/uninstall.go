@@ -8,10 +8,11 @@ import (
 	"path/filepath"
 
 	"github.com/cperrin88/gotya/pkg/artifact/database"
+	"github.com/cperrin88/gotya/pkg/model"
 )
 
 // cleanupReverseDependencies removes the artifact from all reverse dependency lists of dependent artifacts
-func (m ManagerImpl) cleanupReverseDependencies(db *database.InstalledManagerImpl, artifact *database.InstalledArtifact) {
+func (m ManagerImpl) cleanupReverseDependencies(db *database.InstalledManagerImpl, artifact *model.InstalledArtifact) {
 	for _, dependentName := range artifact.ReverseDependencies {
 		if dependent := db.FindArtifact(dependentName); dependent != nil {
 			// Remove this artifact from the dependent's reverse dependencies
@@ -26,7 +27,7 @@ func (m ManagerImpl) cleanupReverseDependencies(db *database.InstalledManagerImp
 }
 
 // removeArtifactFromDatabase removes an artifact from the database and saves the database
-func (m ManagerImpl) removeArtifactFromDatabase(db *database.InstalledManagerImpl, artifact *database.InstalledArtifact) error {
+func (m ManagerImpl) removeArtifactFromDatabase(db *database.InstalledManagerImpl, artifact *model.InstalledArtifact) error {
 	db.RemoveArtifact(artifact.Name)
 	if err := db.SaveDatabase(m.installedDBPath); err != nil {
 		return fmt.Errorf("failed to save database after removing artifact %s: %w", artifact.Name, err)
@@ -35,7 +36,7 @@ func (m ManagerImpl) removeArtifactFromDatabase(db *database.InstalledManagerImp
 }
 
 // uninstallWithPurge removes the entire artifact directories recursively
-func (m ManagerImpl) uninstallWithPurge(ctx context.Context, db *database.InstalledManagerImpl, artifact *database.InstalledArtifact) error {
+func (m ManagerImpl) uninstallWithPurge(ctx context.Context, db *database.InstalledManagerImpl, artifact *model.InstalledArtifact) error {
 	// Clean up reverse dependencies from other artifacts
 	m.cleanupReverseDependencies(db, artifact)
 
@@ -54,7 +55,7 @@ func (m ManagerImpl) uninstallWithPurge(ctx context.Context, db *database.Instal
 }
 
 // uninstallSelectively removes only the files listed in the database, tracking directories for cleanup
-func (m ManagerImpl) uninstallSelectively(ctx context.Context, db *database.InstalledManagerImpl, artifact *database.InstalledArtifact) error {
+func (m ManagerImpl) uninstallSelectively(ctx context.Context, db *database.InstalledManagerImpl, artifact *model.InstalledArtifact) error {
 	// Clean up reverse dependencies from other artifacts
 	m.cleanupReverseDependencies(db, artifact)
 

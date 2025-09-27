@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/cperrin88/gotya/pkg/artifact/database"
+	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/spf13/cobra"
 )
 
@@ -57,7 +58,7 @@ func runList(nameFilter string) error {
 	// Rows
 	for _, artifact := range artifacts {
 		status := "installed"
-		if artifact.Status == database.StatusMissing {
+		if artifact.Status == model.StatusMissing {
 			status = "missing"
 		}
 		fmt.Printf("%-30s %-15s %s\n", artifact.Name, artifact.Version, status)

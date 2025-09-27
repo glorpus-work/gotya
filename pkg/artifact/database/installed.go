@@ -18,12 +18,12 @@ import (
 type InstalledManager interface {
 	LoadDatabase(dbPath string) error
 	SaveDatabase(dbPath string) error
-	FindArtifact(name string) *InstalledArtifact
+	FindArtifact(name string) *model.InstalledArtifact
 	IsArtifactInstalled(name string) bool
-	AddArtifact(pkg *InstalledArtifact)
+	AddArtifact(pkg *model.InstalledArtifact)
 	RemoveArtifact(name string) bool
-	GetInstalledArtifacts() []*InstalledArtifact
-	FilteredArtifacts(nameFilter string) []*InstalledArtifact
+	GetInstalledArtifacts() []*model.InstalledArtifact
+	FilteredArtifacts(nameFilter string) []*model.InstalledArtifact
 	SetInstallationReason(name string, reason model.InstallationReason) error
 }
 
@@ -33,39 +33,16 @@ type InstalledFile struct {
 	Hash string `json:"hash"` // SHA256 hash of the file contents
 }
 
-// InstalledArtifact represents an installed artifact with its files.
-type InstalledArtifact struct {
-	Name                string                   `json:"name"`
-	Version             string                   `json:"version"`
-	Description         string                   `json:"description"`
-	InstalledAt         time.Time                `json:"installed_at"`
-	InstalledFrom       string                   `json:"installed_from"`       // URL or index where it was installed from
-	ArtifactMetaDir     string                   `json:"artifact_meta_dir"`    // Base directory for meta files
-	ArtifactDataDir     string                   `json:"artifact_data_dir"`    // Base directory for data files
-	MetaFiles           []InstalledFile          `json:"meta_files"`           // List of meta files with their hashes
-	DataFiles           []InstalledFile          `json:"data_files"`           // List of data files with their hashes
-	ReverseDependencies []string                 `json:"reverse_dependencies"` // List of artifact names that depend on this artifact
-	Status              ArtifactStatus           `json:"status"`               // Status of the artifact (use constants StatusInstalled or StatusMissing)
-	Checksum            string                   `json:"checksum"`
-	InstallationReason  model.InstallationReason `json:"installation_reason"` // Why this artifact was installed
-}
-
 // InstalledManagerImpl represents the database of installed packages.
 type InstalledManagerImpl struct {
-	FormatVersion string               `json:"format_version"`
-	LastUpdate    time.Time            `json:"last_update"`
-	Artifacts     []*InstalledArtifact `json:"artifacts"`
+	FormatVersion string                     `json:"format_version"`
+	LastUpdate    time.Time                  `json:"last_update"`
+	Artifacts     []*model.InstalledArtifact `json:"artifacts"`
 	rwMutex       sync.RWMutex
 }
 
-type ArtifactStatus string
-
 const (
 	InitialArtifactCapacity = 100
-	// StatusInstalled indicates the artifact is fully installed.
-	StatusInstalled ArtifactStatus = "installed"
-	// StatusMissing indicates the artifact is not installed but referenced as a dependency.
-	StatusMissing ArtifactStatus = "missing"
 )
 
 // NewInstalledDatabase creates a new installed packages database.
@@ -73,7 +50,7 @@ func NewInstalledDatabase() *InstalledManagerImpl {
 	return &InstalledManagerImpl{
 		FormatVersion: "1",
 		LastUpdate:    time.Now(),
-		Artifacts:     make([]*InstalledArtifact, 0, InitialArtifactCapacity),
+		Artifacts:     make([]*model.InstalledArtifact, 0, InitialArtifactCapacity),
 	}
 }
 
@@ -172,7 +149,7 @@ func (installedDB *InstalledManagerImpl) SaveDatabase(dbPath string) (err error)
 }
 
 // FindArtifact finds an installed artifact by name.
-func (installedDB *InstalledManagerImpl) FindArtifact(name string) *InstalledArtifact {
+func (installedDB *InstalledManagerImpl) FindArtifact(name string) *model.InstalledArtifact {
 	installedDB.rwMutex.RLock()
 	defer installedDB.rwMutex.RUnlock()
 
@@ -198,7 +175,7 @@ func (installedDB *InstalledManagerImpl) IsArtifactInstalled(name string) bool {
 }
 
 // AddArtifact adds an installed artifact to the database.
-func (installedDB *InstalledManagerImpl) AddArtifact(pkg *InstalledArtifact) {
+func (installedDB *InstalledManagerImpl) AddArtifact(pkg *model.InstalledArtifact) {
 	installedDB.rwMutex.Lock()
 	defer installedDB.rwMutex.Unlock()
 
@@ -233,30 +210,30 @@ func (installedDB *InstalledManagerImpl) RemoveArtifact(name string) bool {
 }
 
 // GetInstalledArtifacts returns all installed packages.
-func (installedDB *InstalledManagerImpl) GetInstalledArtifacts() []*InstalledArtifact {
+func (installedDB *InstalledManagerImpl) GetInstalledArtifacts() []*model.InstalledArtifact {
 	installedDB.rwMutex.RLock()
 	defer installedDB.rwMutex.RUnlock()
 
 	// Return a copy of the slice to prevent data races
-	artifacts := make([]*InstalledArtifact, len(installedDB.Artifacts))
+	artifacts := make([]*model.InstalledArtifact, len(installedDB.Artifacts))
 	copy(artifacts, installedDB.Artifacts)
 	return artifacts
 }
 
 // GetInstalledArtifactsByName returns installed packages filtered by name (partial match, case-insensitive).
-func (installedDB *InstalledManagerImpl) FilteredArtifacts(nameFilter string) []*InstalledArtifact {
+func (installedDB *InstalledManagerImpl) FilteredArtifacts(nameFilter string) []*model.InstalledArtifact {
 	installedDB.rwMutex.RLock()
 	defer installedDB.rwMutex.RUnlock()
 
 	if nameFilter == "" {
 		// Return all artifacts if no filter provided
-		artifacts := make([]*InstalledArtifact, len(installedDB.Artifacts))
+		artifacts := make([]*model.InstalledArtifact, len(installedDB.Artifacts))
 		copy(artifacts, installedDB.Artifacts)
 		return artifacts
 	}
 
 	// Filter artifacts by name
-	var filtered []*InstalledArtifact
+	var filtered []*model.InstalledArtifact
 	for _, artifact := range installedDB.Artifacts {
 		if strings.Contains(strings.ToLower(artifact.Name), strings.ToLower(nameFilter)) {
 			filtered = append(filtered, artifact)

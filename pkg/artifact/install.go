@@ -64,8 +64,8 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 
 	// Process all files from the hashes map in a single loop
 	var (
-		metaFileEntries []database.InstalledFile
-		dataFileEntries []database.InstalledFile
+		metaFileEntries []model.InstalledFile
+		dataFileEntries []model.InstalledFile
 	)
 
 	hash, err := calculateFileHash(metadataFilePath)
@@ -73,7 +73,7 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		return fmt.Errorf("failed to calculate hash: %w", err)
 	}
 
-	entry := database.InstalledFile{
+	entry := model.InstalledFile{
 		Path: metadataFile,
 		Hash: hash,
 	}
@@ -85,7 +85,7 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		if strings.HasPrefix(relPath, artifactDataDir+"/") {
 			// Remove the artifactDataDir/ prefix
 			dataRelPath := strings.TrimPrefix(relPath, artifactDataDir+"/")
-			entry := database.InstalledFile{
+			entry := model.InstalledFile{
 				Path: dataRelPath,
 				Hash: hash,
 			}
@@ -93,7 +93,7 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		} else {
 			metaRelPath := strings.TrimPrefix(relPath, artifactMetaDir+"/")
 			// It's a metadata file
-			entry := database.InstalledFile{
+			entry := model.InstalledFile{
 				Path: metaRelPath,
 				Hash: hash,
 			}
@@ -102,7 +102,7 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 	}
 
 	// Create and add the artifact to the database
-	installedArtifact := &database.InstalledArtifact{
+	installedArtifact := &model.InstalledArtifact{
 		Name:                desc.Name,
 		Version:             desc.Version,
 		Description:         desc.Description,
@@ -113,7 +113,7 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		MetaFiles:           metaFileEntries,
 		DataFiles:           dataFileEntries,
 		ReverseDependencies: existingReverseDeps, // Use the saved reverse dependencies if any
-		Status:              database.StatusInstalled,
+		Status:              model.StatusInstalled,
 		Checksum:            "",     // Assuming checksum is handled elsewhere or set later
 		InstallationReason:  reason, // Use the provided installation reason
 	}
@@ -122,13 +122,13 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 	for _, dep := range desc.Dependencies {
 		existingArtifact := db.FindArtifact(dep.Name)
 		if existingArtifact != nil {
-			if existingArtifact.Status == database.StatusMissing {
+			if existingArtifact.Status == model.StatusMissing {
 				// Update the dummy entry to a real installed artifact
 				// Note: We can't update the dummy entry with real metadata here because
 				// we don't have the dependency's actual metadata. The dummy entry will
 				// be replaced when the dependency is actually installed.
 				// For now, just update the status and reverse dependencies.
-				existingArtifact.Status = database.StatusInstalled
+				existingArtifact.Status = model.StatusInstalled
 				// Don't modify other fields as we don't have the real dependency metadata
 			} else {
 				// Add current artifact to existing dependency's reverse dependencies
@@ -136,7 +136,7 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 			}
 		} else {
 			// Create a dummy entry for missing dependency
-			dummyArtifact := &database.InstalledArtifact{
+			dummyArtifact := &model.InstalledArtifact{
 				Name:                dep.Name,
 				Version:             "invalid",
 				Description:         "invalid",
@@ -144,10 +144,10 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 				InstalledFrom:       "invalid",
 				ArtifactMetaDir:     "invalid",
 				ArtifactDataDir:     "invalid",
-				MetaFiles:           make([]database.InstalledFile, 0),
-				DataFiles:           make([]database.InstalledFile, 0),
+				MetaFiles:           make([]model.InstalledFile, 0),
+				DataFiles:           make([]model.InstalledFile, 0),
 				ReverseDependencies: []string{desc.Name},
-				Status:              database.StatusMissing,
+				Status:              model.StatusMissing,
 				Checksum:            "invalid",
 				InstallationReason:  model.InstallationReasonAutomatic, // Dependency installed automatically
 			}
