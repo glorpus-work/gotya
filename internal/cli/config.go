@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"text/tabwriter"
 
@@ -98,10 +99,23 @@ func runConfigShow(*cobra.Command, []string) error {
 	_, _ = fmt.Fprintln(tabWriter, "SETTING\tVALUE")
 	_, _ = fmt.Fprintln(tabWriter, "-------\t-----")
 
-	// Display settings using ToMap for consistency
-	settingsMap := cfg.ToMap()
-	for key, value := range settingsMap {
-		_, _ = fmt.Fprintf(tabWriter, "%s\t%s\n", config.ToSnakeCase(key), value)
+	// Display settings using reflection to match original behavior
+	settingsValue := reflect.ValueOf(cfg.Settings)
+	settingsType := reflect.TypeOf(cfg.Settings)
+
+	for i := 0; i < settingsValue.NumField(); i++ {
+		field := settingsType.Field(i)
+		value := settingsValue.Field(i)
+
+		// Skip fields without yaml tags
+		yamlTag := field.Tag.Get("yaml")
+		if yamlTag == "" || yamlTag == "-" {
+			continue
+		}
+
+		// Convert field name to snake_case (matching original behavior)
+		fieldName := toSnakeCase(field.Name)
+		_, _ = fmt.Fprintf(tabWriter, "%s\t%v\n", fieldName, value.Interface())
 	}
 
 	_ = tabWriter.Flush()
@@ -189,4 +203,16 @@ func getConfigPath() string {
 		return ""
 	}
 	return defaultPath
+}
+
+// Helper function to convert CamelCase to snake_case.
+func toSnakeCase(str string) string {
+	result := make([]rune, 0, len(str)*2) // Pre-allocate with enough capacity for worst case
+	for i, r := range str {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result = append(result, '_')
+		}
+		result = append(result, r)
+	}
+	return string(result)
 }

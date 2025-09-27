@@ -18,6 +18,47 @@ var (
 	OutputFormat *string
 )
 
+// ManagerFactory encapsulates the creation of various managers from configuration.
+type ManagerFactory struct {
+	config *config.Config
+}
+
+// NewManagerFactory creates a new manager factory with the given configuration.
+func NewManagerFactory(cfg *config.Config) *ManagerFactory {
+	return &ManagerFactory{config: cfg}
+}
+
+// CreateIndexManager creates an index manager from the configuration.
+func (f *ManagerFactory) CreateIndexManager() index.Manager {
+	repositories := make([]*index.Repository, 0, len(f.config.Repositories))
+	for _, repo := range f.config.Repositories {
+		repositories = append(repositories, &index.Repository{
+			Name:     repo.Name,
+			URL:      repo.GetURL(),
+			Priority: repo.Priority,
+			Enabled:  repo.Enabled,
+		})
+	}
+	return index.NewManager(repositories, f.config.GetIndexDir())
+}
+
+// CreateArtifactManager creates an artifact manager from the configuration.
+func (f *ManagerFactory) CreateArtifactManager() artifact.Manager {
+	return artifact.NewManager(
+		f.config.Settings.Platform.OS,
+		f.config.Settings.Platform.Arch,
+		f.config.GetArtifactCacheDir(),
+		f.config.Settings.InstallDir,
+		f.config.GetMetaDir(),
+		f.config.GetDatabasePath(),
+	)
+}
+
+// CreateDownloadManager creates a download manager from the configuration.
+func (f *ManagerFactory) CreateDownloadManager() download.Manager {
+	return download.NewManager(f.config.Settings.HTTPTimeout, "")
+}
+
 // This is a bridge function that the CLI commands can use.
 func loadConfig() (*config.Config, error) {
 	var cfg *config.Config
@@ -56,31 +97,20 @@ func loadConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
+// loadIndexManager creates an index manager from the configuration.
 func loadIndexManager(config *config.Config) index.Manager {
-	repositories := make([]*index.Repository, 0, len(config.Repositories))
-	for _, repo := range config.Repositories {
-		repositories = append(repositories, &index.Repository{
-			Name:     repo.Name,
-			URL:      repo.GetURL(),
-			Priority: repo.Priority,
-			Enabled:  repo.Enabled,
-		})
-	}
-	return index.NewManager(repositories, config.GetIndexDir())
+	factory := NewManagerFactory(config)
+	return factory.CreateIndexManager()
 }
 
+// loadArtifactManager creates an artifact manager from the configuration.
 func loadArtifactManager(config *config.Config) artifact.Manager {
-	// Artifact manager now operates purely on local files and no longer depends on index or http
-	return artifact.NewManager(
-		config.Settings.Platform.OS,
-		config.Settings.Platform.Arch,
-		config.GetArtifactCacheDir(),
-		config.Settings.InstallDir,
-		config.GetMetaDir(),
-		config.GetDatabasePath(),
-	)
+	factory := NewManagerFactory(config)
+	return factory.CreateArtifactManager()
 }
 
+// loadDownloadManager creates a download manager from the configuration.
 func loadDownloadManager(config *config.Config) download.Manager {
-	return download.NewManager(config.Settings.HTTPTimeout, "")
+	factory := NewManagerFactory(config)
+	return factory.CreateDownloadManager()
 }

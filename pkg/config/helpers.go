@@ -145,12 +145,16 @@ func NewDefaultConfig() *Config {
 	}
 }
 
-// ToSnakeCase converts CamelCase to snake_case.
+// ToSnakeCase converts CamelCase to snake_case while preserving first letter capitalization.
 func ToSnakeCase(str string) string {
 	result := make([]rune, 0, len(str)*2) // Pre-allocate with enough capacity
 	for i, r := range str {
 		if i > 0 && r >= 'A' && r <= 'Z' {
 			result = append(result, '_')
+		}
+		// Convert to uppercase to match original behavior
+		if r >= 'a' && r <= 'z' {
+			r = r - 'a' + 'A'
 		}
 		result = append(result, r)
 	}
