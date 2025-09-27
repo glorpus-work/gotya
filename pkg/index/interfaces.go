@@ -14,10 +14,10 @@ type Index struct {
 
 // Info represents index information.
 type Info struct {
-	Name     string `json:"name"`
-	URL      string `json:"url"`
-	Enabled  bool   `json:"enabled"`
-	Priority int    `json:"priority"`
+	Name     string
+	URL      string
+	Enabled  bool
+	Priority int
 }
 
 // Manager defines the interface for managing and querying local indexes

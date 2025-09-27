@@ -27,12 +27,6 @@ type InstalledManager interface {
 	SetInstallationReason(name string, reason model.InstallationReason) error
 }
 
-// InstalledFile represents a file installed by an artifact with its hash.
-type InstalledFile struct {
-	Path string `json:"path"` // Relative path from its base directory
-	Hash string `json:"hash"` // SHA256 hash of the file contents
-}
-
 // InstalledManagerImpl represents the database of installed packages.
 type InstalledManagerImpl struct {
 	FormatVersion string                     `json:"format_version"`

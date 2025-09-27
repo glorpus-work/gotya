@@ -9,8 +9,8 @@ import (
 // Platform represents a target platform with OS and Architecture.
 // Both OS and Arch can be "any" to match any platform.
 type Platform struct {
-	OS   string `yaml:"os" json:"os"`
-	Arch string `yaml:"arch" json:"arch"`
+	OS   string `yaml:"os"`
+	Arch string `yaml:"arch"`
 }
 
 // CurrentPlatform returns the current platform (OS and architecture).

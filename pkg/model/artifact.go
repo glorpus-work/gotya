@@ -9,8 +9,8 @@ import (
 
 // Dependency represents a dependency with a name and an optional version constraint.
 type Dependency struct {
-	Name              string `json:"name"`
-	VersionConstraint string `json:"version,omitempty"`
+	Name              string
+	VersionConstraint string
 }
 
 // InstallationReason tracks why an artifact was installed
