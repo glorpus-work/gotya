@@ -255,8 +255,8 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	art := mocks.NewMockArtifactManager(ctrl)
 	expectedArtifactPath := filepath.Join(tmp, "pkgA-1.0.0.tgz")
 	art.EXPECT().
-		InstallArtifact(gomock.Any(), gomock.Any(), expectedArtifactPath).
-		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string) error {
+		InstallArtifact(gomock.Any(), gomock.Any(), expectedArtifactPath, gomock.Any()).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string, reason model.InstallationReason) error {
 			assert.Equal(t, step.Name, desc.Name, "artifact name should match")
 			assert.Equal(t, step.Version, desc.Version, "artifact version should match")
 			assert.Equal(t, step.OS, desc.OS, "artifact OS should match")
@@ -529,8 +529,8 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	expectedErr := fmt.Errorf("installation failed")
 	art := mocks.NewMockArtifactManager(ctrl)
 	art.EXPECT().
-		InstallArtifact(gomock.Any(), gomock.Any(), tmpFile).
-		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string) error {
+		InstallArtifact(gomock.Any(), gomock.Any(), tmpFile, gomock.Any()).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string, reason model.InstallationReason) error {
 			assert.Equal(t, step.Name, desc.Name, "artifact name should match")
 			assert.Equal(t, step.Version, desc.Version, "artifact version should match")
 			assert.Equal(t, step.OS, desc.OS, "artifact OS should match")

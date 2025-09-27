@@ -54,7 +54,7 @@ func TestInstallArtifact_MissingLocalFile(t *testing.T) {
 		Arch:    "amd64",
 	}
 
-	err := mgr.InstallArtifact(context.Background(), desc, "/non/existent/path.gotya")
+	err := mgr.InstallArtifact(context.Background(), desc, "/non/existent/path.gotya", model.InstallationReasonManual)
 	assert.Equal(t, errors.ErrArtifactNotFound, err)
 }
 
@@ -87,7 +87,7 @@ func TestInstallArtifact_RegularPackage(t *testing.T) {
 	}
 
 	// Install the artifact
-	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Verify files were installed
@@ -160,7 +160,7 @@ func TestInstallArtifact_MetaPackage(t *testing.T) {
 		URL:     "http://example.com/meta.gotya",
 	}
 
-	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Verify only metadata was installed
@@ -223,7 +223,7 @@ func TestInstallArtifact_RollbackOnFailure(t *testing.T) {
 	}
 
 	// Installation should fail
-	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
 	require.Error(t, err)
 
 	// Verify rollback cleaned up everything
@@ -269,7 +269,7 @@ func TestInstallArtifact_InstallFailure(t *testing.T) {
 	require.NoError(t, os.Mkdir(dataDir, 0555)) // Read-only directory
 
 	// Installation should fail
-	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
 	require.Error(t, err)
 
 	// Verify rollback cleaned up everything
@@ -310,7 +310,7 @@ func TestInstallArtifact_DatabaseFailure(t *testing.T) {
 	require.NoError(t, os.WriteFile(dbPath, []byte("test"), 0444)) // Read-only file
 
 	// Installation should fail
-	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
 	require.Error(t, err)
 
 	// Verify rollback cleaned up installed files
@@ -332,7 +332,7 @@ func TestInstallArtifact_EmptyArtifactName(t *testing.T) {
 		Arch:    "amd64",
 	}
 
-	err := mgr.InstallArtifact(context.Background(), desc, "/nonexistent/path.gotya")
+	err := mgr.InstallArtifact(context.Background(), desc, "/nonexistent/path.gotya", model.InstallationReasonManual)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "artifact name cannot be empty")
 }
@@ -342,7 +342,7 @@ func TestInstallArtifact_EmptyDescriptor(t *testing.T) {
 	tempDir := t.TempDir()
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
 
-	err := mgr.InstallArtifact(context.Background(), nil, "/nonexistent/path.gotya")
+	err := mgr.InstallArtifact(context.Background(), nil, "/nonexistent/path.gotya", model.InstallationReasonManual)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "artifact descriptor cannot be nil")
 }
@@ -380,7 +380,7 @@ func TestUninstallArtifact_UpdatesReverseDependencies(t *testing.T) {
 		},
 	}
 
-	err := mgr.InstallArtifact(context.Background(), mainDesc, mainArtifact)
+	err := mgr.InstallArtifact(context.Background(), mainDesc, mainArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Verify dummy entry was created for the dependency
@@ -413,7 +413,7 @@ func TestUninstallArtifact_UpdatesReverseDependencies(t *testing.T) {
 		Dependencies: []model.Dependency{},
 	}
 
-	err = mgr.InstallArtifact(context.Background(), depDesc, depArtifact)
+	err = mgr.InstallArtifact(context.Background(), depDesc, depArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Verify the dependency is now installed and has the main artifact as reverse dependency
@@ -481,7 +481,7 @@ func TestUninstallArtifact_PurgeMode(t *testing.T) {
 	}
 
 	// Install the artifact
-	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Verify it was installed
@@ -532,7 +532,7 @@ func TestUninstallArtifact_SelectiveMode(t *testing.T) {
 	}
 
 	// Install the artifact
-	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Verify it was installed
@@ -598,7 +598,7 @@ func TestUninstallArtifact_SelectiveMode_MissingFiles(t *testing.T) {
 	}
 
 	// Install the artifact
-	err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Verify it was installed
@@ -665,7 +665,7 @@ func TestUninstallArtifact_MetaPackage(t *testing.T) {
 			}
 
 			// Install the meta-package
-			err := mgr.InstallArtifact(context.Background(), desc, testArtifact)
+			err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
 			require.NoError(t, err)
 
 			// Verify it was installed
@@ -713,7 +713,7 @@ func TestUpdateArtifact_Successful(t *testing.T) {
 	}
 
 	// Install the original version
-	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Verify original version is installed
@@ -806,7 +806,7 @@ func TestUpdateArtifact_AlreadyLatest(t *testing.T) {
 	}
 
 	// Install the original version
-	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Try to update to the same version and URL
@@ -851,7 +851,7 @@ func TestUpdateArtifact_InvalidNewArtifact(t *testing.T) {
 	}
 
 	// Install the original version
-	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Try to update with an invalid artifact
@@ -942,7 +942,7 @@ func TestUpdateArtifact_DifferentArtifactName(t *testing.T) {
 	}
 
 	// Install the original version
-	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Create an updated version with different name (should fail)
@@ -1002,7 +1002,7 @@ func TestUpdateArtifact_DowngradeVersion(t *testing.T) {
 	}
 
 	// Install the original version
-	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Create a "downgrade" version (1.0.0)
@@ -1065,7 +1065,7 @@ func TestUpdateArtifact_SameURLDifferentVersion(t *testing.T) {
 	}
 
 	// Install the original version
-	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Create an updated version with same URL but different version
@@ -1129,7 +1129,7 @@ func TestUpdateArtifact_ForceReinstall(t *testing.T) {
 	}
 
 	// Install the original version
-	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact)
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact, model.InstallationReasonManual)
 	require.NoError(t, err)
 
 	// Try to update to the exact same version and URL (force reinstall)
@@ -1326,6 +1326,7 @@ func createTestArtifact(name, version string, reverseDeps []string) *database.In
 		ReverseDependencies: reverseDeps,
 		Status:              database.StatusInstalled,
 		Checksum:            "checksum123",
+		InstallationReason:  model.InstallationReasonManual,
 	}
 }
 
@@ -1521,6 +1522,7 @@ func TestReverseResolve_MissingStatusArtifact(t *testing.T) {
 		ReverseDependencies: []string{"main"},
 		Status:              database.StatusMissing,
 		Checksum:            "checksum123",
+		InstallationReason:  model.InstallationReasonAutomatic,
 	}
 	mainArtifact := createTestArtifact("main", "1.0.0", []string{})
 

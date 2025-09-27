@@ -121,17 +121,17 @@ func (m *MockArtifactManager) EXPECT() *MockArtifactManagerMockRecorder {
 }
 
 // InstallArtifact mocks base method.
-func (m *MockArtifactManager) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) error {
+func (m *MockArtifactManager) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InstallArtifact", ctx, desc, localPath)
+	ret := m.ctrl.Call(m, "InstallArtifact", ctx, desc, localPath, reason)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // InstallArtifact indicates an expected call of InstallArtifact.
-func (mr *MockArtifactManagerMockRecorder) InstallArtifact(ctx, desc, localPath any) *gomock.Call {
+func (mr *MockArtifactManagerMockRecorder) InstallArtifact(ctx, desc, localPath, reason any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstallArtifact", reflect.TypeOf((*MockArtifactManager)(nil).InstallArtifact), ctx, desc, localPath)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstallArtifact", reflect.TypeOf((*MockArtifactManager)(nil).InstallArtifact), ctx, desc, localPath, reason)
 }
 
 // UninstallArtifact mocks base method.
