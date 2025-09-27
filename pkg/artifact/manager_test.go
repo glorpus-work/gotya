@@ -387,7 +387,7 @@ func TestUninstallArtifact_UpdatesReverseDependencies(t *testing.T) {
 	db := loadInstalledDB(t, dbPath)
 	depDummy := db.FindArtifact(depName)
 	require.NotNil(t, depDummy, "dummy entry for dependency should exist")
-	assert.Equal(t, database.StatusMissing, depDummy.Status, "dependency should have missing status")
+	assert.Equal(t, model.StatusMissing, depDummy.Status, "dependency should have missing status")
 	assert.Contains(t, depDummy.ReverseDependencies, artifactName, "dependency should have main artifact as reverse dependency")
 
 	// Step 2: Install the dependency (this establishes the reverse dependency relationship)
@@ -420,7 +420,7 @@ func TestUninstallArtifact_UpdatesReverseDependencies(t *testing.T) {
 	db = loadInstalledDB(t, dbPath)
 	installedDep := db.FindArtifact(depName)
 	require.NotNil(t, installedDep, "dependency should exist")
-	assert.Equal(t, database.StatusInstalled, installedDep.Status, "dependency should have installed status")
+	assert.Equal(t, model.StatusInstalled, installedDep.Status, "dependency should have installed status")
 	assert.Contains(t, installedDep.ReverseDependencies, artifactName, "dependency should have main artifact as reverse dependency")
 
 	// Step 3: Uninstall the dependency and verify reverse dependencies are cleaned up
@@ -436,7 +436,7 @@ func TestUninstallArtifact_UpdatesReverseDependencies(t *testing.T) {
 	// Verify the main artifact still exists but no longer has the dependency as a reverse dependency
 	installedMainArtifact := db.FindArtifact(artifactName)
 	require.NotNil(t, installedMainArtifact, "main artifact should still exist")
-	assert.Equal(t, database.StatusInstalled, installedMainArtifact.Status, "main artifact should still have installed status")
+	assert.Equal(t, model.StatusInstalled, installedMainArtifact.Status, "main artifact should still have installed status")
 	assert.Empty(t, installedMainArtifact.ReverseDependencies, "main artifact should have no reverse dependencies")
 }
 
@@ -1301,7 +1301,7 @@ func loadInstalledDB(t *testing.T, dbPath string) *database.InstalledManagerImpl
 }
 
 // setupTestDatabaseWithArtifacts creates a test database with the specified artifacts
-func setupTestDatabaseWithArtifacts(t *testing.T, dbPath string, artifacts []*database.InstalledArtifact) {
+func setupTestDatabaseWithArtifacts(t *testing.T, dbPath string, artifacts []*model.InstalledArtifact) {
 	t.Helper()
 	db := database.NewInstalledDatabase()
 	for _, artifact := range artifacts {
@@ -1312,8 +1312,8 @@ func setupTestDatabaseWithArtifacts(t *testing.T, dbPath string, artifacts []*da
 }
 
 // createTestArtifact creates a basic test artifact for database testing
-func createTestArtifact(name, version string, reverseDeps []string) *database.InstalledArtifact {
-	return &database.InstalledArtifact{
+func createTestArtifact(name, version string, reverseDeps []string) *model.InstalledArtifact {
+	return &model.InstalledArtifact{
 		Name:                name,
 		Version:             version,
 		Description:         fmt.Sprintf("Test artifact %s", name),
@@ -1321,10 +1321,10 @@ func createTestArtifact(name, version string, reverseDeps []string) *database.In
 		InstalledFrom:       "http://example.com/test.gotya",
 		ArtifactMetaDir:     "/test/meta",
 		ArtifactDataDir:     "/test/data",
-		MetaFiles:           []database.InstalledFile{{Path: "artifact.json", Hash: "abc123"}},
-		DataFiles:           []database.InstalledFile{{Path: "data.bin", Hash: "def456"}},
+		MetaFiles:           []model.InstalledFile{{Path: "artifact.json", Hash: "abc123"}},
+		DataFiles:           []model.InstalledFile{{Path: "data.bin", Hash: "def456"}},
 		ReverseDependencies: reverseDeps,
-		Status:              database.StatusInstalled,
+		Status:              model.StatusInstalled,
 		Checksum:            "checksum123",
 		InstallationReason:  model.InstallationReasonManual,
 	}
@@ -1340,7 +1340,7 @@ func TestReverseResolve_Basic(t *testing.T) {
 	dependency := createTestArtifact("dep1", "1.0.0", []string{})
 	mainArtifact := createTestArtifact("main", "1.0.0", []string{"dep1"})
 
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{dependency, mainArtifact})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{dependency, mainArtifact})
 
 	// Test resolving reverse dependencies for dep1
 	req := model.ResolveRequest{
@@ -1378,7 +1378,7 @@ func TestReverseResolve_ComplexDependencies(t *testing.T) {
 	app := createTestArtifact("app", "1.0.0", []string{"libA", "libB"})
 	tool := createTestArtifact("tool", "1.0.0", []string{"libA"})
 
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{core, libA, libB, app, tool})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{core, libA, libB, app, tool})
 
 	// Test resolving reverse dependencies for core
 	req := model.ResolveRequest{
@@ -1412,7 +1412,7 @@ func TestReverseResolve_NonExistentArtifact(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create empty database
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{})
 
 	// Test resolving reverse dependencies for non-existent artifact
 	req := model.ResolveRequest{
@@ -1459,7 +1459,7 @@ func TestReverseResolve_EmptyDatabase(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create empty database
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{})
 
 	// Test resolving reverse dependencies
 	req := model.ResolveRequest{
@@ -1484,7 +1484,7 @@ func TestReverseResolve_SelfDependency(t *testing.T) {
 
 	// Create artifact with self-dependency (edge case)
 	artifact := createTestArtifact("self", "1.0.0", []string{"self"})
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{artifact})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{artifact})
 
 	// Test resolving reverse dependencies for self
 	req := model.ResolveRequest{
@@ -1509,7 +1509,7 @@ func TestReverseResolve_MissingStatusArtifact(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create artifact with missing status
-	missingArtifact := &database.InstalledArtifact{
+	missingArtifact := &model.InstalledArtifact{
 		Name:                "missing",
 		Version:             "1.0.0",
 		Description:         "Missing artifact",
@@ -1517,16 +1517,16 @@ func TestReverseResolve_MissingStatusArtifact(t *testing.T) {
 		InstalledFrom:       "http://example.com/missing.gotya",
 		ArtifactMetaDir:     "/test/meta",
 		ArtifactDataDir:     "/test/data",
-		MetaFiles:           []database.InstalledFile{},
-		DataFiles:           []database.InstalledFile{},
+		MetaFiles:           []model.InstalledFile{},
+		DataFiles:           []model.InstalledFile{},
 		ReverseDependencies: []string{"main"},
-		Status:              database.StatusMissing,
+		Status:              model.StatusMissing,
 		Checksum:            "checksum123",
 		InstallationReason:  model.InstallationReasonAutomatic,
 	}
 	mainArtifact := createTestArtifact("main", "1.0.0", []string{})
 
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{missingArtifact, mainArtifact})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{missingArtifact, mainArtifact})
 
 	// Test resolving reverse dependencies for missing artifact
 	req := model.ResolveRequest{
@@ -1793,7 +1793,7 @@ func TestGetOrphanedAutomaticArtifacts_NoOrphaned(t *testing.T) {
 	automaticNoDeps := createTestArtifact("auto-no-deps", "1.0.0", []string{})
 	automaticNoDeps.InstallationReason = model.InstallationReasonAutomatic
 
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{manualArtifact, automaticWithDeps, automaticNoDeps})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{manualArtifact, automaticWithDeps, automaticNoDeps})
 
 	// Get orphaned artifacts
 	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()
@@ -1823,7 +1823,7 @@ func TestGetOrphanedAutomaticArtifacts_WithOrphaned(t *testing.T) {
 	automaticWithDeps := createTestArtifact("auto-with-deps", "1.0.0", []string{"dep1"})
 	automaticWithDeps.InstallationReason = model.InstallationReasonAutomatic
 
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{manualArtifact, automaticOrphaned1, automaticOrphaned2, automaticWithDeps})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{manualArtifact, automaticOrphaned1, automaticOrphaned2, automaticWithDeps})
 
 	// Get orphaned artifacts
 	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()
@@ -1850,7 +1850,7 @@ func TestGetOrphanedAutomaticArtifacts_OnlyAutomatic(t *testing.T) {
 	automaticNotOrphaned := createTestArtifact("auto-not-orphan", "1.0.0", []string{"dep1"})
 	automaticNotOrphaned.InstallationReason = model.InstallationReasonAutomatic
 
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{manualOrphaned, automaticNotOrphaned})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{manualOrphaned, automaticNotOrphaned})
 
 	// Get orphaned artifacts
 	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()
@@ -1869,13 +1869,13 @@ func TestGetOrphanedAutomaticArtifacts_MissingStatus(t *testing.T) {
 	// Create test artifacts
 	missingAutomatic := createTestArtifact("missing-auto", "1.0.0", []string{})
 	missingAutomatic.InstallationReason = model.InstallationReasonAutomatic
-	missingAutomatic.Status = database.StatusMissing
+	missingAutomatic.Status = model.StatusMissing
 
 	installedAutomatic := createTestArtifact("installed-auto", "1.0.0", []string{})
 	installedAutomatic.InstallationReason = model.InstallationReasonAutomatic
-	installedAutomatic.Status = database.StatusInstalled
+	installedAutomatic.Status = model.StatusInstalled
 
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{missingAutomatic, installedAutomatic})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{missingAutomatic, installedAutomatic})
 
 	// Get orphaned artifacts
 	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()
@@ -1911,7 +1911,7 @@ func TestGetOrphanedAutomaticArtifacts_EmptyDatabase(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create empty database
-	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{})
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{})
 
 	// Get orphaned artifacts
 	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()

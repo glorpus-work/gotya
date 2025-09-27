@@ -24,7 +24,7 @@ func TestInstalledManager(t *testing.T) {
 
 	t.Run("AddAndFindArtifact", func(t *testing.T) {
 		db := NewInstalledDatabase()
-		artifact := &InstalledArtifact{
+		artifact := &model.InstalledArtifact{
 			Name:    "test-artifact",
 			Version: "1.0.0",
 		}
@@ -73,7 +73,7 @@ func TestInstalledManager(t *testing.T) {
 		dbPath := filepath.Join(tempDir, "installed.json")
 
 		db := NewInstalledDatabase()
-		artifact := &InstalledArtifact{
+		artifact := &model.InstalledArtifact{
 			Name:    "test-save",
 			Version: "2.0.0",
 		}
@@ -129,7 +129,7 @@ func TestInstalledManager(t *testing.T) {
 		// Start multiple goroutines to add artifacts
 		for i := 0; i < numGoroutines; i++ {
 			go func(id int) {
-				artifact := &InstalledArtifact{
+				artifact := &model.InstalledArtifact{
 					Name:    fmt.Sprintf("artifact-%d", id), // Use unique names
 					Version: "1.0.0",
 				}
@@ -157,14 +157,14 @@ func TestInstalledManager_InstallationReason(t *testing.T) {
 		// Create database with artifacts having different installation reasons
 		db := NewInstalledDatabase()
 
-		manualArtifact := &InstalledArtifact{
+		manualArtifact := &model.InstalledArtifact{
 			Name:               "manual-artifact",
 			Version:            "1.0.0",
 			InstallationReason: model.InstallationReasonManual,
 		}
 		db.AddArtifact(manualArtifact)
 
-		automaticArtifact := &InstalledArtifact{
+		automaticArtifact := &model.InstalledArtifact{
 			Name:               "automatic-artifact",
 			Version:            "1.0.0",
 			InstallationReason: model.InstallationReasonAutomatic,
@@ -192,7 +192,7 @@ func TestInstalledManager_InstallationReason(t *testing.T) {
 
 	t.Run("DefaultInstallationReason", func(t *testing.T) {
 		// Test that new artifacts get a default installation reason
-		artifact := &InstalledArtifact{
+		artifact := &model.InstalledArtifact{
 			Name:    "new-artifact",
 			Version: "1.0.0",
 			// No InstallationReason set explicitly
