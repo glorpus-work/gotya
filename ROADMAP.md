@@ -16,23 +16,31 @@ Gotya has a solid foundation with:
 ### High Priority (Must Have)
 
 #### 1. Search Command
-**Status**: Not implemented
+**Status**: ✅ Completed
 **Description**: Implement `gotya search <query>` command for package discovery
-**Implementation**: Create search functionality in the index package and wire it to CLI
-**Effort**: 2-3 days
+**Implementation**: Created fuzzy search functionality in the index package and wired it to CLI
+**Features**:
+- Fuzzy matching with relevance scoring
+- Searches across all configured repositories
+- Results sorted by relevance (best matches first)
+- Clean struct-based implementation (no string manipulation)
+**Effort**: 2-3 days (completed)
 
 #### 2. List Command
-**Status**: Not implemented
+**Status**: ✅ Completed
 **Description**: Implement `gotya list` command to show installed packages only
-**Implementation**: Create list functionality to display currently installed packages from the local database
+**Implementation**: Created list functionality to display currently installed packages from the local database
 **Requirements**:
-- Tabular output format only (no JSON/YAML for now)
-- Filter by package name (optional flag)
-- Show package-name and package-version
-- No categories support (doesn't exist yet)
-- Skip outdated detection for now (too complex)
+- ✅ Tabular output format only (no JSON/YAML for now)
+- ✅ Filter by package name (optional flag)
+- ✅ Show package-name and package-version
+- ✅ No categories support (doesn't exist yet)
+- ✅ Skip outdated detection for now (too complex)
 **Note**: User clarified that list should focus on installed packages only, not available packages
-**Effort**: 1-2 days
+**Features**:
+- Clean database method for filtering
+- Business logic moved to appropriate pkg layer
+**Effort**: 1-2 days (completed)
 
 #### 3. Update Command
 **Status**: Code exists but commented out
