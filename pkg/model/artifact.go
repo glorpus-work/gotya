@@ -13,6 +13,16 @@ type Dependency struct {
 	VersionConstraint string `json:"version,omitempty"`
 }
 
+// InstallationReason tracks why an artifact was installed
+type InstallationReason string
+
+const (
+	// InstallationReasonManual indicates the artifact was installed explicitly by the user
+	InstallationReasonManual InstallationReason = "manual"
+	// InstallationReasonAutomatic indicates the artifact was installed automatically as a dependency
+	InstallationReasonAutomatic InstallationReason = "automatic"
+)
+
 // IndexArtifactDescriptor represents the metadata and properties of an indexed artifact in a repository or package.
 type IndexArtifactDescriptor struct {
 	Name         string       `json:"name"`

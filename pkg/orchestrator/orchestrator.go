@@ -24,7 +24,7 @@ type ArtifactReverseResolver interface {
 
 // ArtifactManager is the subset of the artifact manager used by the orchestrator.
 type ArtifactManager interface {
-	InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) error
+	InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) error
 	UninstallArtifact(ctx context.Context, artifactName string, purge bool) error
 }
 
@@ -169,7 +169,14 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 		if step.SourceURL != nil {
 			desc.URL = step.SourceURL.String()
 		}
-		if err := o.ArtifactManager.InstallArtifact(ctx, desc, path); err != nil {
+
+		// Determine installation reason: first artifact is manual, rest are automatic (dependencies)
+		reason := model.InstallationReasonAutomatic
+		if step.Name == req.Name {
+			reason = model.InstallationReasonManual
+		}
+
+		if err := o.ArtifactManager.InstallArtifact(ctx, desc, path, reason); err != nil {
 			return err
 		}
 	}

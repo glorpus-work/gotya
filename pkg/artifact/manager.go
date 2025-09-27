@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/archive"
@@ -37,7 +38,7 @@ func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInst
 }
 
 // InstallArtifact installs (verifies/stages) an artifact from a local file path, replacing the previous network-based install.
-func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) (err error) {
+func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) (err error) {
 	// Input validation
 	if desc == nil {
 		return fmt.Errorf("artifact descriptor cannot be nil")
@@ -74,6 +75,22 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	if existingArtifact != nil {
 		switch existingArtifact.Status {
 		case database.StatusInstalled:
+			// Check if this is a transition from automatic to manual installation
+			if existingArtifact.InstallationReason == model.InstallationReasonAutomatic && reason == model.InstallationReasonManual {
+				// User is explicitly installing an artifact that was previously installed as dependency
+				// Update it to manual installation
+				existingArtifact.InstallationReason = model.InstallationReasonManual
+				existingArtifact.InstalledAt = time.Now() // Update installation time
+				db.AddArtifact(existingArtifact)
+				if err := db.SaveDatabase(m.installedDBPath); err != nil {
+					return fmt.Errorf("failed to save database after updating installation reason: %w", err)
+				}
+				return nil // Successfully updated installation reason
+			}
+			// Never downgrade from manual to automatic
+			if existingArtifact.InstallationReason == model.InstallationReasonManual && reason == model.InstallationReasonAutomatic {
+				return fmt.Errorf("artifact %s is already installed manually and cannot be downgraded to automatic", desc.Name)
+			}
 			return fmt.Errorf("artifact %s is already installed", desc.Name)
 		case database.StatusMissing:
 			// This is a dummy entry, we'll replace it with the real artifact
@@ -104,7 +121,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	installed = true // Mark that we've installed files that might need cleanup
 
 	// Add the installed artifact to the database
-	err = m.addArtifactToDatabase(db, desc, existingReverseDeps)
+	err = m.addArtifactToDatabase(db, desc, existingReverseDeps, reason)
 	if err != nil {
 		return fmt.Errorf("failed to update artifact database: %w", err)
 	}
@@ -204,7 +221,7 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 		return fmt.Errorf("failed to reload database after uninstall: %w", err)
 	}
 
-	if err := m.InstallArtifact(ctx, newDescriptor, newArtifactPath); err != nil {
+	if err := m.InstallArtifact(ctx, newDescriptor, newArtifactPath, model.InstallationReasonManual); err != nil {
 		// Installation failed - we should try to rollback by reinstalling the old version
 		// However, we don't have the old artifact file anymore, so we can only log a warning
 		logger.Warn("Failed to install new version - old version uninstalled but cannot be restored", logger.Fields{"artifact": artifactName, "error": err})

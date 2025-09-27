@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/errors"
+	"github.com/cperrin88/gotya/pkg/model"
 )
 
 // InstalledManager defines the interface for managing installed packages.
@@ -23,6 +24,7 @@ type InstalledManager interface {
 	RemoveArtifact(name string) bool
 	GetInstalledArtifacts() []*InstalledArtifact
 	FilteredArtifacts(nameFilter string) []*InstalledArtifact
+	SetInstallationReason(name string, reason model.InstallationReason) error
 }
 
 // InstalledFile represents a file installed by an artifact with its hash.
@@ -33,18 +35,19 @@ type InstalledFile struct {
 
 // InstalledArtifact represents an installed artifact with its files.
 type InstalledArtifact struct {
-	Name                string          `json:"name"`
-	Version             string          `json:"version"`
-	Description         string          `json:"description"`
-	InstalledAt         time.Time       `json:"installed_at"`
-	InstalledFrom       string          `json:"installed_from"`       // URL or index where it was installed from
-	ArtifactMetaDir     string          `json:"artifact_meta_dir"`    // Base directory for meta files
-	ArtifactDataDir     string          `json:"artifact_data_dir"`    // Base directory for data files
-	MetaFiles           []InstalledFile `json:"meta_files"`           // List of meta files with their hashes
-	DataFiles           []InstalledFile `json:"data_files"`           // List of data files with their hashes
-	ReverseDependencies []string        `json:"reverse_dependencies"` // List of artifact names that depend on this artifact
-	Status              ArtifactStatus  `json:"status"`               // Status of the artifact (use constants StatusInstalled or StatusMissing)
-	Checksum            string          `json:"checksum"`
+	Name                string                   `json:"name"`
+	Version             string                   `json:"version"`
+	Description         string                   `json:"description"`
+	InstalledAt         time.Time                `json:"installed_at"`
+	InstalledFrom       string                   `json:"installed_from"`       // URL or index where it was installed from
+	ArtifactMetaDir     string                   `json:"artifact_meta_dir"`    // Base directory for meta files
+	ArtifactDataDir     string                   `json:"artifact_data_dir"`    // Base directory for data files
+	MetaFiles           []InstalledFile          `json:"meta_files"`           // List of meta files with their hashes
+	DataFiles           []InstalledFile          `json:"data_files"`           // List of data files with their hashes
+	ReverseDependencies []string                 `json:"reverse_dependencies"` // List of artifact names that depend on this artifact
+	Status              ArtifactStatus           `json:"status"`               // Status of the artifact (use constants StatusInstalled or StatusMissing)
+	Checksum            string                   `json:"checksum"`
+	InstallationReason  model.InstallationReason `json:"installation_reason"` // Why this artifact was installed
 }
 
 // InstalledManagerImpl represents the database of installed packages.
@@ -261,4 +264,20 @@ func (installedDB *InstalledManagerImpl) FilteredArtifacts(nameFilter string) []
 	}
 
 	return filtered
+}
+
+// SetInstallationReason updates the installation reason for an artifact
+func (installedDB *InstalledManagerImpl) SetInstallationReason(name string, reason model.InstallationReason) error {
+	installedDB.rwMutex.Lock()
+	defer installedDB.rwMutex.Unlock()
+
+	for _, artifact := range installedDB.Artifacts {
+		if artifact.Name == name {
+			artifact.InstallationReason = reason
+			installedDB.LastUpdate = time.Now()
+			return nil
+		}
+	}
+
+	return fmt.Errorf("artifact %s not found", name)
 }

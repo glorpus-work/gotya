@@ -52,7 +52,7 @@ func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) error
 
 // addArtifactToDatabase adds an installed artifact to the database
 // Returns the list of installed files if successful, or an error
-func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor, existingReverseDeps []string) error {
+func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor, existingReverseDeps []string, reason model.InstallationReason) error {
 	metaPath := m.getArtifactMetaInstallPath(desc.Name)
 
 	// Read and parse the metadata file
@@ -114,7 +114,8 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		DataFiles:           dataFileEntries,
 		ReverseDependencies: existingReverseDeps, // Use the saved reverse dependencies if any
 		Status:              database.StatusInstalled,
-		Checksum:            "", // Assuming checksum is handled elsewhere or set later
+		Checksum:            "",     // Assuming checksum is handled elsewhere or set later
+		InstallationReason:  reason, // Use the provided installation reason
 	}
 
 	// Record reverse dependencies for each dependency
@@ -148,6 +149,7 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 				ReverseDependencies: []string{desc.Name},
 				Status:              database.StatusMissing,
 				Checksum:            "invalid",
+				InstallationReason:  model.InstallationReasonAutomatic, // Dependency installed automatically
 			}
 			db.AddArtifact(dummyArtifact)
 		}
