@@ -151,8 +151,14 @@ Some tests use the following environment variables solely within the test harnes
 - `pkg/orchestrator/` — high-level artifact installation orchestration
 - `pkg/platform/` — platform constants and validation
 - `pkg/fsutil/` — directories and paths helpers
-- `test/` — fixtures and test utilities, sample repo under test/repo
+## Roadmap to 1.0
 
-## License
+See [ROADMAP.md](ROADMAP.md) for the detailed development roadmap to reach version 1.0. The roadmap outlines the remaining features needed for a complete package manager experience, including:
+
+- **High Priority**: Search, list, and update commands
+- **Medium Priority**: Enhanced dependency management and environment variable support
+- **Testing**: Integration testing for all new features
+
+The roadmap is regularly updated based on development progress and user feedback.
 
 This project is licensed under the GNU General Public License v3.0 — see the [LICENSE](LICENSE) file for details.
