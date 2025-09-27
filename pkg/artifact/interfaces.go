@@ -18,4 +18,6 @@ type Manager interface {
 	VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error
 	// ReverseResolve returns the list of artifacts that depend on the given artifact recursively
 	ReverseResolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error)
+	// GetOrphanedAutomaticArtifacts returns all installed artifacts that are automatic and have no reverse dependencies
+	GetOrphanedAutomaticArtifacts() ([]string, error)
 }

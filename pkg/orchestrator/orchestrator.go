@@ -183,6 +183,45 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 	return nil
 }
 
+// Cleanup removes orphaned automatic artifacts that have no reverse dependencies.
+// Returns the list of artifacts that were successfully cleaned up.
+func (o *Orchestrator) Cleanup(ctx context.Context) ([]string, error) {
+	if o.ArtifactManager == nil {
+		return nil, fmt.Errorf("artifact manager is not configured")
+	}
+
+	// Get orphaned automatic artifacts
+	orphaned, err := o.ArtifactManager.GetOrphanedAutomaticArtifacts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get orphaned artifacts: %w", err)
+	}
+
+	if len(orphaned) == 0 {
+		return nil, nil // Nothing to clean up
+	}
+
+	var cleaned []string
+
+	// Uninstall each orphaned artifact
+	for _, artifactName := range orphaned {
+		emit(o.Hooks, Event{Phase: "cleanup", ID: artifactName, Msg: fmt.Sprintf("removing orphaned automatic artifact %s", artifactName)})
+
+		if err := o.ArtifactManager.UninstallArtifact(ctx, artifactName, true); err != nil {
+			// Log error but continue with other artifacts
+			emit(o.Hooks, Event{Phase: "error", ID: artifactName, Msg: fmt.Sprintf("failed to cleanup %s: %v", artifactName, err)})
+			continue
+		}
+
+		cleaned = append(cleaned, artifactName)
+	}
+
+	if len(cleaned) > 0 {
+		emit(o.Hooks, Event{Phase: "done", Msg: fmt.Sprintf("cleaned up %d orphaned artifacts", len(cleaned))})
+	}
+
+	return cleaned, nil
+}
+
 // New constructs a default Orchestrator from existing managers. Helper for wiring.
 // Hooks can be nil if no event handling is needed.
 func New(idx ArtifactResolver, reverseIdx ArtifactReverseResolver, dl Downloader, am ArtifactManager, hooks Hooks) *Orchestrator {

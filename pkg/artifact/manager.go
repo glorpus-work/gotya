@@ -318,6 +318,37 @@ func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*database.I
 	return model.ResolvedArtifacts{Artifacts: resolved}
 }
 
+// GetOrphanedAutomaticArtifacts returns all installed artifacts that are automatic and have no reverse dependencies
+func (m ManagerImpl) GetOrphanedAutomaticArtifacts() ([]string, error) {
+	// Load the installed database
+	db := database.NewInstalledDatabase()
+	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+		return nil, fmt.Errorf("failed to load installed database: %w", err)
+	}
+
+	var orphaned []string
+
+	// Iterate through all installed artifacts
+	for _, artifact := range db.GetInstalledArtifacts() {
+		// Only consider installed artifacts (not missing)
+		if artifact.Status != database.StatusInstalled {
+			continue
+		}
+
+		// Only consider automatic installations
+		if artifact.InstallationReason != model.InstallationReasonAutomatic {
+			continue
+		}
+
+		// Check if it has no reverse dependencies
+		if len(artifact.ReverseDependencies) == 0 {
+			orphaned = append(orphaned, artifact.Name)
+		}
+	}
+
+	return orphaned, nil
+}
+
 func (m ManagerImpl) getArtifactMetaInstallPath(artifactName string) string {
 	return filepath.Join(m.artifactMetaInstallDir, artifactName)
 }

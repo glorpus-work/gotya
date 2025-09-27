@@ -120,6 +120,21 @@ func (m *MockArtifactManager) EXPECT() *MockArtifactManagerMockRecorder {
 	return m.recorder
 }
 
+// GetOrphanedAutomaticArtifacts mocks base method.
+func (m *MockArtifactManager) GetOrphanedAutomaticArtifacts() ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrphanedAutomaticArtifacts")
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrphanedAutomaticArtifacts indicates an expected call of GetOrphanedAutomaticArtifacts.
+func (mr *MockArtifactManagerMockRecorder) GetOrphanedAutomaticArtifacts() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrphanedAutomaticArtifacts", reflect.TypeOf((*MockArtifactManager)(nil).GetOrphanedAutomaticArtifacts))
+}
+
 // InstallArtifact mocks base method.
 func (m *MockArtifactManager) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) error {
 	m.ctrl.T.Helper()

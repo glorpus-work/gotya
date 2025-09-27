@@ -23,6 +23,7 @@ type ArtifactReverseResolver interface {
 type ArtifactManager interface {
 	InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) error
 	UninstallArtifact(ctx context.Context, artifactName string, purge bool) error
+	GetOrphanedAutomaticArtifacts() ([]string, error)
 }
 
 // Downloader handles artifact downloading.
