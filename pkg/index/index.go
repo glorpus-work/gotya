@@ -12,11 +12,18 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/model"
 )
+
+// ScoredArtifact represents an artifact with its relevance score for sorting
+type ScoredArtifact struct {
+	Artifact *model.IndexArtifactDescriptor
+	Score    float64
+}
 
 const (
 	// InitialArtifactCapacity is the initial capacity for the packages slice.
@@ -99,4 +106,75 @@ func (idx *Index) FindArtifacts(name string) []*model.IndexArtifactDescriptor {
 	}
 
 	return packages
+}
+
+// FuzzySearchArtifacts performs fuzzy search for artifacts by name.
+// Returns artifacts sorted by relevance (best matches first).
+func (idx *Index) FuzzySearchArtifacts(query string) []*model.IndexArtifactDescriptor {
+	if query == "" {
+		return []*model.IndexArtifactDescriptor{}
+	}
+
+	query = strings.ToLower(query)
+	var scoredMatches []ScoredArtifact
+
+	for _, pkg := range idx.Artifacts {
+		// Calculate similarity score
+		score := fuzzyMatchScore(query, strings.ToLower(pkg.Name))
+		if score > 0 {
+			scoredMatches = append(scoredMatches, ScoredArtifact{
+				Artifact: pkg,
+				Score:    score,
+			})
+		}
+	}
+
+	// Sort by relevance (higher scores first)
+	for i := 0; i < len(scoredMatches)-1; i++ {
+		for j := i + 1; j < len(scoredMatches); j++ {
+			if scoredMatches[j].Score > scoredMatches[i].Score {
+				scoredMatches[i], scoredMatches[j] = scoredMatches[j], scoredMatches[i]
+			}
+		}
+	}
+
+	// Extract artifacts from scored results
+	matches := make([]*model.IndexArtifactDescriptor, len(scoredMatches))
+	for i, scored := range scoredMatches {
+		matches[i] = scored.Artifact
+	}
+
+	return matches
+}
+
+// fuzzyMatchScore calculates a similarity score between query and target.
+// Returns 0 if no match, higher scores for better matches.
+func fuzzyMatchScore(query, target string) float64 {
+	if query == target {
+		return 1.0 // Exact match
+	}
+
+	// Simple fuzzy matching: check if query is contained in target
+	if strings.Contains(target, query) {
+		// Bonus for prefix matches
+		if strings.HasPrefix(target, query) {
+			return 0.9
+		}
+		// Penalty for substring matches (less specific)
+		return 0.7
+	}
+
+	// Check for partial word matches
+	queryWords := strings.Fields(query)
+	targetWords := strings.Fields(target)
+
+	for _, qWord := range queryWords {
+		for _, tWord := range targetWords {
+			if strings.Contains(tWord, qWord) {
+				return 0.5
+			}
+		}
+	}
+
+	return 0.0 // No match
 }

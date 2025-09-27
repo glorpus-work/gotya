@@ -34,6 +34,28 @@ func NewManager(
 	}
 }
 
+func (rm *ManagerImpl) FuzzySearchArtifacts(query string) (map[string][]*model.IndexArtifactDescriptor, error) {
+	indexes, err := rm.getIndexes()
+	if err != nil {
+		return nil, err
+	}
+
+	packages := make(map[string][]*model.IndexArtifactDescriptor, 10)
+
+	for idxName, idx := range indexes {
+		matches := idx.FuzzySearchArtifacts(query)
+		if len(matches) > 0 {
+			packages[idxName] = matches
+		}
+	}
+
+	if len(packages) == 0 {
+		return nil, errors.ErrArtifactNotFound
+	}
+
+	return packages, nil
+}
+
 func (rm *ManagerImpl) FindArtifacts(name string) (map[string][]*model.IndexArtifactDescriptor, error) {
 	indexes, err := rm.getIndexes()
 	if err != nil {

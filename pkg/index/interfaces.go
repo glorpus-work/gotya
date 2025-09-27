@@ -28,6 +28,9 @@ type Manager interface {
 	// FindArtifacts searches for packages by name across all repositories
 	FindArtifacts(name string) (map[string][]*model.IndexArtifactDescriptor, error)
 
+	// FuzzySearchArtifacts performs fuzzy search for packages by name across all repositories
+	FuzzySearchArtifacts(query string) (map[string][]*model.IndexArtifactDescriptor, error)
+
 	// ResolveArtifact finds a specific package with the given name, version, OS and architecture
 	ResolveArtifact(name, version, os, arch string) (*model.IndexArtifactDescriptor, error)
 
