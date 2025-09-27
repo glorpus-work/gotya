@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ type InstalledManager interface {
 	AddArtifact(pkg *InstalledArtifact)
 	RemoveArtifact(name string) bool
 	GetInstalledArtifacts() []*InstalledArtifact
+	FilteredArtifacts(nameFilter string) []*InstalledArtifact
 }
 
 // InstalledFile represents a file installed by an artifact with its hash.
@@ -236,4 +238,27 @@ func (installedDB *InstalledManagerImpl) GetInstalledArtifacts() []*InstalledArt
 	artifacts := make([]*InstalledArtifact, len(installedDB.Artifacts))
 	copy(artifacts, installedDB.Artifacts)
 	return artifacts
+}
+
+// GetInstalledArtifactsByName returns installed packages filtered by name (partial match, case-insensitive).
+func (installedDB *InstalledManagerImpl) FilteredArtifacts(nameFilter string) []*InstalledArtifact {
+	installedDB.rwMutex.RLock()
+	defer installedDB.rwMutex.RUnlock()
+
+	if nameFilter == "" {
+		// Return all artifacts if no filter provided
+		artifacts := make([]*InstalledArtifact, len(installedDB.Artifacts))
+		copy(artifacts, installedDB.Artifacts)
+		return artifacts
+	}
+
+	// Filter artifacts by name
+	var filtered []*InstalledArtifact
+	for _, artifact := range installedDB.Artifacts {
+		if strings.Contains(strings.ToLower(artifact.Name), strings.ToLower(nameFilter)) {
+			filtered = append(filtered, artifact)
+		}
+	}
+
+	return filtered
 }

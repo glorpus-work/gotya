@@ -41,19 +41,8 @@ func runList(nameFilter string) error {
 		return fmt.Errorf("failed to load installed database: %w", err)
 	}
 
-	// Get all installed artifacts
-	artifacts := db.GetInstalledArtifacts()
-
-	// Filter by name if specified
-	if nameFilter != "" {
-		filtered := make([]*database.InstalledArtifact, 0)
-		for _, artifact := range artifacts {
-			if strings.Contains(strings.ToLower(artifact.Name), strings.ToLower(nameFilter)) {
-				filtered = append(filtered, artifact)
-			}
-		}
-		artifacts = filtered
-	}
+	// Get filtered installed artifacts using the database method
+	artifacts := db.FilteredArtifacts(nameFilter)
 
 	// Display results in tabular format
 	if len(artifacts) == 0 {
