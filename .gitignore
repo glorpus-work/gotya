@@ -13,4 +13,5 @@
 .idea/
 .vscode/
 
-coverage*.(out|html)
+coverage*.out
+coverage*.html
