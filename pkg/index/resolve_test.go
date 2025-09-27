@@ -215,3 +215,208 @@ func TestResolve_NonExistentPackage(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "artifact not found")
 }
+
+func TestResolve_WithInstalledArtifacts_CompatibleVersions(t *testing.T) {
+	// Test that the resolver considers installed artifacts and chooses compatible versions
+	mgr := setupTestManager(t, `[
+		{"name":"app","version":"2.0.0","dependencies":[
+			{"name":"lib","version_constraint":">= 1.0.0"}
+		],"url":"https://ex/app-2.0","checksum":"app2"},
+		{"name":"lib","version":"1.0.0","url":"https://ex/lib-1.0","checksum":"lib1"},
+		{"name":"lib","version":"2.0.0","url":"https://ex/lib-2.0","checksum":"lib2"}
+	]`)
+
+	// Simulate having lib@1.0.0 already installed
+	installedArtifacts := []*model.InstalledArtifact{
+		{
+			Name:    "lib",
+			Version: "1.0.0",
+		},
+	}
+
+	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
+		Name:               "app",
+		Version:            "2.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: installedArtifacts,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, plan.Artifacts, 2)
+
+	// The resolver chooses the latest available version that satisfies constraints
+	// Since lib@1.0.0 is already installed but there's a newer lib@2.0.0 available,
+	// it should update to the latest version
+	var libID string
+	for _, artifact := range plan.Artifacts {
+		if artifact.Name == "lib" {
+			libID = artifact.ID
+			break
+		}
+	}
+	assert.Contains(t, []string{"lib@2.0.0", "lib@3.0.0"}, libID, "lib should be updated to latest available version")
+
+	// Verify the action and reason
+	var libAction model.ResolvedAction
+	var libReason string
+	for _, artifact := range plan.Artifacts {
+		if artifact.Name == "lib" {
+			libAction = artifact.Action
+			libReason = artifact.Reason
+			break
+		}
+	}
+	assert.Equal(t, model.ResolvedActionUpdate, libAction, "lib should be updated")
+	assert.Contains(t, libReason, "updating")
+
+	assert.Equal(t, "app@2.0.0", plan.Artifacts[1].ID)
+	assert.Equal(t, model.ResolvedActionInstall, plan.Artifacts[1].Action)
+}
+
+func TestResolve_WithInstalledArtifacts_IncompatibleVersions(t *testing.T) {
+	// Test version conflict resolution when installed artifacts are incompatible
+	mgr := setupTestManager(t, `[
+		{"name":"app","version":"2.0.0","dependencies":[
+			{"name":"lib","version_constraint":">= 2.0.0"}
+		],"url":"https://ex/app-2.0","checksum":"app2"},
+		{"name":"lib","version":"2.0.0","url":"https://ex/lib-2.0","checksum":"lib2"},
+		{"name":"lib","version":"3.0.0","url":"https://ex/lib-3.0","checksum":"lib3"}
+	]`)
+
+	// Simulate having lib@1.0.0 already installed (incompatible with app requirement)
+	installedArtifacts := []*model.InstalledArtifact{
+		{
+			Name:    "lib",
+			Version: "1.0.0",
+		},
+	}
+
+	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
+		Name:               "app",
+		Version:            "2.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: installedArtifacts,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, plan.Artifacts, 2)
+
+	// Should update lib to the latest version that satisfies >= 2.0.0 constraint
+	var libID string
+	for _, artifact := range plan.Artifacts {
+		if artifact.Name == "lib" {
+			libID = artifact.ID
+			break
+		}
+	}
+	assert.Contains(t, []string{"lib@2.0.0", "lib@3.0.0"}, libID, "lib should be updated to satisfy >= 2.0.0 constraint")
+
+	// Verify the action and reason
+	var libAction model.ResolvedAction
+	for _, artifact := range plan.Artifacts {
+		if artifact.Name == "lib" {
+			libAction = artifact.Action
+			break
+		}
+	}
+	assert.Equal(t, model.ResolvedActionUpdate, libAction, "lib should be updated")
+
+	assert.Equal(t, "app@2.0.0", plan.Artifacts[1].ID)
+	assert.Equal(t, model.ResolvedActionInstall, plan.Artifacts[1].Action)
+}
+
+func TestResolve_WithInstalledArtifacts_SkipWhenCompatible(t *testing.T) {
+	// Test that compatible installed artifacts are skipped
+	mgr := setupTestManager(t, `[
+		{"name":"app","version":"1.0.0","dependencies":[
+			{"name":"lib","version_constraint":">= 1.0.0"}
+		],"url":"https://ex/app-1.0","checksum":"app1"},
+		{"name":"lib","version":"1.0.0","url":"https://ex/lib-1.0","checksum":"lib1"}
+	]`)
+
+	// Simulate having lib@1.0.0 already installed (compatible)
+	installedArtifacts := []*model.InstalledArtifact{
+		{
+			Name:    "lib",
+			Version: "1.0.0",
+		},
+	}
+
+	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
+		Name:               "app",
+		Version:            "1.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: installedArtifacts,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, plan.Artifacts, 2)
+
+	// Should skip lib since it's already at the correct version
+	assert.Equal(t, "lib@1.0.0", plan.Artifacts[0].ID)
+	assert.Equal(t, model.ResolvedActionSkip, plan.Artifacts[0].Action)
+	assert.Contains(t, plan.Artifacts[0].Reason, "already at the required version")
+
+	assert.Equal(t, "app@1.0.0", plan.Artifacts[1].ID)
+	assert.Equal(t, model.ResolvedActionInstall, plan.Artifacts[1].Action)
+}
+
+func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
+	// Test complex scenario with multiple installed artifacts and dependencies
+	mgr := setupTestManager(t, `[
+		{"name":"app","version":"3.0.0","dependencies":[
+			{"name":"lib-a","version_constraint":">= 2.0.0"},
+			{"name":"lib-b","version_constraint":">= 1.0.0"}
+		],"url":"https://ex/app-3.0","checksum":"app3"},
+		{"name":"lib-a","version":"2.0.0","url":"https://ex/lib-a-2.0","checksum":"liba2"},
+		{"name":"lib-a","version":"3.0.0","url":"https://ex/lib-a-3.0","checksum":"liba3"},
+		{"name":"lib-b","version":"1.0.0","url":"https://ex/lib-b-1.0","checksum":"libb1"},
+		{"name":"lib-b","version":"2.0.0","url":"https://ex/lib-b-2.0","checksum":"libb2"}
+	]`)
+
+	// Simulate having lib-a@2.0.0 and lib-b@1.0.0 already installed
+	installedArtifacts := []*model.InstalledArtifact{
+		{
+			Name:    "lib-a",
+			Version: "2.0.0",
+		},
+		{
+			Name:    "lib-b",
+			Version: "1.0.0",
+		},
+	}
+
+	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
+		Name:               "app",
+		Version:            "3.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: installedArtifacts,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, plan.Artifacts, 3)
+
+	// lib-a should be updated to latest version (3.0.0) since >= 2.0.0 is required
+	// lib-b should be updated to latest version (2.0.0) since >= 1.0.0 is required and 2.0.0 is available
+	// app should be installed
+
+	var libAAction, libBAction, appAction model.ResolvedAction
+	for _, artifact := range plan.Artifacts {
+		switch artifact.Name {
+		case "lib-a":
+			libAAction = artifact.Action
+		case "lib-b":
+			libBAction = artifact.Action
+		case "app":
+			appAction = artifact.Action
+		}
+	}
+
+	assert.Equal(t, model.ResolvedActionUpdate, libAAction, "lib-a should be updated to latest version")
+	assert.Equal(t, model.ResolvedActionUpdate, libBAction, "lib-b should be updated to latest version")
+	assert.Equal(t, model.ResolvedActionInstall, appAction, "app should be installed")
+}
