@@ -156,8 +156,8 @@ settings:
 	// Check for expected output from custom config
 	assert.Contains(t, output, "test-repo", "output should contain custom repository")
 	assert.Contains(t, output, "http://example.com/repo", "output should contain custom repository URL")
-	assert.Contains(t, output, "Output_Format    json", "output should contain custom output format")
-	assert.Contains(t, output, "Log_Level        debug", "output should contain custom log level")
+	assert.Contains(t, output, "output_format", "output should contain custom output format")
+	assert.Contains(t, output, "log_level", "output should contain custom log level")
 }
 
 func TestConfigSetAndGet(t *testing.T) {
