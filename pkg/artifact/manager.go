@@ -172,6 +172,9 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string,
 	if newDescriptor == nil {
 		return fmt.Errorf("new artifact descriptor cannot be nil")
 	}
+	if newDescriptor.Name == "" {
+		return fmt.Errorf("artifact name cannot be empty")
+	}
 
 	// Load the installed database
 	db := database.NewInstalledDatabase()

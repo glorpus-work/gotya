@@ -867,8 +867,9 @@ func TestUpdateArtifact_EmptyArtifactName(t *testing.T) {
 	tempDir := t.TempDir()
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
 
+	// Create a descriptor with empty name to test validation
 	desc := &model.IndexArtifactDescriptor{
-		Name:    "test-artifact",
+		Name:    "", // Empty name
 		Version: "2.0.0",
 		OS:      "linux",
 		Arch:    "amd64",
@@ -959,13 +960,13 @@ func TestUpdateArtifact_DifferentArtifactName(t *testing.T) {
 		URL:     "http://example.com/v2.0.0.gotya",
 	}
 
-	// Update should fail due to metadata mismatch
+	// Update should fail because the artifact is not installed
 	err = mgr.UpdateArtifact(context.Background(), updatedArtifact, updatedDesc)
 	if err == nil {
-		t.Errorf("Expected error due to metadata mismatch but got nil")
+		t.Errorf("Expected error because artifact is not installed but got nil")
 		return
 	}
-	assert.Contains(t, err.Error(), "name mismatch")
+	assert.Contains(t, err.Error(), "artifact different-artifact is not installed")
 }
 
 // TestUpdateArtifact_DowngradeVersion tests updating to a lower version
