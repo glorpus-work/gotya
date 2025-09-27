@@ -1542,3 +1542,237 @@ func TestReverseResolve_MissingStatusArtifact(t *testing.T) {
 	// Should return empty result since missing artifacts are not included
 	assert.Empty(t, result.Artifacts)
 }
+
+// TestInstallArtifact_InstallationReason_Transitions tests installation reason transitions
+func TestInstallArtifact_InstallationReason_Transitions(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install an artifact with automatic reason first
+	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
+	metadata := &Metadata{
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact for installation reason transitions",
+	}
+	setupTestArtifact(t, testArtifact, true, metadata)
+
+	desc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test.gotya",
+	}
+
+	// Install with automatic reason
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonAutomatic)
+	require.NoError(t, err)
+
+	// Verify it was installed with automatic reason
+	db := loadInstalledDB(t, dbPath)
+	installedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, installedArtifact)
+	assert.Equal(t, model.InstallationReasonAutomatic, installedArtifact.InstallationReason, "should have automatic reason")
+
+	// Create a new version to upgrade to manual
+	testArtifactV2 := filepath.Join(tempDir, "test-artifact-v2.gotya")
+	metadataV2 := &Metadata{
+		Name:        artifactName,
+		Version:     "2.0.0", // Different version
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Updated test artifact",
+	}
+	setupTestArtifact(t, testArtifactV2, true, metadataV2)
+
+	descV2 := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "2.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test-v2.gotya",
+	}
+
+	// Update with manual reason (should succeed - automatic can be upgraded to manual)
+	err = mgr.UpdateArtifact(context.Background(), artifactName, testArtifactV2, descV2)
+	require.NoError(t, err)
+
+	// Verify it was upgraded to manual reason
+	db = loadInstalledDB(t, dbPath)
+	updatedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, updatedArtifact)
+	assert.Equal(t, "2.0.0", updatedArtifact.Version, "version should be updated")
+	assert.Equal(t, model.InstallationReasonManual, updatedArtifact.InstallationReason, "should be upgraded to manual reason")
+}
+
+// TestInstallArtifact_InstallationReason_ManualUpdate tests updating a manually installed artifact to a new version
+func TestInstallArtifact_InstallationReason_ManualUpdate(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install an artifact with manual reason first
+	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
+	metadata := &Metadata{
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact for manual installation",
+	}
+	setupTestArtifact(t, testArtifact, true, metadata)
+
+	desc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test.gotya",
+	}
+
+	// Install with manual reason
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
+	require.NoError(t, err)
+
+	// Verify it was installed with manual reason
+	db := loadInstalledDB(t, dbPath)
+	installedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, installedArtifact)
+	assert.Equal(t, model.InstallationReasonManual, installedArtifact.InstallationReason, "should have manual reason")
+
+	// Create a new version to update to (should succeed - manual can be updated)
+	testArtifactV2 := filepath.Join(tempDir, "test-artifact-v2.gotya")
+	metadataV2 := &Metadata{
+		Name:        artifactName,
+		Version:     "2.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Updated test artifact",
+	}
+	setupTestArtifact(t, testArtifactV2, true, metadataV2)
+
+	descV2 := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "2.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test-v2.gotya",
+	}
+
+	// Update should succeed - manual installations can be updated
+	err = mgr.UpdateArtifact(context.Background(), artifactName, testArtifactV2, descV2)
+	require.NoError(t, err)
+
+	// Verify it was updated successfully
+	db = loadInstalledDB(t, dbPath)
+	updatedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, updatedArtifact)
+	assert.Equal(t, "2.0.0", updatedArtifact.Version, "version should be updated")
+	assert.Equal(t, model.InstallationReasonManual, updatedArtifact.InstallationReason, "should remain manual installation")
+}
+
+// TestInstallArtifact_InstallationReason_SameVersionUpgrade tests upgrading automatic to manual with same version
+func TestInstallArtifact_InstallationReason_SameVersionUpgrade(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install an artifact with automatic reason first
+	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
+	metadata := &Metadata{
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact for same version upgrade",
+	}
+	setupTestArtifact(t, testArtifact, true, metadata)
+
+	desc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test.gotya",
+	}
+
+	// Install with automatic reason
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonAutomatic)
+	require.NoError(t, err)
+
+	// Verify it was installed with automatic reason
+	db := loadInstalledDB(t, dbPath)
+	installedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, installedArtifact)
+	assert.Equal(t, model.InstallationReasonAutomatic, installedArtifact.InstallationReason, "should have automatic reason")
+
+	// Create a new artifact file (same version, same metadata) but install with manual reason
+	testArtifactV2 := filepath.Join(tempDir, "test-artifact-v2.gotya")
+	setupTestArtifact(t, testArtifactV2, true, metadata) // Same metadata
+
+	// Try to update with manual reason (should succeed even with same version)
+	err = mgr.UpdateArtifact(context.Background(), artifactName, testArtifactV2, desc)
+	require.NoError(t, err)
+
+	// Verify it was upgraded to manual reason
+	db = loadInstalledDB(t, dbPath)
+	updatedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, updatedArtifact)
+	assert.Equal(t, model.InstallationReasonManual, updatedArtifact.InstallationReason, "should be upgraded to manual reason")
+}
+
+// TestInstallArtifact_InstallationReason_DatabasePersistence tests that installation reason is persisted in database
+func TestInstallArtifact_InstallationReason_DatabasePersistence(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install an artifact
+	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
+	metadata := &Metadata{
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact for database persistence",
+	}
+	setupTestArtifact(t, testArtifact, true, metadata)
+
+	desc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test.gotya",
+	}
+
+	// Install with manual reason
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonManual)
+	require.NoError(t, err)
+
+	// Verify it was installed with manual reason
+	db := loadInstalledDB(t, dbPath)
+	installedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, installedArtifact)
+	assert.Equal(t, model.InstallationReasonManual, installedArtifact.InstallationReason, "should have manual reason in memory")
+
+	// Load database directly to test persistence
+	db2 := loadInstalledDB(t, dbPath) // This will load from the saved database
+	reloadedArtifact := db2.FindArtifact(artifactName)
+	require.NotNil(t, reloadedArtifact)
+	assert.Equal(t, model.InstallationReasonManual, reloadedArtifact.InstallationReason, "should have manual reason persisted in database")
+}

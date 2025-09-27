@@ -203,8 +203,23 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 	}
 
 	// Check if this is actually an update (different version or URL)
+	// But allow automatic -> manual upgrades even with same version/URL
 	if installedArtifact.Version == newDescriptor.Version && installedArtifact.InstalledFrom == newDescriptor.URL {
-		return fmt.Errorf("artifact %s is already at the latest version", artifactName)
+		// If trying to upgrade from automatic to manual, allow it
+		if installedArtifact.InstallationReason == model.InstallationReasonAutomatic {
+			// This is an automatic -> manual upgrade, proceed with installation
+			logger.Debug("Upgrading automatic installation to manual", logger.Fields{"artifact": artifactName})
+		} else {
+			return fmt.Errorf("artifact %s is already at the latest version", artifactName)
+		}
+	}
+
+	// Check installation reason transitions
+	// Only prevent downgrades from manual to automatic, allow updates within the same reason or upgrades
+	if installedArtifact.InstallationReason == model.InstallationReasonManual {
+		// Manual installations can only be updated (version/URL changes are allowed)
+		// The installation reason stays manual
+		logger.Debug("Updating manually installed artifact", logger.Fields{"artifact": artifactName})
 	}
 
 	// Step 1: Uninstall the old version (with purge=true for clean slate)

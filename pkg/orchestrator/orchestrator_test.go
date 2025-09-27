@@ -880,3 +880,284 @@ func TestUninstall_ArtifactUninstallError(t *testing.T) {
 	require.Error(t, err, "should return error when uninstall fails")
 	assert.Equal(t, expectedErr, err, "should return the error from ArtifactManager")
 }
+
+func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data - single artifact that should be manual
+	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
+	req := model.ResolveRequest{
+		Name:    "pkgA",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	step := model.ResolvedArtifact{
+		ID:        "pkgA@1.0.0",
+		Name:      "pkgA",
+		Version:   "1.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL,
+		Checksum:  "abc123",
+	}
+
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Setup expectations
+	idx.EXPECT().
+		Resolve(gomock.Any(), req).
+		Return(plan, nil).
+		Times(1)
+
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]string{step.ID: "/tmp/pkgA-1.0.0.tgz"}, nil).
+		Times(1)
+
+	// Expect InstallArtifact call with InstallationReasonManual for the first (and only) artifact
+	am.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), "/tmp/pkgA-1.0.0.tgz", model.InstallationReasonManual).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string, reason model.InstallationReason) error {
+			// Verify that the reason is Manual for the primary artifact
+			assert.Equal(t, model.InstallationReasonManual, reason, "first artifact should have InstallationReasonManual")
+			assert.Equal(t, step.Name, desc.Name, "artifact name should match")
+			assert.Equal(t, step.Version, desc.Version, "artifact version should match")
+			return nil
+		}).
+		Times(1)
+
+	// Create orchestrator
+	orch := &Orchestrator{
+		Index:           idx,
+		DL:              dl,
+		ArtifactManager: am,
+	}
+
+	// Execute test
+	err := orch.Install(
+		context.Background(),
+		req,
+		InstallOptions{
+			CacheDir: t.TempDir(),
+		},
+	)
+
+	// Verify results
+	require.NoError(t, err, "install should succeed")
+}
+
+func TestInstall_InstallationReason_DependenciesAutomatic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data - main artifact with dependency
+	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
+	depURL, _ := url.Parse("https://example.com/dep-1.0.0.tgz")
+	req := model.ResolveRequest{
+		Name:    "pkgA",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	mainStep := model.ResolvedArtifact{
+		ID:        "pkgA@1.0.0",
+		Name:      "pkgA",
+		Version:   "1.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL,
+		Checksum:  "abc123",
+	}
+
+	depStep := model.ResolvedArtifact{
+		ID:        "dep@1.0.0",
+		Name:      "dep",
+		Version:   "1.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: depURL,
+		Checksum:  "def456",
+	}
+
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{mainStep, depStep}}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Setup expectations
+	idx.EXPECT().
+		Resolve(gomock.Any(), req).
+		Return(plan, nil).
+		Times(1)
+
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]string{
+			mainStep.ID: "/tmp/pkgA-1.0.0.tgz",
+			depStep.ID:  "/tmp/dep-1.0.0.tgz",
+		}, nil).
+		Times(1)
+
+	// Expect InstallArtifact calls with correct installation reasons
+	// First artifact (main) should be manual
+	am.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), "/tmp/pkgA-1.0.0.tgz", model.InstallationReasonManual).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string, reason model.InstallationReason) error {
+			assert.Equal(t, model.InstallationReasonManual, reason, "main artifact should have InstallationReasonManual")
+			return nil
+		}).
+		Times(1)
+
+	// Second artifact (dependency) should be automatic
+	am.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), "/tmp/dep-1.0.0.tgz", model.InstallationReasonAutomatic).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string, reason model.InstallationReason) error {
+			assert.Equal(t, model.InstallationReasonAutomatic, reason, "dependency should have InstallationReasonAutomatic")
+			return nil
+		}).
+		Times(1)
+
+	// Create orchestrator
+	orch := &Orchestrator{
+		Index:           idx,
+		DL:              dl,
+		ArtifactManager: am,
+	}
+
+	// Execute test
+	err := orch.Install(
+		context.Background(),
+		req,
+		InstallOptions{
+			CacheDir: t.TempDir(),
+		},
+	)
+
+	// Verify results
+	require.NoError(t, err, "install should succeed")
+}
+
+func TestInstall_InstallationReason_MultipleArtifacts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data - multiple artifacts where only the first matching the request name should be manual
+	sURL1, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
+	sURL2, _ := url.Parse("https://example.com/pkgB-1.0.0.tgz")
+	sURL3, _ := url.Parse("https://example.com/pkgC-1.0.0.tgz")
+
+	req := model.ResolveRequest{
+		Name:    "pkgA", // Only pkgA should be manual
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	artifactA := model.ResolvedArtifact{
+		ID:        "pkgA@1.0.0",
+		Name:      "pkgA",
+		Version:   "1.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL1,
+		Checksum:  "abc123",
+	}
+
+	artifactB := model.ResolvedArtifact{
+		ID:        "pkgB@1.0.0",
+		Name:      "pkgB",
+		Version:   "1.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL2,
+		Checksum:  "def456",
+	}
+
+	artifactC := model.ResolvedArtifact{
+		ID:        "pkgC@1.0.0",
+		Name:      "pkgC",
+		Version:   "1.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL3,
+		Checksum:  "ghi789",
+	}
+
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{artifactA, artifactB, artifactC}}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Setup expectations
+	idx.EXPECT().
+		Resolve(gomock.Any(), req).
+		Return(plan, nil).
+		Times(1)
+
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]string{
+			artifactA.ID: "/tmp/pkgA-1.0.0.tgz",
+			artifactB.ID: "/tmp/pkgB-1.0.0.tgz",
+			artifactC.ID: "/tmp/pkgC-1.0.0.tgz",
+		}, nil).
+		Times(1)
+
+	// pkgA should be manual (matches request name)
+	am.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), "/tmp/pkgA-1.0.0.tgz", model.InstallationReasonManual).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string, reason model.InstallationReason) error {
+			assert.Equal(t, model.InstallationReasonManual, reason, "pkgA should have InstallationReasonManual")
+			return nil
+		}).
+		Times(1)
+
+	// pkgB and pkgC should be automatic (dependencies)
+	am.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), "/tmp/pkgB-1.0.0.tgz", model.InstallationReasonAutomatic).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string, reason model.InstallationReason) error {
+			assert.Equal(t, model.InstallationReasonAutomatic, reason, "pkgB should have InstallationReasonAutomatic")
+			return nil
+		}).
+		Times(1)
+
+	am.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), "/tmp/pkgC-1.0.0.tgz", model.InstallationReasonAutomatic).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string, reason model.InstallationReason) error {
+			assert.Equal(t, model.InstallationReasonAutomatic, reason, "pkgC should have InstallationReasonAutomatic")
+			return nil
+		}).
+		Times(1)
+
+	// Create orchestrator
+	orch := &Orchestrator{
+		Index:           idx,
+		DL:              dl,
+		ArtifactManager: am,
+	}
+
+	// Execute test
+	err := orch.Install(
+		context.Background(),
+		req,
+		InstallOptions{
+			CacheDir: t.TempDir(),
+		},
+	)
+
+	// Verify results
+	require.NoError(t, err, "install should succeed")
+}

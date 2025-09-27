@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/cperrin88/gotya/pkg/model"
 )
 
 func TestInstalledManager(t *testing.T) {
@@ -144,5 +146,64 @@ func TestInstalledManager(t *testing.T) {
 		// Check that all artifacts were added
 		artifacts := db.GetInstalledArtifacts()
 		assert.Len(t, artifacts, numGoroutines, "Expected %d artifacts, got %d", numGoroutines, len(artifacts))
+	})
+}
+
+func TestInstalledManager_InstallationReason(t *testing.T) {
+	t.Run("InstallationReasonPersistence", func(t *testing.T) {
+		tempDir := t.TempDir()
+		dbPath := filepath.Join(tempDir, "installed.json")
+
+		// Create database with artifacts having different installation reasons
+		db := NewInstalledDatabase()
+
+		manualArtifact := &InstalledArtifact{
+			Name:               "manual-artifact",
+			Version:            "1.0.0",
+			InstallationReason: model.InstallationReasonManual,
+		}
+		db.AddArtifact(manualArtifact)
+
+		automaticArtifact := &InstalledArtifact{
+			Name:               "automatic-artifact",
+			Version:            "1.0.0",
+			InstallationReason: model.InstallationReasonAutomatic,
+		}
+		db.AddArtifact(automaticArtifact)
+
+		// Save database
+		err := db.SaveDatabase(dbPath)
+		require.NoError(t, err)
+
+		// Load database in new instance
+		newDB := NewInstalledDatabase()
+		err = newDB.LoadDatabase(dbPath)
+		require.NoError(t, err)
+
+		// Verify installation reasons are preserved
+		manualFound := newDB.FindArtifact("manual-artifact")
+		require.NotNil(t, manualFound)
+		assert.Equal(t, model.InstallationReasonManual, manualFound.InstallationReason, "manual artifact should preserve installation reason")
+
+		automaticFound := newDB.FindArtifact("automatic-artifact")
+		require.NotNil(t, automaticFound)
+		assert.Equal(t, model.InstallationReasonAutomatic, automaticFound.InstallationReason, "automatic artifact should preserve installation reason")
+	})
+
+	t.Run("DefaultInstallationReason", func(t *testing.T) {
+		// Test that new artifacts get a default installation reason
+		artifact := &InstalledArtifact{
+			Name:    "new-artifact",
+			Version: "1.0.0",
+			// No InstallationReason set explicitly
+		}
+
+		db := NewInstalledDatabase()
+		db.AddArtifact(artifact)
+
+		found := db.FindArtifact("new-artifact")
+		require.NotNil(t, found)
+		// Default should be empty string (zero value)
+		assert.Equal(t, model.InstallationReason(""), found.InstallationReason, "new artifact should have empty installation reason by default")
 	})
 }
