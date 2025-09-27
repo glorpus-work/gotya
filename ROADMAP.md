@@ -25,6 +25,12 @@ Gotya has a solid foundation with:
 **Status**: Not implemented
 **Description**: Implement `gotya list` command to show installed packages only
 **Implementation**: Create list functionality to display currently installed packages from the local database
+**Requirements**:
+- Tabular output format only (no JSON/YAML for now)
+- Filter by package name (optional flag)
+- Show package-name and package-version
+- No categories support (doesn't exist yet)
+- Skip outdated detection for now (too complex)
 **Note**: User clarified that list should focus on installed packages only, not available packages
 **Effort**: 1-2 days
 
