@@ -49,7 +49,7 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 
 	emit(o.Hooks, Event{Phase: "planning", Msg: req.Name})
 
-	// Load currently installed artifacts for compatibility checking (only if not dry run)
+	// Load currently installed artifacts for compatibility checking
 	var installedArtifacts []*model.InstalledArtifact
 	if o.ArtifactManager != nil {
 		var err error
@@ -59,13 +59,29 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 		}
 	}
 
-	// Create a copy of the request with installed artifacts for resolution (only if we have artifacts)
-	resolveReq := req
-	if len(installedArtifacts) > 0 {
-		resolveReq.InstalledArtifacts = installedArtifacts
+	// Build resolve requests: main request + keep preferences for installed artifacts
+	requests := []model.ResolveRequest{
+		{
+			Name:              req.Name,
+			VersionConstraint: req.VersionConstraint,
+			OS:                req.OS,
+			Arch:              req.Arch,
+		},
 	}
 
-	plan, err := o.Index.Resolve(ctx, resolveReq)
+	// Add keep preferences for all installed artifacts
+	for _, installed := range installedArtifacts {
+		requests = append(requests, model.ResolveRequest{
+			Name:              installed.Name,
+			VersionConstraint: "", // No hard constraint, just preference
+			OS:                req.OS,
+			Arch:              req.Arch,
+			OldVersion:        installed.Version,
+			KeepVersion:       true, // Prefer to keep current version
+		})
+	}
+
+	plan, err := o.Index.Resolve(ctx, requests)
 	if err != nil {
 		return err
 	}
@@ -137,7 +153,7 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 			desc.URL = step.SourceURL.String()
 		}
 
-		// Determine installation reason: first artifact is manual, rest are automatic (dependencies)
+		// Determine installation reason: main requested package is manual, others are automatic
 		reason := model.InstallationReasonAutomatic
 		if step.Name == req.Name {
 			reason = model.InstallationReasonManual

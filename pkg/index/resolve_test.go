@@ -16,7 +16,7 @@ func setupTestManager(t *testing.T, artifactsJSON string) *ManagerImpl {
 	return NewManager([]*Repository{repo}, dir)
 }
 
-func TestResolve_BasicDependencyResolution(t *testing.T) {
+func TestResolve_SimpleDependencyChain(t *testing.T) {
 	// Test a simple dependency chain: a -> b -> c
 	mgr := setupTestManager(t, `[
 		{"name":"a","version":"1.0.0","dependencies":[{"name":"b","version_constraint":">= 1.0.0"}],"url":"https://ex/a","checksum":"a1"},
@@ -24,11 +24,13 @@ func TestResolve_BasicDependencyResolution(t *testing.T) {
 		{"name":"c","version":"1.0.0","url":"https://ex/c","checksum":"c1"}
 	]`)
 
-	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:              "a",
-		VersionConstraint: "1.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		{
+			Name:              "a",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
 	})
 
 	require.NoError(t, err)
@@ -55,11 +57,13 @@ func TestResolve_VersionConflictResolution(t *testing.T) {
 		{"name":"common-lib","version":"2.0.0","url":"https://ex/common-2","checksum":"clib2"}
 	]`)
 
-	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:              "app",
-		VersionConstraint: "1.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		{
+			Name:              "app",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
 	})
 
 	// The current implementation doesn't detect version conflicts, so we'll just check for no error
@@ -77,11 +81,13 @@ func TestResolve_CyclicDependency(t *testing.T) {
 		{"name":"b","version":"1.0.0","dependencies":[{"name":"a","version_constraint":">= 1.0.0"}],"url":"https://ex/b","checksum":"b1"}
 	]`)
 
-	_, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:              "a",
-		VersionConstraint: "1.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
+	_, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		{
+			Name:              "a",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
 	})
 
 	assert.Error(t, err)
@@ -111,11 +117,13 @@ func TestResolve_ComplexDependencyGraph(t *testing.T) {
 		],"url":"https://ex/http-2.0","checksum":"http2"}
 	]`)
 
-	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:              "app",
-		VersionConstraint: "1.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		{
+			Name:              "app",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
 	})
 
 	require.NoError(t, err)
@@ -153,11 +161,13 @@ func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 	]`)
 
 	t.Run("linux/amd64", func(t *testing.T) {
-		plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-			Name:              "app",
-			VersionConstraint: "1.0.0",
-			OS:                "linux",
-			Arch:              "amd64",
+		plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+			{
+				Name:              "app",
+				VersionConstraint: "1.0.0",
+				OS:                "linux",
+				Arch:              "amd64",
+			},
 		})
 
 		require.NoError(t, err)
@@ -169,11 +179,13 @@ func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 	})
 
 	t.Run("darwin/arm64", func(t *testing.T) {
-		plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-			Name:              "app",
-			VersionConstraint: "1.0.0",
-			OS:                "darwin",
-			Arch:              "arm64",
+		plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+			{
+				Name:              "app",
+				VersionConstraint: "1.0.0",
+				OS:                "darwin",
+				Arch:              "arm64",
+			},
 		})
 
 		require.NoError(t, err)
@@ -189,11 +201,13 @@ func TestResolve_NoDependencies(t *testing.T) {
 	// Test planning for a package with no dependencies
 	mgr := setupTestManager(t, `[{"name":"standalone","version":"1.0.0","url":"https://ex/standalone","checksum":"s1"}]`)
 
-	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:              "standalone",
-		VersionConstraint: "1.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		{
+			Name:              "standalone",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
 	})
 
 	require.NoError(t, err)
@@ -205,11 +219,13 @@ func TestResolve_NonExistentPackage(t *testing.T) {
 	// Test behavior when the requested package doesn't exist
 	mgr := setupTestManager(t, `[{"name":"exists","version":"1.0.0","url":"https://ex/exists","checksum":"e1"}]`)
 
-	_, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:              "nonexistent",
-		VersionConstraint: "1.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
+	_, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		{
+			Name:              "nonexistent",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
 	})
 
 	assert.Error(t, err)
@@ -227,19 +243,23 @@ func TestResolve_WithInstalledArtifacts_CompatibleVersions(t *testing.T) {
 	]`)
 
 	// Simulate having lib@1.0.0 already installed
-	installedArtifacts := []*model.InstalledArtifact{
-		{
-			Name:    "lib",
-			Version: "1.0.0",
-		},
-	}
 
-	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:               "app",
-		VersionConstraint:  "2.0.0",
-		OS:                 "linux",
-		Arch:               "amd64",
-		InstalledArtifacts: installedArtifacts,
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		{
+			Name:              "app",
+			VersionConstraint: "2.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
+		// Add keep preference for installed artifact
+		{
+			Name:              "lib",
+			VersionConstraint: "", // No hard constraint, just preference
+			OS:                "linux",
+			Arch:              "amd64",
+			OldVersion:        "1.0.0",
+			KeepVersion:       true, // Prefer to keep current version
+		},
 	})
 
 	require.NoError(t, err)
@@ -285,19 +305,22 @@ func TestResolve_WithInstalledArtifacts_IncompatibleVersions(t *testing.T) {
 	]`)
 
 	// Simulate having lib@1.0.0 already installed (incompatible with app requirement)
-	installedArtifacts := []*model.InstalledArtifact{
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
 		{
-			Name:    "lib",
-			Version: "1.0.0",
+			Name:              "app",
+			VersionConstraint: "2.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
 		},
-	}
-
-	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:               "app",
-		VersionConstraint:  "2.0.0",
-		OS:                 "linux",
-		Arch:               "amd64",
-		InstalledArtifacts: installedArtifacts,
+		// Add keep preference for installed artifact
+		{
+			Name:              "lib",
+			VersionConstraint: "", // No hard constraint, just preference
+			OS:                "linux",
+			Arch:              "amd64",
+			OldVersion:        "1.0.0",
+			KeepVersion:       true, // Prefer to keep current version
+		},
 	})
 
 	require.NoError(t, err)
@@ -337,19 +360,22 @@ func TestResolve_WithInstalledArtifacts_SkipWhenCompatible(t *testing.T) {
 	]`)
 
 	// Simulate having lib@1.0.0 already installed (compatible)
-	installedArtifacts := []*model.InstalledArtifact{
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
 		{
-			Name:    "lib",
-			Version: "1.0.0",
+			Name:              "app",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
 		},
-	}
-
-	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:               "app",
-		VersionConstraint:  "1.0.0",
-		OS:                 "linux",
-		Arch:               "amd64",
-		InstalledArtifacts: installedArtifacts,
+		// Add keep preference for installed artifact
+		{
+			Name:              "lib",
+			VersionConstraint: "", // No hard constraint, just preference
+			OS:                "linux",
+			Arch:              "amd64",
+			OldVersion:        "1.0.0",
+			KeepVersion:       true, // Prefer to keep current version
+		},
 	})
 
 	require.NoError(t, err)
@@ -378,23 +404,30 @@ func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
 	]`)
 
 	// Simulate having lib-a@2.0.0 and lib-b@1.0.0 already installed
-	installedArtifacts := []*model.InstalledArtifact{
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
 		{
-			Name:    "lib-a",
-			Version: "2.0.0",
+			Name:              "app",
+			VersionConstraint: "3.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
+		// Add keep preferences for installed artifacts
+		{
+			Name:              "lib-a",
+			VersionConstraint: "", // No hard constraint, just preference
+			OS:                "linux",
+			Arch:              "amd64",
+			OldVersion:        "2.0.0",
+			KeepVersion:       true, // Prefer to keep current version
 		},
 		{
-			Name:    "lib-b",
-			Version: "1.0.0",
+			Name:              "lib-b",
+			VersionConstraint: "", // No hard constraint, just preference
+			OS:                "linux",
+			Arch:              "amd64",
+			OldVersion:        "1.0.0",
+			KeepVersion:       true, // Prefer to keep current version
 		},
-	}
-
-	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:               "app",
-		VersionConstraint:  "3.0.0",
-		OS:                 "linux",
-		Arch:               "amd64",
-		InstalledArtifacts: installedArtifacts,
 	})
 
 	require.NoError(t, err)
@@ -404,6 +437,65 @@ func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
 	// lib-b should be updated to latest version (2.0.0) since >= 1.0.0 is required and 2.0.0 is available
 	// app should be installed
 
+	var libAAction, appAction model.ResolvedAction
+	for _, artifact := range plan.Artifacts {
+		switch artifact.Name {
+		case "lib-a":
+			libAAction = artifact.Action
+		case "app":
+			appAction = artifact.Action
+		}
+	}
+
+	assert.Equal(t, model.ResolvedActionUpdate, libAAction, "lib-a should be updated to latest version")
+	assert.Equal(t, model.ResolvedActionInstall, appAction, "app should be installed")
+}
+
+func TestResolve_MultipleRequestsWithMixedKeepVersion(t *testing.T) {
+	// Test multiple requests with mixed KeepVersion settings
+	mgr := setupTestManager(t, `[
+		{"name":"app","version":"2.0.0","dependencies":[
+			{"name":"lib-a","version_constraint":">= 1.0.0"},
+			{"name":"lib-b","version_constraint":">= 1.0.0"}
+		],"url":"https://ex/app-2.0","checksum":"app2"},
+		{"name":"lib-a","version":"1.0.0","url":"https://ex/lib-a-1.0","checksum":"liba1"},
+		{"name":"lib-a","version":"2.0.0","url":"https://ex/lib-a-2.0","checksum":"liba2"},
+		{"name":"lib-b","version":"1.0.0","url":"https://ex/lib-b-1.0","checksum":"libb1"},
+		{"name":"lib-b","version":"2.0.0","url":"https://ex/lib-b-2.0","checksum":"libb2"}
+	]`)
+
+	// Test with mixed KeepVersion settings
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		{
+			Name:              "app",
+			VersionConstraint: "2.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
+		// lib-a: KeepVersion=true (prefer to keep current)
+		{
+			Name:              "lib-a",
+			VersionConstraint: "",
+			OS:                "linux",
+			Arch:              "amd64",
+			OldVersion:        "1.0.0",
+			KeepVersion:       true,
+		},
+		// lib-b: KeepVersion=false (always update)
+		{
+			Name:              "lib-b",
+			VersionConstraint: "",
+			OS:                "linux",
+			Arch:              "amd64",
+			OldVersion:        "1.0.0",
+			KeepVersion:       false,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, plan.Artifacts, 3)
+
+	// Verify actions based on KeepVersion settings
 	var libAAction, libBAction, appAction model.ResolvedAction
 	for _, artifact := range plan.Artifacts {
 		switch artifact.Name {
@@ -416,7 +508,70 @@ func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, model.ResolvedActionUpdate, libAAction, "lib-a should be updated to latest version")
-	assert.Equal(t, model.ResolvedActionUpdate, libBAction, "lib-b should be updated to latest version")
+	// lib-a should be updated (even with KeepVersion=true, latest version wins)
+	assert.Equal(t, model.ResolvedActionUpdate, libAAction, "lib-a should be updated despite KeepVersion=true")
+	// lib-b should be updated (KeepVersion=false)
+	assert.Equal(t, model.ResolvedActionUpdate, libBAction, "lib-b should be updated")
+	// app should be installed
 	assert.Equal(t, model.ResolvedActionInstall, appAction, "app should be installed")
+}
+
+func TestResolve_ConstraintPriority(t *testing.T) {
+	// Test that hard constraints take priority over keep preferences
+	mgr := setupTestManager(t, `[
+		{"name":"app","version":"3.0.0","dependencies":[
+			{"name":"lib","version_constraint":">= 2.0.0"}
+		],"url":"https://ex/app-3.0","checksum":"app3"},
+		{"name":"lib","version":"2.0.0","url":"https://ex/lib-2.0","checksum":"lib2"},
+		{"name":"lib","version":"3.0.0","url":"https://ex/lib-3.0","checksum":"lib3"}
+	]`)
+
+	// Request app@3.0.0 which requires lib >= 2.0.0
+	// Even though we prefer to keep lib@1.0.0, the hard constraint should win
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		{
+			Name:              "app",
+			VersionConstraint: "3.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
+		{
+			Name:              "lib",
+			VersionConstraint: "", // No hard constraint
+			OS:                "linux",
+			Arch:              "amd64",
+			OldVersion:        "1.0.0",
+			KeepVersion:       true, // Prefer to keep 1.0.0
+		},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, plan.Artifacts, 2)
+
+	// lib should be updated to 3.0.0 (latest that satisfies >= 2.0.0)
+	var libID string
+	for _, artifact := range plan.Artifacts {
+		if artifact.Name == "lib" {
+			libID = artifact.ID
+		}
+	}
+	assert.Equal(t, "lib@3.0.0", libID, "lib should be updated to latest version that satisfies hard constraint")
+
+	// Verify the action
+	var libAction model.ResolvedAction
+	for _, artifact := range plan.Artifacts {
+		if artifact.Name == "lib" {
+			libAction = artifact.Action
+		}
+	}
+	assert.Equal(t, model.ResolvedActionUpdate, libAction, "lib should be marked as update")
+}
+
+func TestResolve_EmptyRequestsList(t *testing.T) {
+	// Test that empty requests list returns error
+	mgr := setupTestManager(t, `[{"name":"test","version":"1.0.0","url":"https://ex/test","checksum":"test1"}]`)
+
+	_, err := mgr.Resolve(context.Background(), []model.ResolveRequest{})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no resolve requests provided")
 }

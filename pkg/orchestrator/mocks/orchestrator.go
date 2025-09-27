@@ -43,18 +43,18 @@ func (m *MockArtifactResolver) EXPECT() *MockArtifactResolverMockRecorder {
 }
 
 // Resolve mocks base method.
-func (m *MockArtifactResolver) Resolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error) {
+func (m *MockArtifactResolver) Resolve(ctx context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Resolve", ctx, req)
+	ret := m.ctrl.Call(m, "Resolve", ctx, requests)
 	ret0, _ := ret[0].(model.ResolvedArtifacts)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Resolve indicates an expected call of Resolve.
-func (mr *MockArtifactResolverMockRecorder) Resolve(ctx, req any) *gomock.Call {
+func (mr *MockArtifactResolverMockRecorder) Resolve(ctx, requests any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockArtifactResolver)(nil).Resolve), ctx, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MockArtifactResolver)(nil).Resolve), ctx, requests)
 }
 
 // MockArtifactReverseResolver is a mock of ArtifactReverseResolver interface.

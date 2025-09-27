@@ -11,7 +11,7 @@ import (
 
 // ArtifactResolver is the subset of the index manager used by the orchestrator.
 type ArtifactResolver interface {
-	Resolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error)
+	Resolve(ctx context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error)
 }
 
 // ArtifactReverseResolver provides reverse dependency resolution.
