@@ -47,22 +47,25 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 		return fmt.Errorf("index planner is not configured")
 	}
 
-	if o.ArtifactManager == nil {
-		return fmt.Errorf("artifact installer is not configured")
-	}
-
 	emit(o.Hooks, Event{Phase: "planning", Msg: req.Name})
 
-	// Load currently installed artifacts for compatibility checking
-	installedArtifacts, err := o.ArtifactManager.GetInstalledArtifacts()
-	if err != nil {
-		return fmt.Errorf("failed to load installed artifacts: %w", err)
+	// Load currently installed artifacts for compatibility checking (only if not dry run)
+	var installedArtifacts []*model.InstalledArtifact
+	if o.ArtifactManager != nil {
+		var err error
+		installedArtifacts, err = o.ArtifactManager.GetInstalledArtifacts()
+		if err != nil {
+			return fmt.Errorf("failed to load installed artifacts: %w", err)
+		}
 	}
 
-	// Add installed artifacts to the resolve request
-	req.InstalledArtifacts = installedArtifacts
+	// Create a copy of the request with installed artifacts for resolution (only if we have artifacts)
+	resolveReq := req
+	if len(installedArtifacts) > 0 {
+		resolveReq.InstalledArtifacts = installedArtifacts
+	}
 
-	plan, err := o.Index.Resolve(ctx, req)
+	plan, err := o.Index.Resolve(ctx, resolveReq)
 	if err != nil {
 		return err
 	}

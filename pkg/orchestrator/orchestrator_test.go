@@ -125,12 +125,13 @@ func TestInstall_DryRun(t *testing.T) {
 	defer ctrl.Finish()
 
 	// Setup test data
-	s1url, _ := url.Parse("https://example.com/a.tgz")
+	s1url, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	req := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: ">= 0.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:               "pkgA",
+		Version:            ">= 0.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: []*model.InstalledArtifact{},
 	}
 
 	plan := model.ResolvedArtifacts{
@@ -213,10 +214,11 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	tmp := t.TempDir()
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	req := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:               "pkgA",
+		Version:            "1.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: []*model.InstalledArtifact{},
 	}
 
 	step := model.ResolvedArtifact{
@@ -253,6 +255,10 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 		Times(1)
 
 	art := mocks.NewMockArtifactManager(ctrl)
+	art.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{}, nil).
+		Times(1)
 	expectedArtifactPath := filepath.Join(tmp, "pkgA-1.0.0.tgz")
 	art.EXPECT().
 		InstallArtifact(gomock.Any(), gomock.Any(), expectedArtifactPath, gomock.Any()).
@@ -378,6 +384,15 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 
 	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
 
+	// Setup test data
+	req = model.ResolveRequest{
+		Name:               "pkgA",
+		Version:            "1.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: []*model.InstalledArtifact{},
+	}
+
 	// Setup mocks
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
@@ -386,6 +401,10 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 		Times(1)
 
 	art := mocks.NewMockArtifactManager(ctrl)
+	art.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{}, nil).
+		Times(1)
 
 	// Create orchestrator without download manager
 	orch := &Orchestrator{
@@ -455,8 +474,9 @@ func TestInstall_PlanError(t *testing.T) {
 
 	// Setup test data
 	testReq := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "1.0.0",
+		Name:               "pkgA",
+		Version:            "1.0.0",
+		InstalledArtifacts: []*model.InstalledArtifact{},
 	}
 
 	expectedErr := fmt.Errorf("planning failed")
@@ -495,10 +515,11 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	testReq := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:               "pkgA",
+		Version:            "1.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: []*model.InstalledArtifact{},
 	}
 
 	step := model.ResolvedArtifact{
@@ -528,6 +549,10 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 
 	expectedErr := fmt.Errorf("installation failed")
 	art := mocks.NewMockArtifactManager(ctrl)
+	art.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{}, nil).
+		Times(1)
 	art.EXPECT().
 		InstallArtifact(gomock.Any(), gomock.Any(), tmpFile, gomock.Any()).
 		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string, reason model.InstallationReason) error {
@@ -568,10 +593,11 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	// Setup test data
 	tmpDir := t.TempDir()
 	testReq := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:               "pkgA",
+		Version:            "1.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: []*model.InstalledArtifact{},
 	}
 
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
@@ -601,6 +627,10 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 		Times(1)
 
 	art := mocks.NewMockArtifactManager(ctrl)
+	art.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{}, nil).
+		Times(1)
 
 	// Create orchestrator
 	torch := &Orchestrator{
@@ -888,10 +918,11 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 	// Setup test data - single artifact that should be manual
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	req := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:               "pkgA",
+		Version:            "1.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: []*model.InstalledArtifact{},
 	}
 
 	step := model.ResolvedArtifact{
@@ -920,6 +951,11 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 	dl.EXPECT().
 		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(map[string]string{step.ID: "/tmp/pkgA-1.0.0.tgz"}, nil).
+		Times(1)
+
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{}, nil).
 		Times(1)
 
 	// Expect InstallArtifact call with InstallationReasonManual for the first (and only) artifact
@@ -962,10 +998,11 @@ func TestInstall_InstallationReason_DependenciesAutomatic(t *testing.T) {
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	depURL, _ := url.Parse("https://example.com/dep-1.0.0.tgz")
 	req := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:               "pkgA",
+		Version:            "1.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: []*model.InstalledArtifact{},
 	}
 
 	mainStep := model.ResolvedArtifact{
@@ -1007,6 +1044,11 @@ func TestInstall_InstallationReason_DependenciesAutomatic(t *testing.T) {
 			mainStep.ID: "/tmp/pkgA-1.0.0.tgz",
 			depStep.ID:  "/tmp/dep-1.0.0.tgz",
 		}, nil).
+		Times(1)
+
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{}, nil).
 		Times(1)
 
 	// Expect InstallArtifact calls with correct installation reasons
@@ -1058,10 +1100,11 @@ func TestInstall_InstallationReason_MultipleArtifacts(t *testing.T) {
 	sURL3, _ := url.Parse("https://example.com/pkgC-1.0.0.tgz")
 
 	req := model.ResolveRequest{
-		Name:    "pkgA", // Only pkgA should be manual
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:               "pkgA", // Only pkgA should be manual
+		Version:            "1.0.0",
+		OS:                 "linux",
+		Arch:               "amd64",
+		InstalledArtifacts: []*model.InstalledArtifact{},
 	}
 
 	artifactA := model.ResolvedArtifact{
@@ -1114,6 +1157,11 @@ func TestInstall_InstallationReason_MultipleArtifacts(t *testing.T) {
 			artifactB.ID: "/tmp/pkgB-1.0.0.tgz",
 			artifactC.ID: "/tmp/pkgC-1.0.0.tgz",
 		}, nil).
+		Times(1)
+
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{}, nil).
 		Times(1)
 
 	// pkgA should be manual (matches request name)
