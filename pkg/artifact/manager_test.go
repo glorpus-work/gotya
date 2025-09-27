@@ -30,12 +30,6 @@ var (
 		Maintainer:  "test@example.com",
 		Description: "Test artifact for unit tests",
 	}
-	DefaultIndexArtifactDescriptor = &model.IndexArtifactDescriptor{
-		Name:    DefaultArtifactName,
-		Version: DefaultArtifactVersion,
-		OS:      DefaultArtifactOS,
-		Arch:    DefaultArtifactArch,
-	}
 )
 
 func TestNewManager(t *testing.T) {
@@ -1233,7 +1227,7 @@ func TestVerifyArtifact_InvalidMetadata(t *testing.T) {
 
 	err := mgr.VerifyArtifact(context.Background(), desc)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "metadata mismatch")
+	assert.ErrorContains(t, err, "metadata mismatch")
 }
 
 // setupTestArtifact creates a test artifact file with the specified structure and metadata
