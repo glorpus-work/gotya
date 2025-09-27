@@ -1161,3 +1161,172 @@ func TestInstall_InstallationReason_MultipleArtifacts(t *testing.T) {
 	// Verify results
 	require.NoError(t, err, "install should succeed")
 }
+
+// TestCleanup_Success tests successful cleanup of orphaned automatic artifacts
+func TestCleanup_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create mocks
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Set up expectations
+	am.EXPECT().
+		GetOrphanedAutomaticArtifacts().
+		Return([]string{"orphaned1", "orphaned2"}, nil)
+
+	am.EXPECT().
+		UninstallArtifact(gomock.Any(), "orphaned1", true).
+		Return(nil)
+
+	am.EXPECT().
+		UninstallArtifact(gomock.Any(), "orphaned2", true).
+		Return(nil)
+
+	// Create orchestrator with hooks to capture events
+	var events []Event
+	hooks := Hooks{
+		OnEvent: func(e Event) {
+			events = append(events, e)
+		},
+	}
+
+	orch := New(nil, nil, nil, am, hooks)
+
+	// Execute cleanup
+	cleaned, err := orch.Cleanup(context.Background())
+
+	// Verify results
+	require.NoError(t, err)
+	require.Len(t, cleaned, 2)
+	assert.Contains(t, cleaned, "orphaned1")
+	assert.Contains(t, cleaned, "orphaned2")
+
+	// Verify events were emitted
+	require.Len(t, events, 3) // 2 cleanup events + 1 done event
+	assert.Equal(t, "cleanup", events[0].Phase)
+	assert.Equal(t, "orphaned1", events[0].ID)
+	assert.Equal(t, "cleanup", events[1].Phase)
+	assert.Equal(t, "orphaned2", events[1].ID)
+	assert.Equal(t, "done", events[2].Phase)
+	assert.Contains(t, events[2].Msg, "cleaned up 2 orphaned artifacts")
+}
+
+// TestCleanup_NoOrphanedArtifacts tests cleanup when no orphaned artifacts exist
+func TestCleanup_NoOrphanedArtifacts(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create mocks
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Set up expectations - no orphaned artifacts
+	am.EXPECT().
+		GetOrphanedAutomaticArtifacts().
+		Return([]string{}, nil)
+
+	// Create orchestrator
+	orch := New(nil, nil, nil, am, Hooks{})
+
+	// Execute cleanup
+	cleaned, err := orch.Cleanup(context.Background())
+
+	// Verify results
+	require.NoError(t, err)
+	require.Nil(t, cleaned)
+}
+
+// TestCleanup_NoArtifactManager tests cleanup when ArtifactManager is not configured
+func TestCleanup_NoArtifactManager(t *testing.T) {
+	// Create orchestrator without ArtifactManager
+	orch := New(nil, nil, nil, nil, Hooks{})
+
+	// Execute cleanup
+	cleaned, err := orch.Cleanup(context.Background())
+
+	// Verify results
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "artifact manager is not configured")
+	require.Nil(t, cleaned)
+}
+
+// TestCleanup_GetOrphanedError tests cleanup when getting orphaned artifacts fails
+func TestCleanup_GetOrphanedError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create mocks
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Set up expectations - getting orphaned artifacts fails
+	expectedError := fmt.Errorf("database connection failed")
+	am.EXPECT().
+		GetOrphanedAutomaticArtifacts().
+		Return(nil, expectedError)
+
+	// Create orchestrator
+	orch := New(nil, nil, nil, am, Hooks{})
+
+	// Execute cleanup
+	cleaned, err := orch.Cleanup(context.Background())
+
+	// Verify results
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get orphaned artifacts")
+	require.Nil(t, cleaned)
+}
+
+// TestCleanup_UninstallError tests cleanup when uninstall fails for some artifacts
+func TestCleanup_UninstallError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create mocks
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Set up expectations
+	am.EXPECT().
+		GetOrphanedAutomaticArtifacts().
+		Return([]string{"orphaned1", "orphaned2"}, nil)
+
+	am.EXPECT().
+		UninstallArtifact(gomock.Any(), "orphaned1", true).
+		Return(nil)
+
+	// Second uninstall fails
+	uninstallError := fmt.Errorf("permission denied")
+	am.EXPECT().
+		UninstallArtifact(gomock.Any(), "orphaned2", true).
+		Return(uninstallError)
+
+	// Create orchestrator with hooks to capture events
+	var events []Event
+	hooks := Hooks{
+		OnEvent: func(e Event) {
+			events = append(events, e)
+		},
+	}
+
+	orch := New(nil, nil, nil, am, hooks)
+
+	// Execute cleanup
+	cleaned, err := orch.Cleanup(context.Background())
+
+	// Verify results - should succeed but only return successfully cleaned artifacts
+	require.NoError(t, err)
+	require.Len(t, cleaned, 1)
+	assert.Contains(t, cleaned, "orphaned1")
+	assert.NotContains(t, cleaned, "orphaned2")
+
+	// Verify events were emitted including error
+	require.Len(t, events, 4) // 2 cleanup events + 1 error event + 1 done event
+	assert.Equal(t, "cleanup", events[0].Phase)
+	assert.Equal(t, "orphaned1", events[0].ID)
+	assert.Equal(t, "cleanup", events[1].Phase)
+	assert.Equal(t, "orphaned2", events[1].ID)
+	assert.Equal(t, "error", events[2].Phase)
+	assert.Equal(t, "orphaned2", events[2].ID)
+	assert.Contains(t, events[2].Msg, "failed to cleanup")
+	assert.Equal(t, "done", events[3].Phase)
+	assert.Contains(t, events[3].Msg, "cleaned up 1 orphaned artifacts")
+}
