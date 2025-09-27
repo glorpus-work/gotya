@@ -1378,3 +1378,365 @@ func TestCleanup_UninstallError(t *testing.T) {
 	assert.Equal(t, "done", events[3].Phase)
 	assert.Contains(t, events[3].Msg, "cleaned up 1 orphaned artifacts")
 }
+
+func TestInstall_WithInstalledArtifacts_ResolverReceivesContext(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	sURL, _ := url.Parse("https://example.com/pkgA-2.0.0.tgz")
+	req := model.ResolveRequest{
+		Name:    "pkgA",
+		Version: "2.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		// InstalledArtifacts will be set by the orchestrator
+	}
+
+	step := model.ResolvedArtifact{
+		ID:        "pkgA@2.0.0",
+		Name:      "pkgA",
+		Version:   "2.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL,
+		Checksum:  "abc123",
+	}
+
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	am := mocks.NewMockArtifactManager(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
+
+	// Setup expectations - verify that the resolver receives the installed artifacts
+	idx.EXPECT().
+		Resolve(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, resolveReq model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			// Verify that the resolver received the installed artifacts
+			require.Len(t, resolveReq.InstalledArtifacts, 1, "resolver should receive installed artifacts")
+			assert.Equal(t, "pkgB", resolveReq.InstalledArtifacts[0].Name, "should have pkgB installed")
+			assert.Equal(t, "1.0.0", resolveReq.InstalledArtifacts[0].Version, "should have pkgB@1.0.0 installed")
+			return plan, nil
+		}).
+		Times(1)
+
+	// Setup expectations for artifact manager calls
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{
+			{Name: "pkgB", Version: "1.0.0"},
+		}, nil).
+		Times(1)
+
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]string{step.ID: "/tmp/pkgA-2.0.0.tgz"}, nil).
+		Times(1)
+
+	am.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), "/tmp/pkgA-2.0.0.tgz", model.InstallationReasonManual).
+		Return(nil).
+		Times(1)
+
+	// Create orchestrator
+	orch := &Orchestrator{
+		Index:           idx,
+		DL:              dl,
+		ArtifactManager: am,
+	}
+
+	// Execute test
+	err := orch.Install(
+		context.Background(),
+		req,
+		InstallOptions{
+			CacheDir: t.TempDir(),
+		},
+	)
+
+	// Verify results
+	require.NoError(t, err, "install should succeed")
+}
+
+func TestInstall_WithInstalledArtifacts_SkipCompatible(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data - pkgA@1.0.0 is already installed and compatible
+	req := model.ResolveRequest{
+		Name:    "pkgA",
+		Version: "1.0.0", // Same version as installed
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	step := model.ResolvedArtifact{
+		ID:      "pkgA@1.0.0",
+		Name:    "pkgA",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		Action:  model.ResolvedActionSkip,
+		Reason:  "already at the required version",
+	}
+
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	am := mocks.NewMockArtifactManager(ctrl)
+
+	// Setup expectations - resolver should be called to determine skip action
+	idx.EXPECT().
+		Resolve(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, resolveReq model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			// Verify that the resolver received the installed artifacts
+			require.Len(t, resolveReq.InstalledArtifacts, 1, "resolver should receive installed artifacts")
+			assert.Equal(t, "pkgA", resolveReq.InstalledArtifacts[0].Name, "should have pkgA installed")
+			assert.Equal(t, "1.0.0", resolveReq.InstalledArtifacts[0].Version, "should have pkgA@1.0.0 installed")
+			return plan, nil
+		}).
+		Times(1)
+
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{
+			{Name: "pkgA", Version: "1.0.0"},
+		}, nil).
+		Times(1)
+
+	// No download call expected since we skip
+	// No install call expected since we skip
+
+	// Create orchestrator
+	orch := &Orchestrator{
+		Index:           idx,
+		ArtifactManager: am,
+	}
+
+	// Execute test
+	err := orch.Install(
+		context.Background(),
+		req,
+		InstallOptions{
+			CacheDir: t.TempDir(),
+		},
+	)
+
+	// Verify results
+	require.NoError(t, err, "install should succeed when skipping compatible artifact")
+}
+
+func TestInstall_WithInstalledArtifacts_UpdateIncompatible(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data - pkgA@1.0.0 is installed but pkgA@2.0.0 is needed
+	sURL, _ := url.Parse("https://example.com/pkgA-2.0.0.tgz")
+	req := model.ResolveRequest{
+		Name:    "pkgA",
+		Version: "2.0.0", // Requires newer version
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	step := model.ResolvedArtifact{
+		ID:        "pkgA@2.0.0",
+		Name:      "pkgA",
+		Version:   "2.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL,
+		Checksum:  "abc123",
+		Action:    model.ResolvedActionUpdate,
+		Reason:    "updating from 1.0.0 to 2.0.0",
+	}
+
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	am := mocks.NewMockArtifactManager(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
+
+	// Setup expectations
+	idx.EXPECT().
+		Resolve(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, resolveReq model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			// Verify that the resolver received the installed artifacts
+			require.Len(t, resolveReq.InstalledArtifacts, 1, "resolver should receive installed artifacts")
+			assert.Equal(t, "pkgA", resolveReq.InstalledArtifacts[0].Name, "should have pkgA installed")
+			assert.Equal(t, "1.0.0", resolveReq.InstalledArtifacts[0].Version, "should have pkgA@1.0.0 installed")
+			return plan, nil
+		}).
+		Times(1)
+
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{
+			{Name: "pkgA", Version: "1.0.0"},
+		}, nil).
+		Times(1)
+
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]string{step.ID: "/tmp/pkgA-2.0.0.tgz"}, nil).
+		Times(1)
+
+	am.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), "/tmp/pkgA-2.0.0.tgz", model.InstallationReasonManual).
+		DoAndReturn(func(_ context.Context, desc *model.IndexArtifactDescriptor, path string, reason model.InstallationReason) error {
+			assert.Equal(t, model.InstallationReasonManual, reason, "should be manual installation")
+			return nil
+		}).
+		Times(1)
+
+	// Create orchestrator
+	orch := &Orchestrator{
+		Index:           idx,
+		DL:              dl,
+		ArtifactManager: am,
+	}
+
+	// Execute test
+	err := orch.Install(
+		context.Background(),
+		req,
+		InstallOptions{
+			CacheDir: t.TempDir(),
+		},
+	)
+
+	// Verify results
+	require.NoError(t, err, "install should succeed when updating incompatible artifact")
+}
+
+func TestInstall_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data - complex scenario with multiple artifacts
+	sURL1, _ := url.Parse("https://example.com/pkgA-3.0.0.tgz")
+	sURL2, _ := url.Parse("https://example.com/pkgB-2.0.0.tgz")
+	sURL3, _ := url.Parse("https://example.com/pkgC-1.0.0.tgz")
+
+	req := model.ResolveRequest{
+		Name:    "pkgA",
+		Version: "3.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+	}
+
+	artifactA := model.ResolvedArtifact{
+		ID:        "pkgA@3.0.0",
+		Name:      "pkgA",
+		Version:   "3.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL1,
+		Checksum:  "abc123",
+		Action:    model.ResolvedActionUpdate,
+		Reason:    "updating from 2.0.0 to 3.0.0",
+	}
+
+	artifactB := model.ResolvedArtifact{
+		ID:        "pkgB@2.0.0",
+		Name:      "pkgB",
+		Version:   "2.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL2,
+		Checksum:  "def456",
+		Action:    model.ResolvedActionUpdate,
+		Reason:    "updating from 1.0.0 to 2.0.0",
+	}
+
+	artifactC := model.ResolvedArtifact{
+		ID:        "pkgC@1.0.0",
+		Name:      "pkgC",
+		Version:   "1.0.0",
+		OS:        "linux",
+		Arch:      "amd64",
+		SourceURL: sURL3,
+		Checksum:  "ghi789",
+		Action:    model.ResolvedActionSkip,
+		Reason:    "already at the required version",
+	}
+
+	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{artifactA, artifactB, artifactC}}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	am := mocks.NewMockArtifactManager(ctrl)
+	dl := mocks.NewMockDownloader(ctrl)
+
+	// Setup expectations
+	idx.EXPECT().
+		Resolve(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, resolveReq model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			// Verify that the resolver received the installed artifacts
+			require.Len(t, resolveReq.InstalledArtifacts, 3, "resolver should receive all installed artifacts")
+			names := make(map[string]string)
+			for _, artifact := range resolveReq.InstalledArtifacts {
+				names[artifact.Name] = artifact.Version
+			}
+			assert.Equal(t, "2.0.0", names["pkgA"], "pkgA should be at 2.0.0")
+			assert.Equal(t, "1.0.0", names["pkgB"], "pkgB should be at 1.0.0")
+			assert.Equal(t, "1.0.0", names["pkgC"], "pkgC should be at 1.0.0")
+			return plan, nil
+		}).
+		Times(1)
+
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{
+			{Name: "pkgA", Version: "2.0.0"},
+			{Name: "pkgB", Version: "1.0.0"},
+			{Name: "pkgC", Version: "1.0.0"},
+		}, nil).
+		Times(1)
+
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]string{
+			artifactA.ID: "/tmp/pkgA-3.0.0.tgz",
+			artifactB.ID: "/tmp/pkgB-2.0.0.tgz",
+			// artifactC is skipped, so no download
+		}, nil).
+		Times(1)
+
+	// pkgA should be updated (manual)
+	am.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), "/tmp/pkgA-3.0.0.tgz", model.InstallationReasonManual).
+		Return(nil).
+		Times(1)
+
+	// pkgB should be updated (automatic)
+	am.EXPECT().
+		InstallArtifact(gomock.Any(), gomock.Any(), "/tmp/pkgB-2.0.0.tgz", model.InstallationReasonAutomatic).
+		Return(nil).
+		Times(1)
+
+	// pkgC should be skipped (no install call)
+
+	// Create orchestrator
+	orch := &Orchestrator{
+		Index:           idx,
+		DL:              dl,
+		ArtifactManager: am,
+	}
+
+	// Execute test
+	err := orch.Install(
+		context.Background(),
+		req,
+		InstallOptions{
+			CacheDir: t.TempDir(),
+		},
+	)
+
+	// Verify results
+	require.NoError(t, err, "install should succeed in complex scenario")
+}
