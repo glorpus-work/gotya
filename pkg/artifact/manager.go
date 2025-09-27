@@ -164,11 +164,8 @@ func (m ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string,
 // UpdateArtifact updates an installed artifact by replacing it with a new version.
 // This method uses the simple approach: uninstall the old version, then install the new version.
 // If the installation fails, the old version remains uninstalled.
-func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, newArtifactPath string, newDescriptor *model.IndexArtifactDescriptor) error {
+func (m ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string, newDescriptor *model.IndexArtifactDescriptor) error {
 	// Input validation
-	if artifactName == "" {
-		return fmt.Errorf("artifact name cannot be empty")
-	}
 	if newArtifactPath == "" {
 		return fmt.Errorf("new artifact path cannot be empty")
 	}
@@ -183,13 +180,13 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 	}
 
 	// Check if the artifact is installed
-	if !db.IsArtifactInstalled(artifactName) {
-		return fmt.Errorf("artifact %s is not installed", artifactName)
+	if !db.IsArtifactInstalled(newDescriptor.Name) {
+		return fmt.Errorf("artifact %s is not installed", newDescriptor.Name)
 	}
 
-	installedArtifact := db.FindArtifact(artifactName)
+	installedArtifact := db.FindArtifact(newDescriptor.Name)
 	if installedArtifact == nil {
-		return fmt.Errorf("artifact %s not found in database", artifactName)
+		return fmt.Errorf("artifact %s not found in database", newDescriptor.Name)
 	}
 
 	// Verify the new artifact before proceeding
@@ -199,7 +196,7 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 
 	// Validate that the new artifact name matches the installed artifact name
 	if installedArtifact.Name != newDescriptor.Name {
-		return fmt.Errorf("cannot update artifact %s with artifact %s: name mismatch", artifactName, newDescriptor.Name)
+		return fmt.Errorf("cannot update artifact %s with artifact %s: name mismatch", newDescriptor.Name, newDescriptor.Name)
 	}
 
 	// Check if this is actually an update (different version or URL)
@@ -208,9 +205,9 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 		// If trying to upgrade from automatic to manual, allow it
 		if installedArtifact.InstallationReason == model.InstallationReasonAutomatic {
 			// This is an automatic -> manual upgrade, proceed with installation
-			logger.Debug("Upgrading automatic installation to manual", logger.Fields{"artifact": artifactName})
+			logger.Debug("Upgrading automatic installation to manual", logger.Fields{"artifact": newDescriptor.Name})
 		} else {
-			return fmt.Errorf("artifact %s is already at the latest version", artifactName)
+			return fmt.Errorf("artifact %s is already at the latest version", newDescriptor.Name)
 		}
 	}
 
@@ -219,12 +216,12 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 	if installedArtifact.InstallationReason == model.InstallationReasonManual {
 		// Manual installations can only be updated (version/URL changes are allowed)
 		// The installation reason stays manual
-		logger.Debug("Updating manually installed artifact", logger.Fields{"artifact": artifactName})
+		logger.Debug("Updating manually installed artifact", logger.Fields{"artifact": newDescriptor.Name})
 	}
 
 	// Step 1: Uninstall the old version (with purge=true for clean slate)
 	if err := m.uninstallWithPurge(ctx, db, installedArtifact); err != nil {
-		return fmt.Errorf("failed to uninstall old version of %s: %w", artifactName, err)
+		return fmt.Errorf("failed to uninstall old version of %s: %w", newDescriptor.Name, err)
 	}
 
 	// Step 2: Install the new version
@@ -239,8 +236,8 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, artifactName string, ne
 	if err := m.InstallArtifact(ctx, newDescriptor, newArtifactPath, model.InstallationReasonManual); err != nil {
 		// Installation failed - we should try to rollback by reinstalling the old version
 		// However, we don't have the old artifact file anymore, so we can only log a warning
-		logger.Warn("Failed to install new version - old version uninstalled but cannot be restored", logger.Fields{"artifact": artifactName, "error": err})
-		return fmt.Errorf("failed to install new version of %s: %w", artifactName, err)
+		logger.Warn("Failed to install new version - old version uninstalled but cannot be restored", logger.Fields{"artifact": newDescriptor.Name, "error": err})
+		return fmt.Errorf("failed to install new version of %s: %w", newDescriptor.Name, err)
 	}
 
 	return nil

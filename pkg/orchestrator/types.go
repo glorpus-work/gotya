@@ -23,6 +23,7 @@ type ArtifactReverseResolver interface {
 type ArtifactManager interface {
 	InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) error
 	UninstallArtifact(ctx context.Context, artifactName string, purge bool) error
+	UpdateArtifact(ctx context.Context, newArtifactPath string, newDescriptor *model.IndexArtifactDescriptor) error
 	GetOrphanedAutomaticArtifacts() ([]string, error)
 	GetInstalledArtifacts() ([]*model.InstalledArtifact, error)
 }
@@ -65,6 +66,14 @@ type UninstallOptions struct {
 	DryRun    bool
 	NoCascade bool // Only uninstall if no reverse dependencies, unless Force is true
 	Force     bool // Force uninstall even with reverse dependencies
+}
+
+// UpdateOptions control orchestrator update execution.
+type UpdateOptions struct {
+	DryRun      bool
+	Packages    []string // Specific packages to update, empty means update all
+	Concurrency int
+	CacheDir    string
 }
 
 // Options control orchestrator execution.

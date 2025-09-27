@@ -983,7 +983,416 @@ func TestCleanup_GetOrphanedError(t *testing.T) {
 	require.Nil(t, cleaned)
 }
 
-// TestCleanup_UninstallError tests cleanup when uninstall fails for some artifacts
+// TestUpdate_NoInstalledPackages tests update when no packages are installed
+func TestUpdate_NoInstalledPackages(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup mocks
+	am := mocks.NewMockArtifactManager(ctrl)
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{}, nil)
+
+	// Create orchestrator with hooks to capture events
+	var events []Event
+	hooks := Hooks{
+		OnEvent: func(e Event) {
+			events = append(events, e)
+		},
+	}
+
+	orch := New(nil, nil, nil, am, hooks) // No Index resolver needed for this test
+
+	// Execute update
+	err := orch.Update(context.Background(), UpdateOptions{})
+
+	// Verify results
+	require.NoError(t, err)
+	require.Len(t, events, 2) // planning and done events
+	assert.Equal(t, "planning", events[0].Phase)
+	assert.Equal(t, "done", events[1].Phase)
+	assert.Contains(t, events[1].Msg, "no packages installed to update")
+}
+
+// TestUpdate_NoArtifactManager tests update when ArtifactManager is not configured
+func TestUpdate_NoArtifactManager(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create orchestrator without ArtifactManager but with Index resolver
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	orch := New(idx, nil, nil, nil, Hooks{})
+
+	// Execute update
+	err := orch.Update(context.Background(), UpdateOptions{})
+
+	// Verify results
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "artifact manager is not configured")
+}
+
+// TestUpdate_GetInstalledArtifactsError tests update when getting installed artifacts fails
+func TestUpdate_GetInstalledArtifactsError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	expectedErr := fmt.Errorf("database connection failed")
+
+	// Setup mocks
+	am := mocks.NewMockArtifactManager(ctrl)
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return(nil, expectedErr)
+
+	// Create orchestrator with Index resolver
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	orch := New(idx, nil, nil, am, Hooks{})
+
+	// Execute update
+	err := orch.Update(context.Background(), UpdateOptions{})
+
+	// Verify results
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get installed artifacts")
+}
+
+// TestUpdate_SpecificPackageNotInstalled tests update when requested package is not installed
+func TestUpdate_SpecificPackageNotInstalled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup mocks
+	am := mocks.NewMockArtifactManager(ctrl)
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{
+			{Name: "pkgA", Version: "1.0.0"},
+			{Name: "pkgB", Version: "2.0.0"},
+		}, nil)
+
+	// Create orchestrator with Index resolver
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	orch := New(idx, nil, nil, am, Hooks{})
+
+	// Execute update for non-existent package
+	err := orch.Update(context.Background(), UpdateOptions{
+		Packages: []string{"non-existent-package"},
+	})
+
+	// Verify results
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "package non-existent-package is not installed")
+}
+
+// TestUpdate_DryRun tests update dry run functionality
+func TestUpdate_DryRun(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	sURL, _ := url.Parse("https://example.com/pkgA-2.0.0.tgz")
+	plan := model.ResolvedArtifacts{
+		Artifacts: []model.ResolvedArtifact{
+			{
+				ID:        "pkgA@2.0.0",
+				Name:      "pkgA",
+				Version:   "2.0.0",
+				OS:        "linux",
+				Arch:      "amd64",
+				SourceURL: sURL,
+				Checksum:  "abc123",
+				Action:    model.ResolvedActionUpdate,
+				Reason:    "updating from 1.0.0 to 2.0.0",
+			},
+		},
+	}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	idx.EXPECT().
+		Resolve(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			require.Len(t, requests, 1, "should have one request")
+			assert.Equal(t, "pkgA", requests[0].Name, "request should be for pkgA")
+			assert.Equal(t, ">= 1.0.0", requests[0].VersionConstraint, "should request version >= 1.0.0")
+			assert.False(t, requests[0].KeepVersion, "should not keep version")
+			assert.Equal(t, "1.0.0", requests[0].OldVersion, "should have old version 1.0.0")
+			return plan, nil
+		}).
+		Times(1)
+
+	am := mocks.NewMockArtifactManager(ctrl)
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{
+			{Name: "pkgA", Version: "1.0.0"},
+		}, nil)
+
+	// Create orchestrator with hooks to capture events
+	var events []Event
+	hooks := Hooks{
+		OnEvent: func(e Event) {
+			events = append(events, e)
+		},
+	}
+
+	orch := New(idx, nil, nil, am, hooks)
+
+	// Execute dry run update
+	err := orch.Update(context.Background(), UpdateOptions{
+		DryRun: true,
+	})
+
+	// Verify results
+	require.NoError(t, err)
+
+	// Verify events
+	require.Len(t, events, 4) // planning (analyzing), planning (resolving), updating, done
+	assert.Equal(t, "planning", events[0].Phase)
+	assert.Equal(t, "analyzing installed packages", events[0].Msg)
+	assert.Equal(t, "planning", events[1].Phase)
+	assert.Equal(t, "resolving updates for 1 packages", events[1].Msg)
+	assert.Equal(t, "updating", events[2].Phase)
+	assert.Equal(t, "pkgA@2.0.0", events[2].ID)
+	assert.Equal(t, "done", events[3].Phase)
+	assert.Contains(t, events[3].Msg, "update dry-run completed")
+}
+
+// TestUpdate_SuccessfulUpdate tests successful update execution
+func TestUpdate_SuccessfulUpdate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	tmpDir := t.TempDir()
+	sURL, _ := url.Parse("https://example.com/pkgA-2.0.0.tgz")
+	plan := model.ResolvedArtifacts{
+		Artifacts: []model.ResolvedArtifact{
+			{
+				ID:        "pkgA@2.0.0",
+				Name:      "pkgA",
+				Version:   "2.0.0",
+				OS:        "linux",
+				Arch:      "amd64",
+				SourceURL: sURL,
+				Checksum:  "abc123",
+				Action:    model.ResolvedActionUpdate,
+				Reason:    "updating from 1.0.0 to 2.0.0",
+			},
+		},
+	}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	idx.EXPECT().
+		Resolve(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			require.Len(t, requests, 1, "should have one request")
+			assert.Equal(t, "pkgA", requests[0].Name, "request should be for pkgA")
+			assert.Equal(t, ">= 1.0.0", requests[0].VersionConstraint, "should request version >= 1.0.0")
+			assert.False(t, requests[0].KeepVersion, "should not keep version")
+			assert.Equal(t, "1.0.0", requests[0].OldVersion, "should have old version 1.0.0")
+			return plan, nil
+		}).
+		Times(1)
+
+	dl := mocks.NewMockDownloader(ctrl)
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]string{plan.Artifacts[0].ID: "/tmp/pkgA-2.0.0.tgz"}, nil).
+		Times(1)
+
+	am := mocks.NewMockArtifactManager(ctrl)
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{
+			{Name: "pkgA", Version: "1.0.0"},
+		}, nil).
+		Times(1)
+
+	am.EXPECT().
+		UpdateArtifact(gomock.Any(), "/tmp/pkgA-2.0.0.tgz", gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	// Create orchestrator with hooks to capture events
+	var events []Event
+	hooks := Hooks{
+		OnEvent: func(e Event) {
+			events = append(events, e)
+		},
+	}
+
+	orch := New(idx, nil, dl, am, hooks)
+
+	// Execute update
+	err := orch.Update(context.Background(), UpdateOptions{
+		CacheDir: tmpDir,
+	})
+
+	// Verify results
+	require.NoError(t, err)
+
+	// Verify events
+	require.Len(t, events, 5) // planning (analyzing), planning (resolving), downloading, updating, done
+	assert.Equal(t, "planning", events[0].Phase)
+	assert.Equal(t, "analyzing installed packages", events[0].Msg)
+	assert.Equal(t, "planning", events[1].Phase)
+	assert.Equal(t, "resolving updates for 1 packages", events[1].Msg)
+	assert.Equal(t, "downloading", events[2].Phase)
+	assert.Equal(t, "updating", events[3].Phase)
+	assert.Equal(t, "done", events[4].Phase)
+	assert.Contains(t, events[4].Msg, "successfully updated 1 packages")
+}
+
+// TestUpdate_NoUpdatesAvailable tests update when all packages are already at latest versions
+func TestUpdate_NoUpdatesAvailable(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data - all packages are already at latest versions
+	plan := model.ResolvedArtifacts{
+		Artifacts: []model.ResolvedArtifact{
+			{
+				ID:      "pkgA@1.0.0",
+				Name:    "pkgA",
+				Version: "1.0.0",
+				Action:  model.ResolvedActionSkip,
+				Reason:  "already at the latest version",
+			},
+		},
+	}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	idx.EXPECT().
+		Resolve(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			require.Len(t, requests, 1, "should have one request")
+			return plan, nil
+		}).
+		Times(1)
+
+	am := mocks.NewMockArtifactManager(ctrl)
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{
+			{Name: "pkgA", Version: "1.0.0"},
+		}, nil).
+		Times(1)
+
+	// Create orchestrator with hooks to capture events
+	var events []Event
+	hooks := Hooks{
+		OnEvent: func(e Event) {
+			events = append(events, e)
+		},
+	}
+
+	orch := New(idx, nil, nil, am, hooks)
+
+	// Execute update
+	err := orch.Update(context.Background(), UpdateOptions{})
+
+	// Verify results
+	require.NoError(t, err)
+
+	// Verify events
+	require.Len(t, events, 3) // planning (analyzing), planning (resolving), done
+	assert.Equal(t, "planning", events[0].Phase)
+	assert.Equal(t, "analyzing installed packages", events[0].Msg)
+	assert.Equal(t, "planning", events[1].Phase)
+	assert.Equal(t, "resolving updates for 1 packages", events[1].Msg)
+	assert.Equal(t, "done", events[2].Phase)
+	assert.Contains(t, events[2].Msg, "already at the latest compatible versions")
+}
+
+// TestUpdate_SpecificPackageUpdate tests updating a specific package
+func TestUpdate_SpecificPackageUpdate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup test data
+	sURL, _ := url.Parse("https://example.com/pkgB-3.0.0.tgz")
+	plan := model.ResolvedArtifacts{
+		Artifacts: []model.ResolvedArtifact{
+			{
+				ID:        "pkgB@3.0.0",
+				Name:      "pkgB",
+				Version:   "3.0.0",
+				OS:        "linux",
+				Arch:      "amd64",
+				SourceURL: sURL,
+				Checksum:  "def456",
+				Action:    model.ResolvedActionUpdate,
+				Reason:    "updating from 2.0.0 to 3.0.0",
+			},
+		},
+	}
+
+	// Setup mocks
+	idx := mocks.NewMockArtifactResolver(ctrl)
+	idx.EXPECT().
+		Resolve(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			require.Len(t, requests, 1, "should have one request")
+			assert.Equal(t, "pkgB", requests[0].Name, "request should be for pkgB")
+			assert.Equal(t, ">= 2.0.0", requests[0].VersionConstraint, "should request version >= 2.0.0")
+			return plan, nil
+		}).
+		Times(1)
+
+	dl := mocks.NewMockDownloader(ctrl)
+	dl.EXPECT().
+		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(map[string]string{plan.Artifacts[0].ID: "/tmp/pkgB-3.0.0.tgz"}, nil).
+		Times(1)
+
+	am := mocks.NewMockArtifactManager(ctrl)
+	am.EXPECT().
+		GetInstalledArtifacts().
+		Return([]*model.InstalledArtifact{
+			{Name: "pkgA", Version: "1.0.0"},
+			{Name: "pkgB", Version: "2.0.0"},
+		}, nil).
+		Times(1)
+
+	am.EXPECT().
+		UpdateArtifact(gomock.Any(), "/tmp/pkgB-3.0.0.tgz", gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	// Create orchestrator with hooks to capture events
+	var events []Event
+	hooks := Hooks{
+		OnEvent: func(e Event) {
+			events = append(events, e)
+		},
+	}
+
+	orch := New(idx, nil, dl, am, hooks)
+
+	// Execute update for specific package
+	err := orch.Update(context.Background(), UpdateOptions{
+		Packages: []string{"pkgB"},
+		CacheDir: t.TempDir(),
+	})
+
+	// Verify results
+	require.NoError(t, err)
+
+	// Verify events
+	require.Len(t, events, 5) // planning (analyzing), planning (resolving), downloading, updating, done
+	assert.Equal(t, "planning", events[0].Phase)
+	assert.Equal(t, "analyzing installed packages", events[0].Msg)
+	assert.Equal(t, "planning", events[1].Phase)
+	assert.Equal(t, "resolving updates for 1 packages", events[1].Msg)
+	assert.Equal(t, "downloading", events[2].Phase)
+	assert.Equal(t, "updating", events[3].Phase)
+	assert.Equal(t, "done", events[4].Phase)
+	assert.Contains(t, events[4].Msg, "successfully updated 1 packages")
+}
 func TestCleanup_UninstallError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -740,7 +740,7 @@ func TestUpdateArtifact_Successful(t *testing.T) {
 	}
 
 	// Update the artifact
-	err = mgr.UpdateArtifact(context.Background(), artifactName, updatedArtifact, updatedDesc)
+	err = mgr.UpdateArtifact(context.Background(), updatedArtifact, updatedDesc)
 	require.NoError(t, err)
 
 	// Verify the update was successful
@@ -767,7 +767,7 @@ func TestUpdateArtifact_NotInstalled(t *testing.T) {
 		URL:     "http://example.com/test.gotya",
 	}
 
-	err := mgr.UpdateArtifact(context.Background(), "nonexistent", testArtifact, desc)
+	err := mgr.UpdateArtifact(context.Background(), testArtifact, desc)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not installed")
 }
@@ -812,7 +812,7 @@ func TestUpdateArtifact_AlreadyLatest(t *testing.T) {
 		URL:     "http://example.com/v1.0.0.gotya", // Same URL
 	}
 
-	err = mgr.UpdateArtifact(context.Background(), artifactName, originalArtifact, sameDesc)
+	err = mgr.UpdateArtifact(context.Background(), originalArtifact, sameDesc)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already at the latest version")
 }
@@ -857,7 +857,7 @@ func TestUpdateArtifact_InvalidNewArtifact(t *testing.T) {
 		URL:     "http://example.com/v2.0.0.gotya",
 	}
 
-	err = mgr.UpdateArtifact(context.Background(), artifactName, "/nonexistent/path.gotya", invalidDesc)
+	err = mgr.UpdateArtifact(context.Background(), "/nonexistent/path.gotya", invalidDesc)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to verify new artifact")
 }
@@ -875,7 +875,7 @@ func TestUpdateArtifact_EmptyArtifactName(t *testing.T) {
 		URL:     "http://example.com/v2.0.0.gotya",
 	}
 
-	err := mgr.UpdateArtifact(context.Background(), "", "/nonexistent/path.gotya", desc)
+	err := mgr.UpdateArtifact(context.Background(), "/nonexistent/path.gotya", desc)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "artifact name cannot be empty")
 }
@@ -893,7 +893,7 @@ func TestUpdateArtifact_EmptyNewArtifactPath(t *testing.T) {
 		URL:     "http://example.com/v2.0.0.gotya",
 	}
 
-	err := mgr.UpdateArtifact(context.Background(), "test-artifact", "", desc)
+	err := mgr.UpdateArtifact(context.Background(), "", desc)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "new artifact path cannot be empty")
 }
@@ -903,7 +903,7 @@ func TestUpdateArtifact_EmptyDescriptor(t *testing.T) {
 	tempDir := t.TempDir()
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
 
-	err := mgr.UpdateArtifact(context.Background(), "test-artifact", "/path/to/artifact.gotya", nil)
+	err := mgr.UpdateArtifact(context.Background(), "/path/to/artifact.gotya", nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "new artifact descriptor cannot be nil")
 }
@@ -960,7 +960,7 @@ func TestUpdateArtifact_DifferentArtifactName(t *testing.T) {
 	}
 
 	// Update should fail due to metadata mismatch
-	err = mgr.UpdateArtifact(context.Background(), artifactName, updatedArtifact, updatedDesc)
+	err = mgr.UpdateArtifact(context.Background(), updatedArtifact, updatedDesc)
 	if err == nil {
 		t.Errorf("Expected error due to metadata mismatch but got nil")
 		return
@@ -1020,7 +1020,7 @@ func TestUpdateArtifact_DowngradeVersion(t *testing.T) {
 	}
 
 	// Update to lower version should succeed (no version comparison logic)
-	err = mgr.UpdateArtifact(context.Background(), artifactName, downgradeArtifact, downgradeDesc)
+	err = mgr.UpdateArtifact(context.Background(), downgradeArtifact, downgradeDesc)
 	require.NoError(t, err)
 
 	// Verify the downgrade was successful
@@ -1083,7 +1083,7 @@ func TestUpdateArtifact_SameURLDifferentVersion(t *testing.T) {
 	}
 
 	// Update should succeed
-	err = mgr.UpdateArtifact(context.Background(), artifactName, updatedArtifact, updatedDesc)
+	err = mgr.UpdateArtifact(context.Background(), updatedArtifact, updatedDesc)
 	require.NoError(t, err)
 
 	// Verify the update was successful
@@ -1136,7 +1136,7 @@ func TestUpdateArtifact_ForceReinstall(t *testing.T) {
 	}
 
 	// This should fail as it's not considered an update
-	err = mgr.UpdateArtifact(context.Background(), artifactName, originalArtifact, sameDesc)
+	err = mgr.UpdateArtifact(context.Background(), originalArtifact, sameDesc)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already at the latest version")
 }
@@ -1595,7 +1595,7 @@ func TestInstallArtifact_InstallationReason_Transitions(t *testing.T) {
 	}
 
 	// Update with manual reason (should succeed - automatic can be upgraded to manual)
-	err = mgr.UpdateArtifact(context.Background(), artifactName, testArtifactV2, descV2)
+	err = mgr.UpdateArtifact(context.Background(), testArtifactV2, descV2)
 	require.NoError(t, err)
 
 	// Verify it was upgraded to manual reason
@@ -1664,7 +1664,7 @@ func TestInstallArtifact_InstallationReason_ManualUpdate(t *testing.T) {
 	}
 
 	// Update should succeed - manual installations can be updated
-	err = mgr.UpdateArtifact(context.Background(), artifactName, testArtifactV2, descV2)
+	err = mgr.UpdateArtifact(context.Background(), testArtifactV2, descV2)
 	require.NoError(t, err)
 
 	// Verify it was updated successfully
@@ -1717,7 +1717,7 @@ func TestInstallArtifact_InstallationReason_SameVersionUpgrade(t *testing.T) {
 	setupTestArtifact(t, testArtifactV2, true, metadata) // Same metadata
 
 	// Try to update with manual reason (should succeed even with same version)
-	err = mgr.UpdateArtifact(context.Background(), artifactName, testArtifactV2, desc)
+	err = mgr.UpdateArtifact(context.Background(), testArtifactV2, desc)
 	require.NoError(t, err)
 
 	// Verify it was upgraded to manual reason

@@ -178,6 +178,20 @@ func (mr *MockArtifactManagerMockRecorder) UninstallArtifact(ctx, artifactName, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UninstallArtifact", reflect.TypeOf((*MockArtifactManager)(nil).UninstallArtifact), ctx, artifactName, purge)
 }
 
+// UpdateArtifact mocks base method.
+func (m *MockArtifactManager) UpdateArtifact(ctx context.Context, newArtifactPath string, newDescriptor *model.IndexArtifactDescriptor) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateArtifact", ctx, newArtifactPath, newDescriptor)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateArtifact indicates an expected call of UpdateArtifact.
+func (mr *MockArtifactManagerMockRecorder) UpdateArtifact(ctx, newArtifactPath, newDescriptor any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateArtifact", reflect.TypeOf((*MockArtifactManager)(nil).UpdateArtifact), ctx, newArtifactPath, newDescriptor)
+}
+
 // MockDownloader is a mock of Downloader interface.
 type MockDownloader struct {
 	ctrl     *gomock.Controller
