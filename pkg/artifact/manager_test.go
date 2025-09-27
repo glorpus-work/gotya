@@ -25,8 +25,8 @@ var (
 	DefaultMetadata = &Metadata{
 		Name:        DefaultArtifactName,
 		Version:     DefaultArtifactVersion,
-		OS:          "linux",
-		Arch:        "amd64",
+		OS:          DefaultArtifactOS,
+		Arch:        DefaultArtifactArch,
 		Maintainer:  "test@example.com",
 		Description: "Test artifact for unit tests",
 	}
