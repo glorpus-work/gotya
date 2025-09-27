@@ -8,7 +8,7 @@ import (
 // ResolveRequest describes what the user asked to resolve.
 type ResolveRequest struct {
 	Name               string
-	Version            string               // semver constraint (e.g., ">= 0.0.0" for latest)
+	VersionConstraint  string               // semver constraint (e.g., ">= 0.0.0" for latest)
 	OS                 string               // target os
 	Arch               string               // target arch
 	InstalledArtifacts []*InstalledArtifact `json:"-"` // currently installed artifacts for compatibility checking

@@ -1338,10 +1338,10 @@ func TestReverseResolve_Basic(t *testing.T) {
 
 	// Test resolving reverse dependencies for dep1
 	req := model.ResolveRequest{
-		Name:    "dep1",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "dep1",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	result, err := mgr.ReverseResolve(context.Background(), req)
@@ -1376,10 +1376,10 @@ func TestReverseResolve_ComplexDependencies(t *testing.T) {
 
 	// Test resolving reverse dependencies for core
 	req := model.ResolveRequest{
-		Name:    "core",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "core",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	result, err := mgr.ReverseResolve(context.Background(), req)
@@ -1410,10 +1410,10 @@ func TestReverseResolve_NonExistentArtifact(t *testing.T) {
 
 	// Test resolving reverse dependencies for non-existent artifact
 	req := model.ResolveRequest{
-		Name:    "nonexistent",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "nonexistent",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	result, err := mgr.ReverseResolve(context.Background(), req)
@@ -1435,10 +1435,10 @@ func TestReverseResolve_DatabaseLoadError(t *testing.T) {
 
 	// Test resolving reverse dependencies when database is corrupted
 	req := model.ResolveRequest{
-		Name:    "test",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "test",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	_, err := mgr.ReverseResolve(context.Background(), req)
@@ -1457,10 +1457,10 @@ func TestReverseResolve_EmptyDatabase(t *testing.T) {
 
 	// Test resolving reverse dependencies
 	req := model.ResolveRequest{
-		Name:    "any-artifact",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "any-artifact",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	result, err := mgr.ReverseResolve(context.Background(), req)
@@ -1482,10 +1482,10 @@ func TestReverseResolve_SelfDependency(t *testing.T) {
 
 	// Test resolving reverse dependencies for self
 	req := model.ResolveRequest{
-		Name:    "self",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "self",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	result, err := mgr.ReverseResolve(context.Background(), req)
@@ -1524,10 +1524,10 @@ func TestReverseResolve_MissingStatusArtifact(t *testing.T) {
 
 	// Test resolving reverse dependencies for missing artifact
 	req := model.ResolveRequest{
-		Name:    "missing",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "missing",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	result, err := mgr.ReverseResolve(context.Background(), req)

@@ -101,10 +101,10 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 	// Process each artifact
 	for _, pkgName := range packages {
 		req := model.ResolveRequest{
-			Name:    pkgName,
-			Version: ">= 0.0.0",
-			OS:      cfg.Settings.Platform.OS,
-			Arch:    cfg.Settings.Platform.Arch,
+			Name:              pkgName,
+			VersionConstraint: ">= 0.0.0",
+			OS:                cfg.Settings.Platform.OS,
+			Arch:              cfg.Settings.Platform.Arch,
 		}
 		// TODO: Implement --skip-deps functionality
 		// Currently, dependency resolution is always performed by the orchestrator.

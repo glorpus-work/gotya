@@ -128,7 +128,7 @@ func TestInstall_DryRun(t *testing.T) {
 	s1url, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	req := model.ResolveRequest{
 		Name:               "pkgA",
-		Version:            ">= 0.0.0",
+		VersionConstraint:  ">= 0.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: []*model.InstalledArtifact{},
@@ -215,7 +215,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	req := model.ResolveRequest{
 		Name:               "pkgA",
-		Version:            "1.0.0",
+		VersionConstraint:  "1.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: []*model.InstalledArtifact{},
@@ -367,10 +367,10 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 	// Setup test data
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	req := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "pkgA",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	step := model.ResolvedArtifact{
@@ -387,7 +387,7 @@ func TestInstall_NoDownloadManager(t *testing.T) {
 	// Setup test data
 	req = model.ResolveRequest{
 		Name:               "pkgA",
-		Version:            "1.0.0",
+		VersionConstraint:  "1.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: []*model.InstalledArtifact{},
@@ -437,10 +437,10 @@ func TestInstall_NoIndexPlanner(t *testing.T) {
 
 	// Create an orchestrator with nil Index
 	testReq := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "pkgA",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	testOpts := InstallOptions{
@@ -475,7 +475,7 @@ func TestInstall_PlanError(t *testing.T) {
 	// Setup test data
 	testReq := model.ResolveRequest{
 		Name:               "pkgA",
-		Version:            "1.0.0",
+		VersionConstraint:  "1.0.0",
 		InstalledArtifacts: []*model.InstalledArtifact{},
 	}
 
@@ -516,7 +516,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	testReq := model.ResolveRequest{
 		Name:               "pkgA",
-		Version:            "1.0.0",
+		VersionConstraint:  "1.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: []*model.InstalledArtifact{},
@@ -594,7 +594,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	tmpDir := t.TempDir()
 	testReq := model.ResolveRequest{
 		Name:               "pkgA",
-		Version:            "1.0.0",
+		VersionConstraint:  "1.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: []*model.InstalledArtifact{},
@@ -663,8 +663,8 @@ func TestUninstall_Success(t *testing.T) {
 
 	// Setup test data
 	testReq := model.ResolveRequest{
-		Name:    "test-artifact",
-		Version: "1.0.0",
+		Name:              "test-artifact",
+		VersionConstraint: "1.0.0",
 	}
 
 	// Create mocks
@@ -708,8 +708,8 @@ func TestUninstall_DryRun(t *testing.T) {
 
 	// Setup test data
 	testReq := model.ResolveRequest{
-		Name:    "test-artifact",
-		Version: "1.0.0",
+		Name:              "test-artifact",
+		VersionConstraint: "1.0.0",
 	}
 
 	// Create mocks
@@ -744,8 +744,8 @@ func TestUninstall_NoCascade_WithDependencies(t *testing.T) {
 
 	// Setup test data
 	testReq := model.ResolveRequest{
-		Name:    "test-artifact",
-		Version: "1.0.0",
+		Name:              "test-artifact",
+		VersionConstraint: "1.0.0",
 	}
 
 	// Create mocks
@@ -780,8 +780,8 @@ func TestUninstall_ForceWithNoCascade(t *testing.T) {
 
 	// Setup test data
 	testReq := model.ResolveRequest{
-		Name:    "test-artifact",
-		Version: "1.0.0",
+		Name:              "test-artifact",
+		VersionConstraint: "1.0.0",
 	}
 
 	// Create mocks
@@ -813,8 +813,8 @@ func TestUninstall_ForceWithNoCascade(t *testing.T) {
 func TestUninstall_NoReverseIndex(t *testing.T) {
 	// Setup test data
 	testReq := model.ResolveRequest{
-		Name:    "test-artifact",
-		Version: "1.0.0",
+		Name:              "test-artifact",
+		VersionConstraint: "1.0.0",
 	}
 
 	// Create orchestrator without ReverseIndex
@@ -837,8 +837,8 @@ func TestUninstall_NoArtifactManager(t *testing.T) {
 
 	// Setup test data
 	testReq := model.ResolveRequest{
-		Name:    "test-artifact",
-		Version: "1.0.0",
+		Name:              "test-artifact",
+		VersionConstraint: "1.0.0",
 	}
 
 	// Create mocks
@@ -874,8 +874,8 @@ func TestUninstall_ArtifactUninstallError(t *testing.T) {
 
 	// Setup test data
 	testReq := model.ResolveRequest{
-		Name:    "test-artifact",
-		Version: "1.0.0",
+		Name:              "test-artifact",
+		VersionConstraint: "1.0.0",
 	}
 
 	expectedErr := fmt.Errorf("failed to uninstall artifact")
@@ -919,7 +919,7 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	req := model.ResolveRequest{
 		Name:               "pkgA",
-		Version:            "1.0.0",
+		VersionConstraint:  "1.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: []*model.InstalledArtifact{},
@@ -999,7 +999,7 @@ func TestInstall_InstallationReason_DependenciesAutomatic(t *testing.T) {
 	depURL, _ := url.Parse("https://example.com/dep-1.0.0.tgz")
 	req := model.ResolveRequest{
 		Name:               "pkgA",
-		Version:            "1.0.0",
+		VersionConstraint:  "1.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: []*model.InstalledArtifact{},
@@ -1101,7 +1101,7 @@ func TestInstall_InstallationReason_MultipleArtifacts(t *testing.T) {
 
 	req := model.ResolveRequest{
 		Name:               "pkgA", // Only pkgA should be manual
-		Version:            "1.0.0",
+		VersionConstraint:  "1.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: []*model.InstalledArtifact{},
@@ -1386,10 +1386,10 @@ func TestInstall_WithInstalledArtifacts_ResolverReceivesContext(t *testing.T) {
 	// Setup test data
 	sURL, _ := url.Parse("https://example.com/pkgA-2.0.0.tgz")
 	req := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "2.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "pkgA",
+		VersionConstraint: "2.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 		// InstalledArtifacts will be set by the orchestrator
 	}
 
@@ -1466,10 +1466,10 @@ func TestInstall_WithInstalledArtifacts_SkipCompatible(t *testing.T) {
 
 	// Setup test data - pkgA@1.0.0 is already installed and compatible
 	req := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "1.0.0", // Same version as installed
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "pkgA",
+		VersionConstraint: "1.0.0", // Same version as installed
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	step := model.ResolvedArtifact{
@@ -1536,10 +1536,10 @@ func TestInstall_WithInstalledArtifacts_UpdateIncompatible(t *testing.T) {
 	// Setup test data - pkgA@1.0.0 is installed but pkgA@2.0.0 is needed
 	sURL, _ := url.Parse("https://example.com/pkgA-2.0.0.tgz")
 	req := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "2.0.0", // Requires newer version
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "pkgA",
+		VersionConstraint: "2.0.0", // Requires newer version
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	step := model.ResolvedArtifact{
@@ -1623,10 +1623,10 @@ func TestInstall_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
 	sURL3, _ := url.Parse("https://example.com/pkgC-1.0.0.tgz")
 
 	req := model.ResolveRequest{
-		Name:    "pkgA",
-		Version: "3.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "pkgA",
+		VersionConstraint: "3.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	}
 
 	artifactA := model.ResolvedArtifact{

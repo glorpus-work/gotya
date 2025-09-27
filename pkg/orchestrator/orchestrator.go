@@ -167,9 +167,9 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 		artifacts = model.ResolvedArtifacts{
 			Artifacts: []model.ResolvedArtifact{
 				{
-					ID:       req.Name + "@" + req.Version,
+					ID:       req.Name + "@" + req.VersionConstraint,
 					Name:     req.Name,
-					Version:  req.Version,
+					Version:  req.VersionConstraint,
 					OS:       req.OS,
 					Arch:     req.Arch,
 					Checksum: "",

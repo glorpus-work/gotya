@@ -25,10 +25,10 @@ func TestResolve_BasicDependencyResolution(t *testing.T) {
 	]`)
 
 	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:    "a",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "a",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	})
 
 	require.NoError(t, err)
@@ -56,10 +56,10 @@ func TestResolve_VersionConflictResolution(t *testing.T) {
 	]`)
 
 	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:    "app",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "app",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	})
 
 	// The current implementation doesn't detect version conflicts, so we'll just check for no error
@@ -78,10 +78,10 @@ func TestResolve_CyclicDependency(t *testing.T) {
 	]`)
 
 	_, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:    "a",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "a",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	})
 
 	assert.Error(t, err)
@@ -112,10 +112,10 @@ func TestResolve_ComplexDependencyGraph(t *testing.T) {
 	]`)
 
 	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:    "app",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "app",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	})
 
 	require.NoError(t, err)
@@ -154,10 +154,10 @@ func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 
 	t.Run("linux/amd64", func(t *testing.T) {
 		plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-			Name:    "app",
-			Version: "1.0.0",
-			OS:      "linux",
-			Arch:    "amd64",
+			Name:              "app",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
 		})
 
 		require.NoError(t, err)
@@ -170,10 +170,10 @@ func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 
 	t.Run("darwin/arm64", func(t *testing.T) {
 		plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-			Name:    "app",
-			Version: "1.0.0",
-			OS:      "darwin",
-			Arch:    "arm64",
+			Name:              "app",
+			VersionConstraint: "1.0.0",
+			OS:                "darwin",
+			Arch:              "arm64",
 		})
 
 		require.NoError(t, err)
@@ -190,10 +190,10 @@ func TestResolve_NoDependencies(t *testing.T) {
 	mgr := setupTestManager(t, `[{"name":"standalone","version":"1.0.0","url":"https://ex/standalone","checksum":"s1"}]`)
 
 	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:    "standalone",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "standalone",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	})
 
 	require.NoError(t, err)
@@ -206,10 +206,10 @@ func TestResolve_NonExistentPackage(t *testing.T) {
 	mgr := setupTestManager(t, `[{"name":"exists","version":"1.0.0","url":"https://ex/exists","checksum":"e1"}]`)
 
 	_, err := mgr.Resolve(context.Background(), model.ResolveRequest{
-		Name:    "nonexistent",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		Name:              "nonexistent",
+		VersionConstraint: "1.0.0",
+		OS:                "linux",
+		Arch:              "amd64",
 	})
 
 	assert.Error(t, err)
@@ -236,7 +236,7 @@ func TestResolve_WithInstalledArtifacts_CompatibleVersions(t *testing.T) {
 
 	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 		Name:               "app",
-		Version:            "2.0.0",
+		VersionConstraint:  "2.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: installedArtifacts,
@@ -294,7 +294,7 @@ func TestResolve_WithInstalledArtifacts_IncompatibleVersions(t *testing.T) {
 
 	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 		Name:               "app",
-		Version:            "2.0.0",
+		VersionConstraint:  "2.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: installedArtifacts,
@@ -346,7 +346,7 @@ func TestResolve_WithInstalledArtifacts_SkipWhenCompatible(t *testing.T) {
 
 	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 		Name:               "app",
-		Version:            "1.0.0",
+		VersionConstraint:  "1.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: installedArtifacts,
@@ -391,7 +391,7 @@ func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
 
 	plan, err := mgr.Resolve(context.Background(), model.ResolveRequest{
 		Name:               "app",
-		Version:            "3.0.0",
+		VersionConstraint:  "3.0.0",
 		OS:                 "linux",
 		Arch:               "amd64",
 		InstalledArtifacts: installedArtifacts,

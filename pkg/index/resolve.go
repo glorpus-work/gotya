@@ -19,13 +19,13 @@ func (rm *ManagerImpl) Resolve(ctx context.Context, req model.ResolveRequest) (m
 	_ = ctx // reserved for future use
 
 	// Normalize version request
-	if req.Version == "" {
-		req.Version = ">= 0.0.0"
+	if req.VersionConstraint == "" {
+		req.VersionConstraint = ">= 0.0.0"
 	}
 
 	// Delegate to a small resolver helper for clarity.
 	res := newResolver(rm, req)
-	res.addConstraint(req.Name, req.Version)
+	res.addConstraint(req.Name, req.VersionConstraint)
 	if err := res.resolveNode(req.Name); err != nil {
 		return model.ResolvedArtifacts{}, err
 	}
