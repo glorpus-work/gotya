@@ -323,13 +323,10 @@ func (c *Config) Validate() error {
 
 	// Validate log level
 	validLevels := map[string]bool{
-		"panic": true,
-		"fatal": true,
-		"error": true,
-		"warn":  true,
-		"info":  true,
 		"debug": true,
-		"trace": true,
+		"info":  true,
+		"warn":  true,
+		"error": true,
 	}
 	if !validLevels[strings.ToLower(c.Settings.LogLevel)] {
 		return errors.ErrInvalidLogLevelWithDetails(c.Settings.LogLevel)
