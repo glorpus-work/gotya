@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/cperrin88/gotya/pkg/platform"
 )
 
 // SetValue sets a configuration value by key
@@ -12,6 +14,9 @@ import (
 //   - cache_dir: string - Path to the cache directory
 //   - output_format: string - Output format (text, json, etc.)
 //   - log_level: string - Logging level (debug, info, warn, error, fatal)
+//   - platform.os: string - Target operating system
+//   - platform.arch: string - Target architecture
+//   - platform.prefer_native: bool - Whether to prefer native packages
 func (c *Config) SetValue(key, value string) error {
 	switch key {
 	case "cache_dir":
@@ -20,6 +25,28 @@ func (c *Config) SetValue(key, value string) error {
 		c.Settings.OutputFormat = value
 	case "log_level":
 		c.Settings.LogLevel = value
+	case "platform.os":
+		if value != "" {
+			normalized := platform.NormalizeOS(value)
+			if normalized == "" {
+				return fmt.Errorf("invalid OS value: %s. Valid values are: %v", value, platform.GetValidOS())
+			}
+			c.Settings.Platform.OS = normalized
+		}
+	case "platform.arch":
+		if value != "" {
+			normalized := platform.NormalizeArch(value)
+			if normalized == "" {
+				return fmt.Errorf("invalid architecture value: %s. Valid values are: %v", value, platform.GetValidArch())
+			}
+			c.Settings.Platform.Arch = normalized
+		}
+	case "platform.prefer_native":
+		preferNative, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("invalid boolean value for platform.prefer_native: %s", value)
+		}
+		c.Settings.Platform.PreferNative = preferNative
 	default:
 		return fmt.Errorf("unknown configuration key: %s", key)
 	}
@@ -35,6 +62,12 @@ func (c *Config) GetValue(key string) (string, error) {
 		return c.Settings.OutputFormat, nil
 	case "log_level":
 		return c.Settings.LogLevel, nil
+	case "platform.os":
+		return c.Settings.Platform.OS, nil
+	case "platform.arch":
+		return c.Settings.Platform.Arch, nil
+	case "platform.prefer_native":
+		return strconv.FormatBool(c.Settings.Platform.PreferNative), nil
 	default:
 		return "", fmt.Errorf("unknown configuration key: %s", key)
 	}
@@ -110,4 +143,16 @@ func NewDefaultConfig() *Config {
 			LogLevel:     "info",
 		},
 	}
+}
+
+// ToSnakeCase converts CamelCase to snake_case.
+func ToSnakeCase(str string) string {
+	result := make([]rune, 0, len(str)*2) // Pre-allocate with enough capacity
+	for i, r := range str {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result = append(result, '_')
+		}
+		result = append(result, r)
+	}
+	return string(result)
 }

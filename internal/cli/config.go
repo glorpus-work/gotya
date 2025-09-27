@@ -3,13 +3,11 @@ package cli
 import (
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/config"
-	"github.com/cperrin88/gotya/pkg/platform"
 	"github.com/spf13/cobra"
 )
 
@@ -44,9 +42,6 @@ func newConfigShowCmd() *cobra.Command {
 
 // Number of arguments expected by the set command.
 const setCommandArgs = 2
-
-// stringLengthMultiplier is used to pre-allocate slices with sufficient capacity.
-const stringLengthMultiplier = 2
 
 func newConfigSetCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -103,17 +98,10 @@ func runConfigShow(*cobra.Command, []string) error {
 	_, _ = fmt.Fprintln(tabWriter, "SETTING\tVALUE")
 	_, _ = fmt.Fprintln(tabWriter, "-------\t-----")
 
-	// Display settings using reflection to access fields
-	settingsValue := reflect.ValueOf(cfg.Settings)
-	settingsType := reflect.TypeOf(cfg.Settings)
-
-	for i := 0; i < settingsValue.NumField(); i++ {
-		field := settingsType.Field(i)
-		value := settingsValue.Field(i)
-
-		// Convert field name to snake_case
-		fieldName := toSnakeCase(field.Name)
-		_, _ = fmt.Fprintf(tabWriter, "%s\t%v\n", fieldName, value.Interface())
+	// Display settings using ToMap for consistency
+	settingsMap := cfg.ToMap()
+	for key, value := range settingsMap {
+		_, _ = fmt.Fprintf(tabWriter, "%s\t%s\n", config.ToSnakeCase(key), value)
 	}
 
 	_ = tabWriter.Flush()
@@ -136,33 +124,7 @@ func runConfigSet(key, value string) error {
 		return err
 	}
 
-	// Special handling for platform settings
-	switch key {
-	case "platform.os":
-		if value != "" {
-			// Validate OS value
-			normalized := platform.NormalizeOS(value)
-			if normalized == "" {
-				return fmt.Errorf("invalid OS value: %s. Valid values are: %v",
-					value, platform.GetValidOS())
-			}
-			value = normalized // Use normalized value
-		}
-	case "platform.arch":
-		if value != "" {
-			// Validate Arch value
-			normalized := platform.NormalizeArch(value)
-			if normalized == "" {
-				return fmt.Errorf("invalid architecture value: %s. Valid values are: %v",
-					value, platform.GetValidArch())
-			}
-			value = normalized // Use normalized value
-		}
-	case "platform.prefer_native":
-		// Handled by the bool parser in setConfigValue
-	}
-
-	if err := setConfigValue(cfg, key, value); err != nil {
+	if err := cfg.SetValue(key, value); err != nil {
 		return fmt.Errorf("failed to set configuration value: %w", err)
 	}
 
@@ -187,7 +149,7 @@ func runConfigGet(key string) error {
 		return err
 	}
 
-	value, err := getConfigValue(cfg, key)
+	value, err := cfg.GetValue(key)
 	if err != nil {
 		return fmt.Errorf("failed to get configuration value: %w", err)
 	}
@@ -227,33 +189,4 @@ func getConfigPath() string {
 		return ""
 	}
 	return defaultPath
-}
-
-// setConfigValue sets a configuration value by key.
-func setConfigValue(cfg *config.Config, key, value string) error {
-	if err := cfg.SetValue(key, value); err != nil {
-		return fmt.Errorf("failed to set config value for key '%s': %w", key, err)
-	}
-	return nil
-}
-
-// getConfigValue gets a configuration value by key.
-func getConfigValue(cfg *config.Config, key string) (string, error) {
-	value, err := cfg.GetValue(key)
-	if err != nil {
-		return "", fmt.Errorf("failed to get config value for key '%s': %w", key, err)
-	}
-	return value, nil
-}
-
-// Helper function to convert CamelCase to snake_case.
-func toSnakeCase(str string) string {
-	result := make([]rune, 0, len(str)*stringLengthMultiplier) // Pre-allocate with enough capacity for worst case
-	for i, r := range str {
-		if i > 0 && r >= 'A' && r <= 'Z' {
-			result = append(result, '_')
-		}
-		result = append(result, r)
-	}
-	return string(result)
 }
