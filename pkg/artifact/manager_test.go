@@ -1776,3 +1776,147 @@ func TestInstallArtifact_InstallationReason_DatabasePersistence(t *testing.T) {
 	require.NotNil(t, reloadedArtifact)
 	assert.Equal(t, model.InstallationReasonManual, reloadedArtifact.InstallationReason, "should have manual reason persisted in database")
 }
+
+// TestGetOrphanedAutomaticArtifacts_NoOrphaned tests when there are no orphaned automatic artifacts
+func TestGetOrphanedAutomaticArtifacts_NoOrphaned(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create test artifacts with different scenarios
+	manualArtifact := createTestArtifact("manual", "1.0.0", []string{"dep1"})
+	manualArtifact.InstallationReason = model.InstallationReasonManual
+
+	automaticWithDeps := createTestArtifact("auto-with-deps", "1.0.0", []string{"dep1"})
+	automaticWithDeps.InstallationReason = model.InstallationReasonAutomatic
+
+	automaticNoDeps := createTestArtifact("auto-no-deps", "1.0.0", []string{})
+	automaticNoDeps.InstallationReason = model.InstallationReasonAutomatic
+
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{manualArtifact, automaticWithDeps, automaticNoDeps})
+
+	// Get orphaned artifacts
+	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()
+	require.NoError(t, err)
+
+	// Should find the orphaned automatic artifact (auto-no-deps has no reverse dependencies)
+	require.Len(t, orphaned, 1)
+	assert.Contains(t, orphaned, "auto-no-deps")
+}
+
+// TestGetOrphanedAutomaticArtifacts_WithOrphaned tests finding orphaned automatic artifacts
+func TestGetOrphanedAutomaticArtifacts_WithOrphaned(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create test artifacts
+	manualArtifact := createTestArtifact("manual", "1.0.0", []string{"dep1"})
+	manualArtifact.InstallationReason = model.InstallationReasonManual
+
+	automaticOrphaned1 := createTestArtifact("auto-orphan1", "1.0.0", []string{})
+	automaticOrphaned1.InstallationReason = model.InstallationReasonAutomatic
+
+	automaticOrphaned2 := createTestArtifact("auto-orphan2", "1.0.0", []string{})
+	automaticOrphaned2.InstallationReason = model.InstallationReasonAutomatic
+
+	automaticWithDeps := createTestArtifact("auto-with-deps", "1.0.0", []string{"dep1"})
+	automaticWithDeps.InstallationReason = model.InstallationReasonAutomatic
+
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{manualArtifact, automaticOrphaned1, automaticOrphaned2, automaticWithDeps})
+
+	// Get orphaned artifacts
+	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()
+	require.NoError(t, err)
+
+	// Should find the two orphaned automatic artifacts
+	require.Len(t, orphaned, 2)
+	assert.Contains(t, orphaned, "auto-orphan1")
+	assert.Contains(t, orphaned, "auto-orphan2")
+	assert.NotContains(t, orphaned, "manual")
+	assert.NotContains(t, orphaned, "auto-with-deps")
+}
+
+// TestGetOrphanedAutomaticArtifacts_OnlyAutomatic tests that only automatic artifacts are considered
+func TestGetOrphanedAutomaticArtifacts_OnlyAutomatic(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create test artifacts
+	manualOrphaned := createTestArtifact("manual-orphan", "1.0.0", []string{})
+	manualOrphaned.InstallationReason = model.InstallationReasonManual
+
+	automaticNotOrphaned := createTestArtifact("auto-not-orphan", "1.0.0", []string{"dep1"})
+	automaticNotOrphaned.InstallationReason = model.InstallationReasonAutomatic
+
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{manualOrphaned, automaticNotOrphaned})
+
+	// Get orphaned artifacts
+	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()
+	require.NoError(t, err)
+
+	// Should be empty since manual artifacts are ignored and automatic artifact has dependencies
+	assert.Empty(t, orphaned)
+}
+
+// TestGetOrphanedAutomaticArtifacts_MissingStatus tests that missing artifacts are ignored
+func TestGetOrphanedAutomaticArtifacts_MissingStatus(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create test artifacts
+	missingAutomatic := createTestArtifact("missing-auto", "1.0.0", []string{})
+	missingAutomatic.InstallationReason = model.InstallationReasonAutomatic
+	missingAutomatic.Status = database.StatusMissing
+
+	installedAutomatic := createTestArtifact("installed-auto", "1.0.0", []string{})
+	installedAutomatic.InstallationReason = model.InstallationReasonAutomatic
+	installedAutomatic.Status = database.StatusInstalled
+
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{missingAutomatic, installedAutomatic})
+
+	// Get orphaned artifacts
+	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()
+	require.NoError(t, err)
+
+	// Should only find the installed automatic artifact
+	require.Len(t, orphaned, 1)
+	assert.Contains(t, orphaned, "installed-auto")
+	assert.NotContains(t, orphaned, "missing-auto")
+}
+
+// TestGetOrphanedAutomaticArtifacts_DatabaseLoadError tests error when database cannot be loaded
+func TestGetOrphanedAutomaticArtifacts_DatabaseLoadError(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "corrupted.db")
+
+	// Create a corrupted database file
+	require.NoError(t, os.WriteFile(dbPath, []byte("invalid json"), 0644))
+
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Try to get orphaned artifacts
+	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to load installed database")
+	require.Nil(t, orphaned)
+}
+
+// TestGetOrphanedAutomaticArtifacts_EmptyDatabase tests with an empty database
+func TestGetOrphanedAutomaticArtifacts_EmptyDatabase(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "empty.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Create empty database
+	setupTestDatabaseWithArtifacts(t, dbPath, []*database.InstalledArtifact{})
+
+	// Get orphaned artifacts
+	orphaned, err := mgr.GetOrphanedAutomaticArtifacts()
+	require.NoError(t, err)
+
+	// Should be empty
+	assert.Empty(t, orphaned)
+}
