@@ -19,18 +19,15 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: '1.25'
           check-latest: true
           cache: true
-
-      - name: Install Task
-        run: go install github.com/go-task/task/v3/cmd/task@latest
 
       - name: Check out code
         uses: actions/checkout@v5
 
       - name: Run tests
-        run: task test-integration
+        run: go test -tags=integration ./... -v
 
   lint:
     name: Lint
