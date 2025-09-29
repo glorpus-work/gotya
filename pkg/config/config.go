@@ -271,6 +271,12 @@ func (c *Config) applyDefaults() {
 	if c.Settings.InstallDir == "" {
 		c.Settings.InstallDir = defaults.Settings.InstallDir
 	}
+	if c.Settings.Platform.OS == "" {
+		c.Settings.Platform.OS = defaults.Settings.Platform.OS
+	}
+	if c.Settings.Platform.Arch == "" {
+		c.Settings.Platform.Arch = defaults.Settings.Platform.Arch
+	}
 
 	// Set enabled to true by default for repositories if not explicitly set
 	for i := range c.Repositories {

@@ -418,8 +418,8 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		updateRequests = append(updateRequests, model.ResolveRequest{
 			Name:              inst.Name,
 			VersionConstraint: ">= 0.0.0", // no hard constraint; allow latest
-			OS:                "linux",
-			Arch:              "amd64",
+			OS:                inst.OS,
+			Arch:              inst.Arch,
 			OldVersion:        inst.Version,
 			KeepVersion:       false, // in update flow, do not keep old versions
 		})
