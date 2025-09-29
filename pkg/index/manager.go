@@ -49,10 +49,6 @@ func (rm *ManagerImpl) FuzzySearchArtifacts(query string) (map[string][]*model.I
 		}
 	}
 
-	if len(packages) == 0 {
-		return nil, errors.ErrArtifactNotFound
-	}
-
 	return packages, nil
 }
 

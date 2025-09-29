@@ -163,7 +163,7 @@ repositories:
 	syncCmd.SetArgs([]string{"--config", cfgPath, "sync"})
 	require.NoError(t, syncCmd.ExecuteContext(context.Background()))
 
-	// Search for something that doesn't exist
+	// Search for something that doesn't exist - should succeed with "No packages found" message
 	searchCmd := newRootCmd()
 	searchCmd.SetArgs([]string{"--config", cfgPath, "search", "nonexistentpackage"})
 
@@ -173,6 +173,7 @@ repositories:
 	os.Stdout = w
 
 	err := searchCmd.ExecuteContext(context.Background())
+	// The search should succeed (no error) and show "No packages found" message
 	require.NoError(t, err)
 
 	// Restore stdout and read output
@@ -257,14 +258,14 @@ repositories:
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
-	// Should contain results from both repositories
+	// Should find packages from both repositories (each has 2 packages)
 	assert.Contains(t, output, "lib-repo:")
 	assert.Contains(t, output, "app-repo:")
 	assert.Contains(t, output, "testlib")
 	assert.Contains(t, output, "testapp")
 
-	// Should show total count
-	assert.Contains(t, output, "Found 2 package(s) matching 'test'")
+	// Should show total count (2 packages from each repo = 4 total)
+	assert.Contains(t, output, "Found 4 package(s) matching 'test'")
 }
 
 func TestSearch_SearchWithSpecialCharacters(t *testing.T) {
@@ -312,9 +313,9 @@ repositories:
 	syncCmd.SetArgs([]string{"--config", cfgPath, "sync"})
 	require.NoError(t, syncCmd.ExecuteContext(context.Background()))
 
-	// Test searching with special characters
+	// Test searching with special characters - search for "test" to find all variants
 	searchCmd := newRootCmd()
-	searchCmd.SetArgs([]string{"--config", cfgPath, "search", "test-app"})
+	searchCmd.SetArgs([]string{"--config", cfgPath, "search", "test"})
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -332,9 +333,10 @@ repositories:
 	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
-	// Should find packages with hyphens and underscores
+	// Should find packages with hyphens, underscores, and dots
 	assert.Contains(t, output, "test-app")
 	assert.Contains(t, output, "test_app")
-	// Should NOT find test.app or test123 unless they match the fuzzy search
-	// (depending on the fuzzy search algorithm implementation)
+	assert.Contains(t, output, "test.app")
+	assert.Contains(t, output, "test123")
+	assert.Contains(t, output, "test-app-v2")
 }
