@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -253,7 +254,8 @@ repositories:
 		cmd.SetArgs([]string{"--config", cfgPath, "install", "testapp"})
 		err := cmd.ExecuteContext(context.Background())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "connection refused") // Should contain connection error
+		var opErr *net.OpError
+		assert.ErrorAs(t, err, &opErr)
 	})
 
 	t.Run("CorruptedPackage", func(t *testing.T) {
