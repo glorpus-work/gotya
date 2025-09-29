@@ -2,12 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/download"
 	"github.com/cperrin88/gotya/pkg/index"
+	"github.com/cperrin88/gotya/pkg/model"
 )
 
 // These variables will be set by the main artifact.
@@ -113,4 +115,41 @@ func loadArtifactManager(config *config.Config) artifact.Manager {
 func loadDownloadManager(config *config.Config) download.Manager {
 	factory := NewManagerFactory(config)
 	return factory.CreateDownloadManager()
+}
+
+// ParseDependencies parses a list of dependency strings in the format "package_name[:version_constraint][,package_name[:version_constraint],...]"
+// If no version constraint is provided, it defaults to ">= 0.0.0"
+func ParseDependencies(deps []string) ([]model.Dependency, error) {
+	var dependencies []model.Dependency
+
+	for _, depStr := range deps {
+		depStr = strings.TrimSpace(depStr)
+		if depStr == "" {
+			continue
+		}
+
+		parts := strings.SplitN(depStr, ":", 2)
+		name := strings.TrimSpace(parts[0])
+		if name == "" {
+			return nil, fmt.Errorf("invalid dependency format: empty package name in '%s'", depStr)
+		}
+
+		var versionConstraint string
+		if len(parts) == 2 {
+			versionConstraint = strings.TrimSpace(parts[1])
+			if versionConstraint == "" {
+				return nil, fmt.Errorf("invalid dependency format: empty version constraint for package '%s'", name)
+			}
+		} else {
+			// Default version constraint if none provided
+			versionConstraint = ">= 0.0.0"
+		}
+
+		dependencies = append(dependencies, model.Dependency{
+			Name:              name,
+			VersionConstraint: versionConstraint,
+		})
+	}
+
+	return dependencies, nil
 }

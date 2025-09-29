@@ -60,7 +60,7 @@ func TestResolve_VersionConflictResolution(t *testing.T) {
 	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
 		{
 			Name:              "app",
-			VersionConstraint: "1.0.0",
+			VersionConstraint: "= 1.0.0",
 			OS:                "linux",
 			Arch:              "amd64",
 		},

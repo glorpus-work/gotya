@@ -111,7 +111,7 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 		}
 	}
 	if len(repoPrioArtifacts) == 0 {
-		return nil, ErrArtifactNotFound
+		return nil, errors.Wrapf(ErrArtifactNotFound, "artifact %s could not be found", name)
 	}
 
 	prios := slices.Collect(maps.Keys(repoPrioArtifacts))

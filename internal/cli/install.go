@@ -49,6 +49,12 @@ func runInstall(packages []string, dryRun bool, concurrency int, cacheDir string
 		cacheDir = cfg.GetArtifactCacheDir()
 	}
 
+	// Parse dependencies from package arguments
+	dependencies, err := ParseDependencies(packages)
+	if err != nil {
+		return fmt.Errorf("failed to parse dependencies: %w", err)
+	}
+
 	// Verify interfaces
 	planner, ok := indexManager.(orchestrator.ArtifactResolver)
 	if !ok {
@@ -71,16 +77,16 @@ func runInstall(packages []string, dryRun bool, concurrency int, cacheDir string
 	opts := orchestrator.InstallOptions{CacheDir: cacheDir, Concurrency: concurrency, DryRun: dryRun}
 	ctx := context.Background()
 
-	// Process each artifact
-	for _, pkgName := range packages {
+	// Process each dependency
+	for _, dep := range dependencies {
 		req := model.ResolveRequest{
-			Name:              pkgName,
-			VersionConstraint: ">= 0.0.0",
+			Name:              dep.Name,
+			VersionConstraint: dep.VersionConstraint,
 			OS:                cfg.Settings.Platform.OS,
 			Arch:              cfg.Settings.Platform.Arch,
 		}
 		if err := orch.Install(ctx, req, opts); err != nil {
-			return fmt.Errorf("failed to install %s: %w", pkgName, err)
+			return fmt.Errorf("failed to install %s: %w", dep.Name, err)
 		}
 	}
 

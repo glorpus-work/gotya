@@ -50,6 +50,12 @@ func newArtifactCreateCommand() *cobra.Command {
 		Long: `Create a new gotya artifact from a source directory.
 The source directory should contain a 'meta/artifact.json' file and a 'files/' directory.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			// Parse dependencies
+			parsedDeps, err := ParseDependencies(dependencies)
+			if err != nil {
+				return fmt.Errorf("failed to parse dependencies: %w", err)
+			}
+
 			packer := artifact.NewPacker(
 				pkgName,
 				pkgVer,
@@ -57,7 +63,7 @@ The source directory should contain a 'meta/artifact.json' file and a 'files/' d
 				pkgArch,
 				maintainer,
 				description,
-				dependencies,
+				parsedDeps,
 				hooks,
 				sourceDir,
 				outputDir,

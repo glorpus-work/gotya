@@ -29,6 +29,10 @@ var (
 		Arch:        DefaultArtifactArch,
 		Maintainer:  "test@example.com",
 		Description: "Test artifact for unit tests",
+		Dependencies: []model.Dependency{
+			{Name: "dep1"},
+			{Name: "dep2"},
+		},
 	}
 )
 
@@ -61,14 +65,17 @@ func TestInstallArtifact_RegularPackage(t *testing.T) {
 	// Create a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
 	metadata := &Metadata{
-		Name:         artifactName,
-		Version:      "1.0.0",
-		OS:           "linux",
-		Arch:         "amd64",
-		Maintainer:   "test@example.com",
-		Description:  "Test artifact for unit tests",
-		Dependencies: []string{"dep1", "dep2"},
-		Hooks:        make(map[string]string),
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact for unit tests",
+		Dependencies: []model.Dependency{
+			{Name: "dep1"},
+			{Name: "dep2"},
+		},
+		Hooks: make(map[string]string),
 	}
 	setupTestArtifact(t, testArtifact, true, metadata)
 
@@ -352,14 +359,16 @@ func TestUninstallArtifact_UpdatesReverseDependencies(t *testing.T) {
 	// Step 1: Install an artifact with missing dependencies (creates dummy entries)
 	mainArtifact := filepath.Join(tempDir, "test-artifact.gotya")
 	mainMetadata := &Metadata{
-		Name:         artifactName,
-		Version:      "1.0.0",
-		OS:           "linux",
-		Arch:         "amd64",
-		Maintainer:   "test@example.com",
-		Description:  "Test artifact with dependencies",
-		Dependencies: []string{depName},
-		Hooks:        make(map[string]string),
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact with dependencies",
+		Dependencies: []model.Dependency{
+			{Name: depName},
+		},
+		Hooks: make(map[string]string),
 	}
 	setupTestArtifact(t, mainArtifact, true, mainMetadata)
 
@@ -393,7 +402,7 @@ func TestUninstallArtifact_UpdatesReverseDependencies(t *testing.T) {
 		Arch:         "amd64",
 		Maintainer:   "test@example.com",
 		Description:  "Test dependency",
-		Dependencies: []string{},
+		Dependencies: []model.Dependency{},
 		Hooks:        make(map[string]string),
 	}
 	setupTestArtifact(t, depArtifact, true, depMetadata)
@@ -455,14 +464,17 @@ func TestUninstallArtifact_PurgeMode(t *testing.T) {
 	// Create and install a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
 	metadata := &Metadata{
-		Name:         artifactName,
-		Version:      "1.0.0",
-		OS:           "linux",
-		Arch:         "amd64",
-		Maintainer:   "test@example.com",
-		Description:  "Test artifact for unit tests",
-		Dependencies: []string{"dep1", "dep2"},
-		Hooks:        make(map[string]string),
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact for unit tests",
+		Dependencies: []model.Dependency{
+			{Name: "dep1"},
+			{Name: "dep2"},
+		},
+		Hooks: make(map[string]string),
 	}
 	setupTestArtifact(t, testArtifact, true, metadata)
 
@@ -506,14 +518,17 @@ func TestUninstallArtifact_SelectiveMode(t *testing.T) {
 	// Create and install a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
 	metadata := &Metadata{
-		Name:         artifactName,
-		Version:      "1.0.0",
-		OS:           "linux",
-		Arch:         "amd64",
-		Maintainer:   "test@example.com",
-		Description:  "Test artifact for unit tests",
-		Dependencies: []string{"dep1", "dep2"},
-		Hooks:        make(map[string]string),
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact for unit tests",
+		Dependencies: []model.Dependency{
+			{Name: "dep1"},
+			{Name: "dep2"},
+		},
+		Hooks: make(map[string]string),
 	}
 	setupTestArtifact(t, testArtifact, true, metadata)
 
@@ -572,14 +587,17 @@ func TestUninstallArtifact_SelectiveMode_MissingFiles(t *testing.T) {
 	// Create and install a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
 	metadata := &Metadata{
-		Name:         artifactName,
-		Version:      "1.0.0",
-		OS:           "linux",
-		Arch:         "amd64",
-		Maintainer:   "test@example.com",
-		Description:  "Test artifact for unit tests",
-		Dependencies: []string{"dep1", "dep2"},
-		Hooks:        make(map[string]string),
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact for unit tests",
+		Dependencies: []model.Dependency{
+			{Name: "dep1"},
+			{Name: "dep2"},
+		},
+		Hooks: make(map[string]string),
 	}
 	setupTestArtifact(t, testArtifact, true, metadata)
 
@@ -687,14 +705,16 @@ func TestUpdateArtifact_Successful(t *testing.T) {
 	// Create and install the original version
 	originalArtifact := filepath.Join(tempDir, "original.gotya")
 	originalMetadata := &Metadata{
-		Name:         artifactName,
-		Version:      "1.0.0",
-		OS:           "linux",
-		Arch:         "amd64",
-		Maintainer:   "test@example.com",
-		Description:  "Original version",
-		Dependencies: []string{"dep1"},
-		Hooks:        make(map[string]string),
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Original version",
+		Dependencies: []model.Dependency{
+			{Name: "dep1"},
+		},
+		Hooks: make(map[string]string),
 	}
 	setupTestArtifact(t, originalArtifact, true, originalMetadata)
 
@@ -720,14 +740,17 @@ func TestUpdateArtifact_Successful(t *testing.T) {
 	// Create the updated version
 	updatedArtifact := filepath.Join(tempDir, "updated.gotya")
 	updatedMetadata := &Metadata{
-		Name:         artifactName,
-		Version:      "2.0.0",
-		OS:           "linux",
-		Arch:         "amd64",
-		Maintainer:   "test@example.com",
-		Description:  "Updated version",
-		Dependencies: []string{"dep1", "dep2"}, // Added new dependency
-		Hooks:        make(map[string]string),
+		Name:        artifactName,
+		Version:     "2.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Updated version",
+		Dependencies: []model.Dependency{
+			{Name: "dep1"},
+			{Name: "dep2"},
+		}, // Added new dependency
+		Hooks: make(map[string]string),
 	}
 	setupTestArtifact(t, updatedArtifact, true, updatedMetadata)
 

@@ -31,7 +31,7 @@ type Packer struct {
 	arch         string
 	maintainer   string
 	description  string
-	dependencies []string
+	dependencies []model.Dependency
 	hooks        map[string]string
 
 	inputDir  string
@@ -40,7 +40,7 @@ type Packer struct {
 	metadata  *Metadata
 }
 
-func NewPacker(name, version, os, arch, maintainer, description string, dependencies []string, hooks map[string]string, inputDir, outputDir string) *Packer {
+func NewPacker(name, version, os, arch, maintainer, description string, dependencies []model.Dependency, hooks map[string]string, inputDir, outputDir string) *Packer {
 	return &Packer{
 		name:         name,
 		version:      version,

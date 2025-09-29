@@ -322,11 +322,6 @@ func (g *Generator) describeArtifact(ctx context.Context, filePath string) (*mod
 		return nil, err
 	}
 
-	deps := make([]model.Dependency, 0, len(md.Dependencies))
-	for _, name := range md.Dependencies {
-		deps = append(deps, model.Dependency{Name: name})
-	}
-
 	desc := &model.IndexArtifactDescriptor{
 		Name:         md.Name,
 		Version:      md.Version,
@@ -336,7 +331,7 @@ func (g *Generator) describeArtifact(ctx context.Context, filePath string) (*mod
 		Size:         stat.Size(),
 		OS:           md.GetOS(),
 		Arch:         md.GetArch(),
-		Dependencies: deps,
+		Dependencies: md.Dependencies,
 	}
 	return desc, nil
 }
