@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/cperrin88/gotya/pkg/download"
 	"github.com/cperrin88/gotya/pkg/index"
@@ -31,8 +32,61 @@ func (o *Orchestrator) SyncAll(ctx context.Context, repos []*index.Repository, i
 	if len(items) == 0 {
 		return nil
 	}
+
+	// Download all indexes
 	_, err := o.DL.FetchAll(ctx, items, download.Options{Dir: indexDir, Concurrency: opts.Concurrency})
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Transform relative URLs in downloaded indexes to absolute URLs
+	for _, repo := range repos {
+		if repo == nil || repo.URL == nil {
+			continue
+		}
+		if err := o.transformIndexURLs(ctx, repo, indexDir); err != nil {
+			return fmt.Errorf("failed to transform URLs in index %s: %w", repo.Name, err)
+		}
+	}
+
+	return nil
+}
+
+// transformIndexURLs converts relative URLs in the downloaded index to absolute URLs
+// based on the repository server URL.
+func (o *Orchestrator) transformIndexURLs(ctx context.Context, repo *index.Repository, indexDir string) error {
+	indexPath := filepath.Join(indexDir, repo.Name+".json")
+
+	// Parse the index
+	idx, err := index.ParseIndexFromFile(indexPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse index: %w", err)
+	}
+
+	// Transform relative URLs to absolute URLs
+	modified := false
+	for _, artifact := range idx.Artifacts {
+		if artifact.URL != "" && !strings.HasPrefix(artifact.URL, "http") {
+			// This is a relative URL, convert it to absolute
+			repoURL := repo.URL.String()
+			// Remove the index.json part from the repository URL
+			baseURL := strings.TrimSuffix(repoURL, "/index.json")
+			if !strings.HasSuffix(baseURL, "/") {
+				baseURL += "/"
+			}
+			artifact.URL = baseURL + artifact.URL
+			modified = true
+		}
+	}
+
+	// Write back the modified index if URLs were transformed
+	if modified {
+		if err := index.WriteIndexToFile(idx, indexPath); err != nil {
+			return fmt.Errorf("failed to write transformed index: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func emit(h Hooks, e Event) {

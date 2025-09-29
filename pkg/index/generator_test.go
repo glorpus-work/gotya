@@ -384,7 +384,7 @@ func TestGenerator_makeURL(t *testing.T) {
 					OutputPath: outputPath,
 				}, filepath.Join(tempDir, "artifacts", "test.gotya")
 			},
-			want: "artifacts/test.gotya",
+			want: "test.gotya",
 		},
 		{
 			name: "with base path",
@@ -396,7 +396,7 @@ func TestGenerator_makeURL(t *testing.T) {
 					BasePath:   "packages",
 				}, filepath.Join(tempDir, "artifacts", "test.gotya")
 			},
-			want: "packages/artifacts/test.gotya",
+			want: "packages/test.gotya",
 		},
 	}
 

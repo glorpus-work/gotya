@@ -178,3 +178,21 @@ func fuzzyMatchScore(query, target string) float64 {
 
 	return 0.0 // No match
 }
+
+// WriteIndexToFile writes the index to the specified file path.
+func WriteIndexToFile(idx *Index, path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to create index file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	// Encode and write the index with pretty-printing
+	enc := json.NewEncoder(file)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(idx); err != nil {
+		return fmt.Errorf("failed to encode index: %w", err)
+	}
+
+	return nil
+}

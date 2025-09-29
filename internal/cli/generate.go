@@ -72,8 +72,8 @@ and its subdirectories. The output will be written to the specified file.`,
 	}
 
 	// Add flags
-	cmd.Flags().StringVarP(&basePath, "base-path", "b", "",
-		"Base path for artifact URLs in the index (e.g., 'packages')")
+	cmd.Flags().StringVarP(&basePath, "base-path", "b", "artifacts",
+		"Base path for artifact URLs in the index (e.g., 'artifacts')")
 	cmd.Flags().StringVar(&baseline, "baseline", "",
 		"Path to an existing index file to use as a baseline for merging")
 	cmd.Flags().BoolVarP(&force, "force", "f", false,

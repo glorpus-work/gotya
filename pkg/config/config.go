@@ -73,6 +73,9 @@ type Settings struct {
 	CacheDir string        `yaml:"cache_dir,omitempty"`
 	CacheTTL time.Duration `yaml:"cache_ttl"`
 
+	// State settings
+	StateDir string `yaml:"state_dir,omitempty"`
+
 	// Installation settings
 	InstallDir string `yaml:"install_dir,omitempty"` // Base directory for artifact installations
 	MetaDir    string `yaml:"meta_dir,omitempty"`
@@ -97,6 +100,13 @@ func DefaultConfig() *Config {
 		userConfigDir = "."
 	}
 
+	// Get default state directory
+	defaultStateDir, err := getStateDir()
+	if err != nil {
+		// Fallback to userConfigDir if we can't determine state dir
+		defaultStateDir = userConfigDir
+	}
+
 	return &Config{
 		Repositories: []*RepositoryConfig{},
 		Settings: Settings{
@@ -107,6 +117,7 @@ func DefaultConfig() *Config {
 			LogLevel:      "info",
 			InstallDir:    filepath.Join(userConfigDir, "bin"),
 			MetaDir:       filepath.Join(userConfigDir, "meta"),
+			StateDir:      defaultStateDir,
 			Platform: PlatformConfig{
 				OS:           runtime.GOOS,
 				Arch:         runtime.GOARCH,
@@ -247,6 +258,18 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Settings.LogLevel == "" {
 		c.Settings.LogLevel = defaults.Settings.LogLevel
+	}
+	if c.Settings.CacheDir == "" {
+		c.Settings.CacheDir = defaults.Settings.CacheDir
+	}
+	if c.Settings.StateDir == "" {
+		c.Settings.StateDir = defaults.Settings.StateDir
+	}
+	if c.Settings.MetaDir == "" {
+		c.Settings.MetaDir = defaults.Settings.MetaDir
+	}
+	if c.Settings.InstallDir == "" {
+		c.Settings.InstallDir = defaults.Settings.InstallDir
 	}
 
 	// Set enabled to true by default for repositories if not explicitly set
@@ -402,12 +425,16 @@ func (c *Config) EnableRepository(name string, enabled bool) bool {
 
 // GetDatabasePath returns the path to the installed packages database.
 func (c *Config) GetDatabasePath() string {
-	stateDir, err := getUserDataDir()
-	if err != nil {
-		// Fallback to temp directory if we can't determine state dir
-		stateDir = filepath.Join(os.TempDir(), "gotya")
+	stateDir := c.GetStateDir()
+	if stateDir == "" {
+		// Fallback to old behavior if StateDir is not set
+		var err error
+		stateDir, err = getUserDataDir()
+		if err != nil {
+			// Fallback to temp directory if we can't determine state dir
+			stateDir = filepath.Join(os.TempDir(), "gotya")
+		}
 	}
-
 	return filepath.Join(stateDir, "gotya", "state", "installed.json")
 }
 
@@ -420,17 +447,21 @@ func (c *Config) GetArtifactCacheDir() string {
 	return filepath.Join(c.GetCacheDir(), "artifacts")
 }
 
-// GetMetaDir returns the path to the meta directory.
-func (c *Config) GetMetaDir() string {
-	return c.Settings.MetaDir
-}
-
 // GetCacheDir returns the base cache directory from settings.
 func (c *Config) GetCacheDir() string {
 	return c.Settings.CacheDir
 }
 
-// getUserDataDir returns the user state directory following platform conventions.
+// GetStateDir returns the base state directory from settings.
+func (c *Config) GetStateDir() string {
+	return c.Settings.StateDir
+}
+
+// GetMetaDir returns the path to the meta directory.
+func (c *Config) GetMetaDir() string {
+	return c.Settings.MetaDir
+}
+
 func getUserDataDir() (string, error) {
 	// Check for XDG_STATE_HOME environment variable - if set, always use it
 	if dir := os.Getenv("XDG_DATA_HOME"); dir != "" {
@@ -452,4 +483,13 @@ func getUserDataDir() (string, error) {
 		return "", fmt.Errorf("failed to get user config directory: %w", err)
 	}
 	return configDir, nil
+}
+
+func getStateDir() (string, error) {
+	stateDir, err := getUserDataDir()
+	if err != nil {
+		// Fallback to temp directory if we can't determine state dir
+		stateDir = filepath.Join(os.TempDir(), "gotya")
+	}
+	return stateDir, nil
 }

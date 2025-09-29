@@ -366,18 +366,20 @@ func (g *Generator) writeIndex(index *Index) error {
 }
 
 func (g *Generator) makeURL(artifactPath string) (string, error) {
-	// URL must be relative to the index file location
-	indexDir := filepath.Dir(g.OutputPath)
-	rel, err := filepath.Rel(indexDir, artifactPath)
-	if err != nil {
-		return "", err
-	}
-	// Normalize to URL path separators
-	relURL := filepath.ToSlash(rel)
+	// Get just the filename from the artifact path
+	artifactFileName := filepath.Base(artifactPath)
+
+	// Construct URL as <basepath>/<artifact>
+	// The idea is that the input directory only contains artifacts directly,
+	// and the file list should never contain any path elements.
+	var relURL string
 	if g.BasePath != "" {
 		// Clean and join using path (URL style)
-		relURL = path.Join(strings.TrimSuffix(g.BasePath, "/"), relURL)
+		relURL = path.Join(strings.TrimSuffix(g.BasePath, "/"), artifactFileName)
+	} else {
+		relURL = artifactFileName
 	}
+
 	// Validate it parses as a URL (relative URL is fine)
 	if _, err := url.Parse(relURL); err != nil {
 		return "", err

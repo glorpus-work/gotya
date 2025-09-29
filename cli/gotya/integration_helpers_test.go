@@ -21,7 +21,7 @@ import (
 func buildRepoDirWithArtifacts(t *testing.T, root string, artifactDefs [][2]string) (string, []string) {
 	t.Helper()
 	repoDir := filepath.Join(root, "repo")
-	artifactsDir := filepath.Join(repoDir, "packages")
+	artifactsDir := filepath.Join(repoDir, "artifacts")
 	require.NoError(t, os.MkdirAll(artifactsDir, 0o755))
 
 	// Create each artifact
@@ -29,17 +29,46 @@ func buildRepoDirWithArtifacts(t *testing.T, root string, artifactDefs [][2]stri
 	for _, def := range artifactDefs {
 		name, version := def[0], def[1]
 		src := createSampleArtifactSource(t, root)
-		path := createArtifactViaCLI(t, src, name, version, artifactsDir)
+		path := createArtifactViaCLI(t, src, name, version, artifactsDir, nil) // No dependencies for simple artifacts
 		created = append(created, path)
 	}
 
-	// Generate index.json at repoDir with base-path "packages"
+	// Generate index.json at repoDir with base-path "artifacts"
 	outFile := filepath.Join(repoDir, "index.json")
-	generateIndexViaCLI(t, artifactsDir, outFile, "packages", true)
+	generateIndexViaCLI(t, artifactsDir, outFile, "artifacts", true)
 	return repoDir, created
 }
 
-// startRepoServer serves the given repo directory (containing index.json and packages/).
+// buildRepoDirWithArtifactsWithDeps creates a repository directory with artifacts that have dependencies.
+func buildRepoDirWithArtifactsWithDeps(t *testing.T, root string, artifactDefs [][2]string, depForFirst string) (string, []string) {
+	t.Helper()
+	repoDir := filepath.Join(root, "repo")
+	artifactsDir := filepath.Join(repoDir, "artifacts")
+	require.NoError(t, os.MkdirAll(artifactsDir, 0o755))
+
+	// Create each artifact
+	created := make([]string, 0, len(artifactDefs))
+	for i, def := range artifactDefs {
+		name, version := def[0], def[1]
+		src := createSampleArtifactSource(t, root)
+
+		// Add dependency only for the first artifact if specified
+		var dependencies []string
+		if i == 0 && depForFirst != "" {
+			dependencies = []string{depForFirst}
+		}
+
+		path := createArtifactViaCLI(t, src, name, version, artifactsDir, dependencies)
+		created = append(created, path)
+	}
+
+	// Generate index.json at repoDir with base-path "artifacts"
+	outFile := filepath.Join(repoDir, "index.json")
+	generateIndexViaCLI(t, artifactsDir, outFile, "artifacts", true)
+	return repoDir, created
+}
+
+// startRepoServer serves the given repo directory (containing index.json and artifacts/).
 // Returns the server and a fully-qualified URL to the index.json.
 func startRepoServer(t *testing.T, repoDir string) (*httptest.Server, string) {
 	t.Helper()
@@ -53,8 +82,21 @@ func startRepoServer(t *testing.T, repoDir string) (*httptest.Server, string) {
 func writeTempConfig(t *testing.T, path, repoName, indexURL, cacheDir string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+
+	// Create temporary directories for installation paths
+	tempDir := filepath.Dir(path)
+	installDir := filepath.Join(tempDir, "install")
+	metaDir := filepath.Join(tempDir, "meta")
+	stateDir := filepath.Join(tempDir, "state")
+
+	// Create the full state directory structure
+	require.NoError(t, os.MkdirAll(filepath.Join(stateDir, "gotya", "state"), 0o755))
+
 	yamlContent := "settings:\n" +
 		"  cache_dir: " + strings.ReplaceAll(cacheDir, "\\", "\\\\") + "\n" +
+		"  install_dir: " + strings.ReplaceAll(installDir, "\\", "\\\\") + "\n" +
+		"  meta_dir: " + strings.ReplaceAll(metaDir, "\\", "\\\\") + "\n" +
+		"  state_dir: " + strings.ReplaceAll(stateDir, "\\", "\\\\") + "\n" +
 		"  http_timeout: 5s\n" +
 		"  max_concurrent_syncs: 2\n"
 	if indexURL != "" {
@@ -98,7 +140,8 @@ func parseCreatedArtifactPath(t *testing.T, out string) string {
 }
 
 // createArtifactViaCLI packs a source directory into a .gotya file using the CLI and returns the file path.
-func createArtifactViaCLI(t *testing.T, src, name, version, outDir string) string {
+// Dependencies should be specified as a slice of strings in the format "name:version" (e.g., "testlib:1.0.0").
+func createArtifactViaCLI(t *testing.T, src, name, version, outDir string, dependencies []string) string {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(outDir, 0o755))
 
@@ -107,7 +150,7 @@ func createArtifactViaCLI(t *testing.T, src, name, version, outDir string) strin
 	os.Stdout = w
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{
+	args := []string{
 		"artifact", "create",
 		"--source", src,
 		"--name", name,
@@ -115,7 +158,14 @@ func createArtifactViaCLI(t *testing.T, src, name, version, outDir string) strin
 		"--os", runtime.GOOS,
 		"--arch", runtime.GOARCH,
 		"--output", outDir,
-	})
+	}
+
+	// Add dependencies if specified
+	for _, dep := range dependencies {
+		args = append(args, "--depends", dep)
+	}
+
+	cmd.SetArgs(args)
 	err := cmd.ExecuteContext(context.Background())
 
 	_ = w.Close()
