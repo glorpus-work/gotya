@@ -11,18 +11,21 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
+// UintSlice is a slice of uint values that implements sort.Interface for sorting by value.
 type UintSlice []uint
 
 func (x UintSlice) Len() int           { return len(x) }
 func (x UintSlice) Less(i, j int) bool { return x[i] < x[j] }
 func (x UintSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
+// ManagerImpl provides artifact management functionality for repositories and indexes.
 type ManagerImpl struct {
 	repositories []*Repository
 	indexPath    string
 	indexes      map[string]*Index
 }
 
+// NewManager creates a new ManagerImpl instance with the given repositories and index path.
 func NewManager(
 	repositories []*Repository,
 	indexPath string,
@@ -34,6 +37,7 @@ func NewManager(
 	}
 }
 
+// FuzzySearchArtifacts performs a fuzzy search for artifacts matching the given query across all repositories.
 func (rm *ManagerImpl) FuzzySearchArtifacts(query string) (map[string][]*model.IndexArtifactDescriptor, error) {
 	indexes, err := rm.getIndexes()
 	if err != nil {
@@ -52,6 +56,7 @@ func (rm *ManagerImpl) FuzzySearchArtifacts(query string) (map[string][]*model.I
 	return packages, nil
 }
 
+// FindArtifacts searches for artifacts with the exact name across all repositories.
 func (rm *ManagerImpl) FindArtifacts(name string) (map[string][]*model.IndexArtifactDescriptor, error) {
 	indexes, err := rm.getIndexes()
 	if err != nil {
@@ -76,6 +81,7 @@ func (rm *ManagerImpl) FindArtifacts(name string) (map[string][]*model.IndexArti
 	return packages, nil
 }
 
+// ResolveArtifact finds the best matching artifact for the given name, version, OS, and architecture constraints.
 func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.IndexArtifactDescriptor, error) {
 	repoArtifacts, err := rm.FindArtifacts(name)
 	if err != nil {
@@ -121,11 +127,10 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 		if len(availableVersions) == 0 {
 			// No versions match the OS/arch constraints
 			return nil, fmt.Errorf("artifact %s not found for %s/%s in any repository", name, os, arch)
-		} else {
-			// Versions exist but none match the version constraint
-			return nil, fmt.Errorf("artifact %s not found with version constraint %s (available versions: %v, os: %s, arch: %s)",
-				name, version, availableVersions, os, arch)
 		}
+		// Versions exist but none match the version constraint
+		return nil, fmt.Errorf("artifact %s not found with version constraint %s (available versions: %v, os: %s, arch: %s)",
+			name, version, availableVersions, os, arch)
 	}
 
 	prios := slices.Collect(maps.Keys(repoPrioArtifacts))
@@ -158,6 +163,7 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 	return desc, nil
 }
 
+// GetIndex retrieves the index for a specific repository by name.
 func (rm *ManagerImpl) GetIndex(name string) (*Index, error) {
 	index, err := ParseIndexFromFile(rm.getIndexPath(name))
 	if err != nil {
@@ -192,6 +198,7 @@ func (rm *ManagerImpl) loadIndexes() error {
 	return nil
 }
 
+// ListRepositories returns a list of all configured repositories.
 func (rm *ManagerImpl) ListRepositories() []*Repository {
 	return rm.repositories
 }

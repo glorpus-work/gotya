@@ -1,5 +1,8 @@
 package platform
 
+// Package platform provides constants and utilities for handling platform-specific
+// information such as operating systems and architectures.
+
 const (
 	// OSWindows represents the Windows operating system.
 	OSWindows = "windows"

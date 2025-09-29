@@ -39,7 +39,7 @@ func Detect() (os, arch string) {
 	return p.OS, p.Arch
 }
 
-// "any" is a wildcard that matches any value.
+// Matches checks if this platform matches the target platform, considering "any" as a wildcard.
 func (p Platform) Matches(target Platform) bool {
 	return (p.OS == "any" || target.OS == "any" || p.OS == target.OS) &&
 		(p.Arch == "any" || target.Arch == "any" || p.Arch == target.Arch)

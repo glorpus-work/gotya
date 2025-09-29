@@ -6,6 +6,7 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
+// Index represents a package index containing artifacts and metadata.
 type Index struct {
 	FormatVersion string                           `json:"format_version"`
 	LastUpdate    time.Time                        `json:"last_update"`

@@ -124,7 +124,7 @@ func TestFetch_WithChecksum(t *testing.T) {
 	require.NoError(t, err)
 	checksum := hex.EncodeToString(h.Sum(nil))
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("test content"))
 	}))
@@ -260,7 +260,7 @@ func TestFetch_ErrorHandling(t *testing.T) {
 		{
 			name: "invalid URL",
 			setupServer: func(t *testing.T) *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusBadRequest)
 					_, _ = w.Write([]byte("bad request"))
 				}))

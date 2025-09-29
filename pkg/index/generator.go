@@ -36,6 +36,8 @@ const (
 	CurrentFormatVersion = "1"
 )
 
+// Generator creates package indexes by scanning directories for artifact files.
+// It supports incremental index generation using baseline indexes and conflict detection.
 type Generator struct {
 	// Dir is the root directory containing artifact files (.gotya). It can
 	// contain subdirectories; all .gotya files will be discovered recursively.
@@ -103,12 +105,12 @@ func (g *Generator) Validate() error {
 
 	// Check if we can write to the output directory
 	testFile := filepath.Join(outputDir, ".gotya_test_"+time.Now().Format("20060102150405"))
-	if f, err := os.Create(testFile); err != nil {
+	f, err := os.Create(testFile)
+	if err != nil {
 		return errors.Wrapf(err, "output directory is not writable: %s", outputDir)
-	} else {
-		_ = f.Close()
-		_ = os.Remove(testFile) // Clean up test file
 	}
+	_ = f.Close()
+	_ = os.Remove(testFile) // Clean up test file
 
 	return nil
 }
@@ -116,10 +118,7 @@ func (g *Generator) Validate() error {
 // CountArtifacts counts the number of .gotya files in the source directory
 func (g *Generator) CountArtifacts() (int, error) {
 	count := 0
-	err := filepath.Walk(g.Dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
+	err := filepath.Walk(g.Dir, func(path string, info os.FileInfo, _ error) error {
 		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".gotya") {
 			count++
 		}

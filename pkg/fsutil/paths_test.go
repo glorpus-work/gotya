@@ -56,12 +56,12 @@ func TestEnsureDir(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name: "creates new directory",
+			name: "creates directory successfully",
 			setup: func(t *testing.T) string {
 				dir := filepath.Join(t.TempDir(), "newdir")
 				return dir
 			},
-			cleanup:     func(t *testing.T, path string) {},
+			cleanup:     func(_ *testing.T, path string) {},
 			checkPerms:  true,
 			expectError: false,
 		},
@@ -71,7 +71,7 @@ func TestEnsureDir(t *testing.T) {
 				dir := filepath.Join(t.TempDir(), "parent", "child", "nested")
 				return dir
 			},
-			cleanup:     func(t *testing.T, path string) {},
+			cleanup:     func(_ *testing.T, path string) {},
 			checkPerms:  true,
 			expectError: false,
 		},
@@ -81,7 +81,7 @@ func TestEnsureDir(t *testing.T) {
 				dir := t.TempDir()
 				return dir
 			},
-			cleanup:     func(t *testing.T, path string) {},
+			cleanup:     func(_ *testing.T, path string) {},
 			checkPerms:  false,
 			expectError: false,
 		},

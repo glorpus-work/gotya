@@ -79,6 +79,7 @@ func ParseIndexFromReader(reader io.Reader) (*Index, error) {
 	return ParseIndex(data)
 }
 
+// ParseIndexFromFile reads and parses an index from the specified file path.
 func ParseIndexFromFile(filePath string) (*Index, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -97,6 +98,7 @@ func (idx *Index) ToJSON() ([]byte, error) {
 	return data, nil
 }
 
+// FindArtifacts returns all artifacts with the specified name from this index.
 func (idx *Index) FindArtifacts(name string) []*model.IndexArtifactDescriptor {
 	packages := make([]*model.IndexArtifactDescriptor, 0, 5)
 	for _, pkg := range idx.Artifacts {

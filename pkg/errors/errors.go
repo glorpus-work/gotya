@@ -306,6 +306,7 @@ func ErrInvalidBoolValueWithDetails(key, value string) error {
 	return fmt.Errorf("%w for %s: %s", ErrInvalidBoolValue, key, value)
 }
 
+// ErrRepositoryNotFound creates an error for when a repository with the given name is not found.
 func ErrRepositoryNotFound(name string) error {
 	return fmt.Errorf("index with name %s not found", name)
 }
@@ -339,6 +340,7 @@ var ErrUnexpectedFile = fmt.Errorf("unexpected file")
 // ErrMissingFile is returned when an expected file is missing.
 var ErrMissingFile = fmt.Errorf("missing file")
 
+// ErrDownloadFailed is returned when a download operation fails.
 var ErrDownloadFailed = fmt.Errorf("download failed")
 
 // Helper functions for artifact errors
