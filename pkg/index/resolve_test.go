@@ -57,7 +57,7 @@ func TestResolve_VersionConflictResolution(t *testing.T) {
 		{"name":"common-lib","version":"2.0.0","url":"https://ex/common-2","checksum":"clib2"}
 	]`)
 
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	_, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
 		{
 			Name:              "app",
 			VersionConstraint: "= 1.0.0",
@@ -66,12 +66,9 @@ func TestResolve_VersionConflictResolution(t *testing.T) {
 		},
 	})
 
-	// The current implementation doesn't detect version conflicts, so we'll just check for no error
-	// and that we got a plan with the expected number of steps
-	require.NoError(t, err)
-	require.NotNil(t, plan)
-	// Should have app, lib-a, lib-b, and one version of common-lib
-	assert.True(t, len(plan.Artifacts) >= 3, "expected at least 3 steps in the plan")
+	// This should fail due to version conflict: common-lib is required as both 1.0.0 and 2.0.0
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "common-lib")
 }
 
 func TestResolve_CyclicDependency(t *testing.T) {
@@ -102,18 +99,18 @@ func TestResolve_ComplexDependencyGraph(t *testing.T) {
 			{"name":"feature-b","version_constraint":">= 1.0.0"}
 		],"url":"https://ex/app","checksum":"app1"},
 		{"name":"feature-a","version":"1.0.0","dependencies":[
-			{"name":"common-utils","version_constraint":">= 1.0.0 < 2.0.0"},
+			{"name":"common-utils","version_constraint":">= 1.0.0, < 2.0.0"},
 			{"name":"logger","version_constraint":">= 1.0.0"}
 		],"url":"https://ex/feat-a","checksum":"fa1"},
 		{"name":"feature-b","version":"1.0.0","dependencies":[
-			{"name":"common-utils","version_constraint":">= 1.5.0 < 2.0.0"},
+			{"name":"common-utils","version_constraint":">= 1.5.0, < 2.0.0"},
 			{"name":"http-client","version_constraint":">= 1.0.0"}
 		],"url":"https://ex/feat-b","checksum":"fb1"},
 		{"name":"common-utils","version":"1.0.0","url":"https://ex/cu-1.0","checksum":"cu1"},
 		{"name":"common-utils","version":"1.5.0","url":"https://ex/cu-1.5","checksum":"cu15"},
 		{"name":"logger","version":"1.2.0","url":"https://ex/logger-1.2","checksum":"log12"},
 		{"name":"http-client","version":"2.0.0","dependencies":[
-			{"name":"logger","version_constraint":">= 1.0.0 < 2.0.0"}
+			{"name":"logger","version_constraint":">= 1.0.0, < 2.0.0"}
 		],"url":"https://ex/http-2.0","checksum":"http2"}
 	]`)
 
