@@ -247,7 +247,6 @@ func (r *multiResolver) resolveArtifacts(order []string) []model.ResolvedArtifac
 		}
 
 		steps = append(steps, model.ResolvedArtifact{
-			ID:        d.Name + "@" + d.Version,
 			Name:      d.Name,
 			Version:   d.Version,
 			OS:        d.GetOS(),

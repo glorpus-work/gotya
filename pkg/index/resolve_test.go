@@ -35,9 +35,9 @@ func TestResolve_SimpleDependencyChain(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, plan.Artifacts, 3)
-	assert.Equal(t, "c@1.0.0", plan.Artifacts[0].ID)
-	assert.Equal(t, "b@1.0.0", plan.Artifacts[1].ID)
-	assert.Equal(t, "a@1.0.0", plan.Artifacts[2].ID)
+	assert.Equal(t, "c@1.0.0", plan.Artifacts[0].GetID())
+	assert.Equal(t, "b@1.0.0", plan.Artifacts[1].GetID())
+	assert.Equal(t, "a@1.0.0", plan.Artifacts[2].GetID())
 }
 
 func TestResolve_VersionConflictResolution(t *testing.T) {
@@ -170,8 +170,8 @@ func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Len(t, plan.Artifacts, 2)
-		assert.Equal(t, "platform-lib@1.0.0", plan.Artifacts[0].ID)
-		assert.Equal(t, "app@1.0.0", plan.Artifacts[1].ID)
+		assert.Equal(t, "platform-lib@1.0.0", plan.Artifacts[0].GetID())
+		assert.Equal(t, "app@1.0.0", plan.Artifacts[1].GetID())
 		assert.Equal(t, "linux", plan.Artifacts[0].OS)
 		assert.Equal(t, "amd64", plan.Artifacts[0].Arch)
 	})
@@ -188,8 +188,8 @@ func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Len(t, plan.Artifacts, 2)
-		assert.Equal(t, "platform-lib@1.0.0", plan.Artifacts[0].ID)
-		assert.Equal(t, "app@1.0.0", plan.Artifacts[1].ID)
+		assert.Equal(t, "platform-lib@1.0.0", plan.Artifacts[0].GetID())
+		assert.Equal(t, "app@1.0.0", plan.Artifacts[1].GetID())
 		assert.Equal(t, "darwin", plan.Artifacts[0].OS)
 		assert.Equal(t, "arm64", plan.Artifacts[0].Arch)
 	})
@@ -210,7 +210,7 @@ func TestResolve_NoDependencies(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, plan.Artifacts, 1)
-	assert.Equal(t, "standalone@1.0.0", plan.Artifacts[0].ID)
+	assert.Equal(t, "standalone@1.0.0", plan.Artifacts[0].GetID())
 }
 
 func TestResolve_NonExistentPackage(t *testing.T) {
@@ -270,7 +270,7 @@ func TestResolve_WithInstalledArtifacts_CompatibleVersions(t *testing.T) {
 	var libID string
 	for _, artifact := range plan.Artifacts {
 		if artifact.Name == "lib" {
-			libID = artifact.ID
+			libID = artifact.GetID()
 			break
 		}
 	}
@@ -289,7 +289,7 @@ func TestResolve_WithInstalledArtifacts_CompatibleVersions(t *testing.T) {
 	assert.Equal(t, model.ResolvedActionUpdate, libAction, "lib should be updated")
 	assert.Contains(t, libReason, "updating")
 
-	assert.Equal(t, "app@2.0.0", plan.Artifacts[1].ID)
+	assert.Equal(t, "app@2.0.0", plan.Artifacts[1].GetID())
 	assert.Equal(t, model.ResolvedActionInstall, plan.Artifacts[1].Action)
 }
 
@@ -329,7 +329,7 @@ func TestResolve_WithInstalledArtifacts_IncompatibleVersions(t *testing.T) {
 	var libID string
 	for _, artifact := range plan.Artifacts {
 		if artifact.Name == "lib" {
-			libID = artifact.ID
+			libID = artifact.GetID()
 			break
 		}
 	}
@@ -345,7 +345,7 @@ func TestResolve_WithInstalledArtifacts_IncompatibleVersions(t *testing.T) {
 	}
 	assert.Equal(t, model.ResolvedActionUpdate, libAction, "lib should be updated")
 
-	assert.Equal(t, "app@2.0.0", plan.Artifacts[1].ID)
+	assert.Equal(t, "app@2.0.0", plan.Artifacts[1].GetID())
 	assert.Equal(t, model.ResolvedActionInstall, plan.Artifacts[1].Action)
 }
 
@@ -381,11 +381,11 @@ func TestResolve_WithInstalledArtifacts_SkipWhenCompatible(t *testing.T) {
 	require.Len(t, plan.Artifacts, 2)
 
 	// Should skip lib since it's already at the correct version
-	assert.Equal(t, "lib@1.0.0", plan.Artifacts[0].ID)
+	assert.Equal(t, "lib@1.0.0", plan.Artifacts[0].GetID())
 	assert.Equal(t, model.ResolvedActionSkip, plan.Artifacts[0].Action)
 	assert.Contains(t, plan.Artifacts[0].Reason, "already at the required version")
 
-	assert.Equal(t, "app@1.0.0", plan.Artifacts[1].ID)
+	assert.Equal(t, "app@1.0.0", plan.Artifacts[1].GetID())
 	assert.Equal(t, model.ResolvedActionInstall, plan.Artifacts[1].Action)
 }
 
@@ -551,7 +551,7 @@ func TestResolve_ConstraintPriority(t *testing.T) {
 	var libID string
 	for _, artifact := range plan.Artifacts {
 		if artifact.Name == "lib" {
-			libID = artifact.ID
+			libID = artifact.GetID()
 		}
 	}
 	assert.Equal(t, "lib@3.0.0", libID, "lib should be updated to latest version that satisfies hard constraint")

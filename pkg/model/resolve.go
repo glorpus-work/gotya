@@ -17,7 +17,6 @@ type ResolveRequest struct {
 
 // ResolvedArtifact represents a concrete installation action.
 type ResolvedArtifact struct {
-	ID        string
 	Name      string
 	Version   string
 	OS        string
@@ -26,6 +25,11 @@ type ResolvedArtifact struct {
 	Checksum  string
 	Action    ResolvedAction
 	Reason    string
+}
+
+// GetID returns the unique identifier for this artifact (name@version)
+func (ra *ResolvedArtifact) GetID() string {
+	return ra.Name + "@" + ra.Version
 }
 
 // ResolvedAction represents the type of action to take for an artifact.

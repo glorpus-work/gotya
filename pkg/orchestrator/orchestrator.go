@@ -143,7 +143,7 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 	// Dry run: just emit steps and return
 	if opts.DryRun {
 		for _, step := range plan.Artifacts {
-			emit(o.Hooks, Event{Phase: "planning", ID: step.ID, Msg: step.Name + "@" + step.Version})
+			emit(o.Hooks, Event{Phase: "planning", ID: step.GetID(), Msg: step.Name + "@" + step.Version})
 		}
 		emit(o.Hooks, Event{Phase: "done", Msg: "dry-run"})
 		return nil
@@ -157,7 +157,7 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 			if s.SourceURL == nil { // nothing to prefetch
 				continue
 			}
-			items = append(items, download.Item{ID: s.ID, URL: s.SourceURL, Checksum: s.Checksum})
+			items = append(items, download.Item{ID: s.GetID(), URL: s.SourceURL, Checksum: s.Checksum})
 		}
 		if len(items) > 0 {
 			emit(o.Hooks, Event{Phase: "downloading", Msg: "prefetching artifacts"})
@@ -181,19 +181,19 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 		case model.ResolvedActionUpdate:
 			actionMsg = "updating"
 		case model.ResolvedActionSkip:
-			emit(o.Hooks, Event{Phase: "skipping", ID: step.ID, Msg: step.Reason})
+			emit(o.Hooks, Event{Phase: "skipping", ID: step.GetID(), Msg: step.Reason})
 			continue
 		default:
 			actionMsg = "processing"
 		}
 
-		emit(o.Hooks, Event{Phase: actionMsg, ID: step.ID, Msg: step.Name + "@" + step.Version + " (" + step.Reason + ")"})
+		emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version + " (" + step.Reason + ")"})
 		path := ""
 		if fetched != nil {
-			path = fetched[step.ID]
+			path = fetched[step.GetID()]
 		}
 		if path == "" {
-			return fmt.Errorf("no local file available for step %s; downloads are required for install", step.ID)
+			return fmt.Errorf("no local file available for step %s; downloads are required for install", step.GetID())
 		}
 		desc := &model.IndexArtifactDescriptor{
 			Name:     step.Name,
@@ -237,7 +237,6 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 		artifacts = model.ResolvedArtifacts{
 			Artifacts: []model.ResolvedArtifact{
 				{
-					ID:       req.Name + "@" + req.VersionConstraint,
 					Name:     req.Name,
 					Version:  req.VersionConstraint,
 					OS:       req.OS,
@@ -261,7 +260,7 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 	// Dry run: just emit steps and return
 	if opts.DryRun {
 		for _, step := range artifacts.Artifacts {
-			emit(o.Hooks, Event{Phase: "planning", ID: step.ID, Msg: step.Name + "@" + step.Version})
+			emit(o.Hooks, Event{Phase: "planning", ID: step.GetID(), Msg: step.Name + "@" + step.Version})
 		}
 		emit(o.Hooks, Event{Phase: "done", Msg: "dry-run"})
 		return nil
@@ -274,7 +273,7 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 	// Process artifacts in reverse order to handle dependencies properly
 	// Reverse the slice to uninstall dependencies first
 	for _, artifact := range slices.Backward(artifacts.Artifacts) {
-		emit(o.Hooks, Event{Phase: "uninstalling", ID: artifact.ID, Msg: artifact.Name + "@" + artifact.Version})
+		emit(o.Hooks, Event{Phase: "uninstalling", ID: artifact.GetID(), Msg: artifact.Name + "@" + artifact.Version})
 		if err := o.ArtifactManager.UninstallArtifact(ctx, artifact.Name, false); err != nil {
 			return err
 		}
@@ -406,7 +405,7 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 			default:
 				actionMsg = "processing"
 			}
-			emit(o.Hooks, Event{Phase: actionMsg, ID: step.ID, Msg: step.Name + "@" + step.Version})
+			emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
 		}
 		emit(o.Hooks, Event{Phase: "done", Msg: "update dry-run completed"})
 		return nil
@@ -435,7 +434,7 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 				continue
 			}
 			items = append(items, download.Item{
-				ID:       step.ID,
+				ID:       step.GetID(),
 				URL:      step.SourceURL,
 				Checksum: step.Checksum,
 			})
@@ -458,7 +457,7 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 	newlyInstalledCount := 0
 	for _, step := range plan.Artifacts {
 		if step.Action == model.ResolvedActionSkip {
-			emit(o.Hooks, Event{Phase: "skipping", ID: step.ID, Msg: step.Reason})
+			emit(o.Hooks, Event{Phase: "skipping", ID: step.GetID(), Msg: step.Reason})
 			continue
 		}
 
@@ -468,10 +467,10 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 
 		path := ""
 		if fetched != nil {
-			path = fetched[step.ID]
+			path = fetched[step.GetID()]
 		}
 		if path == "" {
-			return fmt.Errorf("no local file available for update step %s", step.ID)
+			return fmt.Errorf("no local file available for update step %s", step.GetID())
 		}
 
 		desc := &model.IndexArtifactDescriptor{
@@ -490,7 +489,7 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		if step.Action == model.ResolvedActionUpdate {
 			// Use UpdateArtifact for existing packages being updated
 			actionMsg := "updating"
-			emit(o.Hooks, Event{Phase: actionMsg, ID: step.ID, Msg: step.Name + "@" + step.Version})
+			emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
 
 			// UpdateArtifact method signature changed - it takes newArtifactPath and newDescriptor directly
 			if err := o.ArtifactManager.UpdateArtifact(ctx, path, desc); err != nil {
@@ -500,7 +499,7 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		} else if step.Action == model.ResolvedActionInstall {
 			// Use InstallArtifact for new packages (dependencies)
 			actionMsg := "installing"
-			emit(o.Hooks, Event{Phase: actionMsg, ID: step.ID, Msg: step.Name + "@" + step.Version})
+			emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
 
 			// Install as automatic since it's a new dependency
 			if err := o.ArtifactManager.InstallArtifact(ctx, desc, path, model.InstallationReasonAutomatic); err != nil {

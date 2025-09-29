@@ -304,7 +304,6 @@ func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*model.Inst
 
 	for _, artifact := range artifacts {
 		resolvedArtifact := model.ResolvedArtifact{
-			ID:        fmt.Sprintf("%s@%s", artifact.Name, artifact.Version),
 			Name:      artifact.Name,
 			Version:   artifact.Version,
 			OS:        m.os,

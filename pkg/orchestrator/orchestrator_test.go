@@ -136,7 +136,6 @@ func TestInstall_DryRun(t *testing.T) {
 	plan := model.ResolvedArtifacts{
 		Artifacts: []model.ResolvedArtifact{
 			{
-				ID:        "pkgA@1.0.0",
 				Name:      "pkgA",
 				Version:   "1.0.0",
 				OS:        "linux",
@@ -145,7 +144,6 @@ func TestInstall_DryRun(t *testing.T) {
 				Checksum:  "abc",
 			},
 			{
-				ID:      "pkgB@2.0.0",
 				Name:    "pkgB",
 				Version: "2.0.0",
 				OS:      "linux",
@@ -204,7 +202,7 @@ func TestInstall_DryRun(t *testing.T) {
 		expectedMsg := fmt.Sprintf("%s@%s", step.Name, step.Version)
 
 		assert.Equal(t, "planning", event.Phase, "step event should be in planning phase")
-		assert.Equal(t, step.ID, event.ID, "step event ID should match step ID")
+		assert.Equal(t, step.GetID(), event.ID, "step event ID should match step ID")
 		assert.Equal(t, expectedMsg, event.Msg, "step event message should include name and version")
 	}
 }
@@ -224,7 +222,6 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	}
 
 	step := model.ResolvedArtifact{
-		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
 		OS:        "linux",
@@ -240,7 +237,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, items []download.Item, opts download.Options) (map[string]string, error) {
 			require.Len(t, items, 1, "should have one item to fetch")
-			assert.Equal(t, step.ID, items[0].ID, "item ID should match step ID")
+			assert.Equal(t, step.GetID(), items[0].ID, "item ID should match step ID")
 			assert.Equal(t, tmp, opts.Dir, "cache directory should match")
 			assert.Equal(t, 2, opts.Concurrency, "concurrency should be 2")
 
@@ -388,7 +385,6 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	}
 
 	step := model.ResolvedArtifact{
-		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
 		OS:        "linux",
@@ -413,7 +409,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	dl := mocks.NewMockDownloader(ctrl)
 	dl.EXPECT().
 		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(map[string]string{step.ID: tmpFile}, nil).
+		Return(map[string]string{step.GetID(): tmpFile}, nil).
 		Times(1)
 
 	expectedErr := fmt.Errorf("installation failed")
@@ -470,7 +466,6 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	step := model.ResolvedArtifact{
-		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
 		OS:        "linux",
@@ -525,7 +520,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	errMsg := err.Error()
 	assert.Contains(t, errMsg, "no local file available",
 		"error message should indicate missing local file")
-	assert.Contains(t, errMsg, step.ID,
+	assert.Contains(t, errMsg, step.GetID(),
 		"error message should include the step ID")
 }
 
@@ -548,8 +543,8 @@ func TestUninstall_Success(t *testing.T) {
 		ReverseResolve(gomock.Any(), testReq).
 		Return(model.ResolvedArtifacts{
 			Artifacts: []model.ResolvedArtifact{
-				{ID: "dep1@1.0.0", Name: "dep1", Version: "1.0.0"},
-				{ID: "test-artifact@1.0.0", Name: "test-artifact", Version: "1.0.0"},
+				{Name: "dep1", Version: "1.0.0"},
+				{Name: "test-artifact", Version: "1.0.0"},
 			},
 		}, nil)
 
@@ -592,8 +587,8 @@ func TestUninstall_DryRun(t *testing.T) {
 		ReverseResolve(gomock.Any(), testReq).
 		Return(model.ResolvedArtifacts{
 			Artifacts: []model.ResolvedArtifact{
-				{ID: "dep1@1.0.0", Name: "dep1", Version: "1.0.0"},
-				{ID: "test-artifact@1.0.0", Name: "test-artifact", Version: "1.0.0"},
+				{Name: "dep1", Version: "1.0.0"},
+				{Name: "test-artifact", Version: "1.0.0"},
 			},
 		}, nil)
 
@@ -628,8 +623,8 @@ func TestUninstall_NoCascade_WithDependencies(t *testing.T) {
 		ReverseResolve(gomock.Any(), testReq).
 		Return(model.ResolvedArtifacts{
 			Artifacts: []model.ResolvedArtifact{
-				{ID: "dep1@1.0.0", Name: "dep1", Version: "1.0.0"},
-				{ID: "test-artifact@1.0.0", Name: "test-artifact", Version: "1.0.0"},
+				{Name: "dep1", Version: "1.0.0"},
+				{Name: "test-artifact", Version: "1.0.0"},
 			},
 		}, nil)
 
@@ -721,7 +716,7 @@ func TestUninstall_NoArtifactManager(t *testing.T) {
 		ReverseResolve(gomock.Any(), testReq).
 		Return(model.ResolvedArtifacts{
 			Artifacts: []model.ResolvedArtifact{
-				{ID: "test-artifact@1.0.0", Name: "test-artifact", Version: "1.0.0"},
+				{Name: "test-artifact", Version: "1.0.0"},
 			},
 		}, nil)
 
@@ -761,7 +756,7 @@ func TestUninstall_ArtifactUninstallError(t *testing.T) {
 		ReverseResolve(gomock.Any(), testReq).
 		Return(model.ResolvedArtifacts{
 			Artifacts: []model.ResolvedArtifact{
-				{ID: "test-artifact@1.0.0", Name: "test-artifact", Version: "1.0.0"},
+				{Name: "test-artifact", Version: "1.0.0"},
 			},
 		}, nil)
 
@@ -797,7 +792,6 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 	}
 
 	step := model.ResolvedArtifact{
-		ID:        "pkgA@1.0.0",
 		Name:      "pkgA",
 		Version:   "1.0.0",
 		OS:        "linux",
@@ -825,7 +819,7 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 
 	dl.EXPECT().
 		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(map[string]string{step.ID: "/tmp/pkgA-1.0.0.tgz"}, nil).
+		Return(map[string]string{step.GetID(): "/tmp/pkgA-1.0.0.tgz"}, nil).
 		Times(1)
 
 	am.EXPECT().
@@ -1095,7 +1089,6 @@ func TestUpdate_DryRun(t *testing.T) {
 	plan := model.ResolvedArtifacts{
 		Artifacts: []model.ResolvedArtifact{
 			{
-				ID:        "pkgA@2.0.0",
 				Name:      "pkgA",
 				Version:   "2.0.0",
 				OS:        "linux",
@@ -1170,7 +1163,6 @@ func TestUpdate_SuccessfulUpdate(t *testing.T) {
 	plan := model.ResolvedArtifacts{
 		Artifacts: []model.ResolvedArtifact{
 			{
-				ID:        "pkgA@2.0.0",
 				Name:      "pkgA",
 				Version:   "2.0.0",
 				OS:        "linux",
@@ -1200,7 +1192,7 @@ func TestUpdate_SuccessfulUpdate(t *testing.T) {
 	dl := mocks.NewMockDownloader(ctrl)
 	dl.EXPECT().
 		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(map[string]string{plan.Artifacts[0].ID: "/tmp/pkgA-2.0.0.tgz"}, nil).
+		Return(map[string]string{plan.Artifacts[0].GetID(): "/tmp/pkgA-2.0.0.tgz"}, nil).
 		Times(1)
 
 	am := mocks.NewMockArtifactManager(ctrl)
@@ -1255,7 +1247,6 @@ func TestUpdate_NoUpdatesAvailable(t *testing.T) {
 	plan := model.ResolvedArtifacts{
 		Artifacts: []model.ResolvedArtifact{
 			{
-				ID:      "pkgA@1.0.0",
 				Name:    "pkgA",
 				Version: "1.0.0",
 				Action:  model.ResolvedActionSkip,
@@ -1318,7 +1309,6 @@ func TestUpdate_SpecificPackageUpdate(t *testing.T) {
 	plan := model.ResolvedArtifacts{
 		Artifacts: []model.ResolvedArtifact{
 			{
-				ID:        "pkgB@3.0.0",
 				Name:      "pkgB",
 				Version:   "3.0.0",
 				OS:        "linux",
@@ -1346,7 +1336,7 @@ func TestUpdate_SpecificPackageUpdate(t *testing.T) {
 	dl := mocks.NewMockDownloader(ctrl)
 	dl.EXPECT().
 		FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(map[string]string{plan.Artifacts[0].ID: "/tmp/pkgB-3.0.0.tgz"}, nil).
+		Return(map[string]string{plan.Artifacts[0].GetID(): "/tmp/pkgB-3.0.0.tgz"}, nil).
 		Times(1)
 
 	am := mocks.NewMockArtifactManager(ctrl)
