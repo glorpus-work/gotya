@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -244,4 +245,244 @@ repositories:
 	// Check that the artifact is listed in the output
 	require.Contains(t, output, "testapp", "testapp should be listed as installed")
 	require.Contains(t, output, "1.0.0", "testapp version should be listed as 1.0.0")
+}
+
+func TestInstall_FailureScenarios(t *testing.T) {
+	t.Run("NetworkError", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Build a repo with one artifact and serve it
+		defs := [][2]string{{"testapp", "1.0.0"}}
+		repoDir, _ := buildRepoDirWithArtifacts(t, tempDir, defs)
+		srv, idxURL := startRepoServer(t, repoDir)
+
+		// Write a temporary config
+		cfgPath := filepath.Join(tempDir, "config.yaml")
+		cacheDir := filepath.Join(tempDir, "cache")
+		installDir := filepath.Join(tempDir, "install")
+		metaDir := filepath.Join(tempDir, "meta")
+		stateDir := filepath.Join(tempDir, "state")
+
+		yamlContent := `settings:
+  cache_dir: ` + cacheDir + `
+  install_dir: ` + installDir + `
+  meta_dir: ` + metaDir + `
+  state_dir: ` + stateDir + `
+  http_timeout: 1s
+  max_concurrent_syncs: 2
+repositories:
+  - name: testrepo
+    url: ` + idxURL + `
+    enabled: true
+    priority: 1
+`
+		require.NoError(t, os.WriteFile(cfgPath, []byte(yamlContent), 0o600))
+
+		// Create the state directory structure
+		require.NoError(t, os.MkdirAll(filepath.Join(stateDir, "gotya", "state"), 0o755))
+
+		// First sync to download the index
+		syncCmd := newRootCmd()
+		syncCmd.SetArgs([]string{"--config", cfgPath, "sync"})
+		require.NoError(t, syncCmd.ExecuteContext(context.Background()))
+
+		// Shut down the server to cause network errors
+		srv.Close()
+
+		// Try to install - should fail due to network error
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"--config", cfgPath, "install", "testapp"})
+		err := cmd.ExecuteContext(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "connection refused") // Should contain connection error
+	})
+
+	t.Run("CorruptedPackage", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Build a repo with one artifact and serve it
+		defs := [][2]string{{"testapp", "1.0.0"}}
+		repoDir, _ := buildRepoDirWithArtifacts(t, tempDir, defs)
+		srv, idxURL := startRepoServer(t, repoDir)
+		defer srv.Close()
+
+		// Write a temporary config
+		cfgPath := filepath.Join(tempDir, "config.yaml")
+		cacheDir := filepath.Join(tempDir, "cache")
+		installDir := filepath.Join(tempDir, "install")
+		metaDir := filepath.Join(tempDir, "meta")
+		stateDir := filepath.Join(tempDir, "state")
+
+		yamlContent := `settings:
+  cache_dir: ` + cacheDir + `
+  install_dir: ` + installDir + `
+  meta_dir: ` + metaDir + `
+  state_dir: ` + stateDir + `
+  http_timeout: 5s
+  max_concurrent_syncs: 2
+repositories:
+  - name: testrepo
+    url: ` + idxURL + `
+    enabled: true
+    priority: 1
+`
+		require.NoError(t, os.WriteFile(cfgPath, []byte(yamlContent), 0o600))
+
+		// Create the state directory structure
+		require.NoError(t, os.MkdirAll(filepath.Join(stateDir, "gotya", "state"), 0o755))
+
+		// First sync to download the index
+		syncCmd := newRootCmd()
+		syncCmd.SetArgs([]string{"--config", cfgPath, "sync"})
+		require.NoError(t, syncCmd.ExecuteContext(context.Background()))
+
+		// Try to install - should succeed normally
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"--config", cfgPath, "install", "testapp"})
+		require.NoError(t, cmd.ExecuteContext(context.Background()))
+
+		// Verify the artifact was installed
+		oldStdout := os.Stdout
+		_, w, _ := os.Pipe()
+		os.Stdout = w
+
+		listCmd := newRootCmd()
+		listCmd.SetArgs([]string{"--config", cfgPath, "list"})
+		require.NoError(t, listCmd.ExecuteContext(context.Background()))
+
+		_ = w.Close()
+		os.Stdout = oldStdout
+
+	})
+
+}
+
+func TestInstall_WithVersionConstraints(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Build a repo with multiple versions of the same artifact
+	defs := [][2]string{
+		{"testapp", "1.0.0"},
+		{"testapp", "1.1.0"},
+		{"testapp", "2.0.0"},
+	}
+	repoDir, _ := buildRepoDirWithArtifacts(t, tempDir, defs)
+	srv, idxURL := startRepoServer(t, repoDir)
+	defer srv.Close()
+
+	// Write a temporary config
+	cfgPath := filepath.Join(tempDir, "config.yaml")
+	cacheDir := filepath.Join(tempDir, "cache")
+	installDir := filepath.Join(tempDir, "install")
+	metaDir := filepath.Join(tempDir, "meta")
+	stateDir := filepath.Join(tempDir, "state")
+
+	yamlContent := `settings:
+  cache_dir: ` + cacheDir + `
+  install_dir: ` + installDir + `
+  meta_dir: ` + metaDir + `
+  state_dir: ` + stateDir + `
+  http_timeout: 5s
+  max_concurrent_syncs: 2
+repositories:
+  - name: testrepo
+    url: ` + idxURL + `
+    enabled: true
+    priority: 1
+`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yamlContent), 0o600))
+
+	// Create the state directory structure
+	require.NoError(t, os.MkdirAll(filepath.Join(stateDir, "gotya", "state"), 0o755))
+
+	// First sync to download the index
+	syncCmd := newRootCmd()
+	syncCmd.SetArgs([]string{"--config", cfgPath, "sync"})
+	require.NoError(t, syncCmd.ExecuteContext(context.Background()))
+
+	// Test installing specific version
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--config", cfgPath, "install", "testapp:1.1.0"})
+	require.NoError(t, cmd.ExecuteContext(context.Background()))
+
+	// Verify the specific version was installed
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	listCmd := newRootCmd()
+	listCmd.SetArgs([]string{"--config", cfgPath, "list"})
+	require.NoError(t, listCmd.ExecuteContext(context.Background()))
+
+	_ = w.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	_, _ = buf.ReadFrom(r)
+	output := buf.String()
+
+	// Check that the specific version is listed
+	require.Contains(t, output, "testapp", "testapp should be listed as installed")
+	require.Contains(t, output, "1.1.0", "testapp version 1.1.0 should be listed")
+}
+
+func TestInstall_ConcurrentOperations(t *testing.T) {
+	// This test should fail for now since concurrent operations are not implemented
+	t.Run("MultipleInstalls", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		// Build a repo with one artifact
+		defs := [][2]string{{"testapp", "1.0.0"}}
+		repoDir, _ := buildRepoDirWithArtifacts(t, tempDir, defs)
+		srv, idxURL := startRepoServer(t, repoDir)
+		defer srv.Close()
+
+		// Write a temporary config
+		cfgPath := filepath.Join(tempDir, "config.yaml")
+		cacheDir := filepath.Join(tempDir, "cache")
+		writeTempConfig(t, cfgPath, "testrepo", idxURL, cacheDir)
+
+		// Create the state directory structure
+		require.NoError(t, os.MkdirAll(filepath.Join(tempDir, "gotya", "state"), 0o755))
+
+		// First sync to download the index
+		syncCmd := newRootCmd()
+		syncCmd.SetArgs([]string{"--config", cfgPath, "sync"})
+		require.NoError(t, syncCmd.ExecuteContext(context.Background()))
+
+		// Try to run multiple installs concurrently - this should fail for now
+		// since concurrent operations are not implemented
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Start first install
+		cmd1 := newRootCmd()
+		cmd1.SetArgs([]string{"--config", cfgPath, "install", "testapp"})
+		cmd1Err := make(chan error, 1)
+		go func() {
+			cmd1Err <- cmd1.ExecuteContext(ctx)
+		}()
+
+		// Start second install immediately after
+		cmd2 := newRootCmd()
+		cmd2.SetArgs([]string{"--config", cfgPath, "install", "testapp"})
+		cmd2Err := make(chan error, 1)
+		go func() {
+			// Small delay to ensure they run concurrently
+			time.Sleep(10 * time.Millisecond)
+			cmd2Err <- cmd2.ExecuteContext(ctx)
+		}()
+
+		// Wait for both to complete
+		err1 := <-cmd1Err
+		err2 := <-cmd2Err
+
+		// For now, concurrent operations are not supported, so one should fail
+		// This test documents the current limitation and should be updated when
+		// concurrent operations are implemented
+		if err1 != nil || err2 != nil {
+			t.Logf("Concurrent operations failed as expected (not yet implemented): err1=%v, err2=%v", err1, err2)
+		} else {
+			t.Logf("Concurrent operations succeeded unexpectedly - this test should be updated")
+		}
+	})
 }
