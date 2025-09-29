@@ -103,7 +103,8 @@ func TestManager_ResolveArtifact_OSArchFilter(t *testing.T) {
 	m := NewManager([]*Repository{repo}, dir)
 
 	_, err := m.ResolveArtifact("a", ">= 0.0.0", "darwin", "arm64")
-	assert.ErrorIs(t, err, ErrArtifactNotFound)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "artifact a not found for darwin/arm64 in any repository")
 
 	pkg, err := m.ResolveArtifact("a", ">= 0.0.0", "linux", "amd64")
 	require.NoError(t, err)
