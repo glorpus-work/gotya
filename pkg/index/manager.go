@@ -111,7 +111,25 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 		}
 	}
 	if len(repoPrioArtifacts) == 0 {
-		return nil, errors.Wrapf(ErrArtifactNotFound, "artifact %s could not be found", name)
+		// Artifact exists but no version matches the constraints
+		// Let's gather information about available versions for better error messages
+		availableVersions := make([]string, 0)
+		for _, pkgs := range repoArtifacts {
+			for _, pkg := range pkgs {
+				if pkg.MatchOs(os) && pkg.MatchArch(arch) {
+					availableVersions = append(availableVersions, pkg.Version)
+				}
+			}
+		}
+
+		if len(availableVersions) == 0 {
+			// No versions match the OS/arch constraints
+			return nil, fmt.Errorf("artifact %s not found for %s/%s in any repository", name, os, arch)
+		} else {
+			// Versions exist but none match the version constraint
+			return nil, fmt.Errorf("artifact %s not found with version constraint %s (available versions: %v, os: %s, arch: %s)",
+				name, version, availableVersions, os, arch)
+		}
 	}
 
 	prios := slices.Collect(maps.Keys(repoPrioArtifacts))
