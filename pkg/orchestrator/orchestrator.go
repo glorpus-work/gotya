@@ -528,7 +528,8 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		}
 
 		// Handle different actions appropriately
-		if step.Action == model.ResolvedActionUpdate {
+		switch step.Action {
+		case model.ResolvedActionUpdate:
 			// Use UpdateArtifact for existing packages being updated
 			actionMsg := "updating"
 			emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
@@ -538,7 +539,7 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 				return fmt.Errorf("failed to update %s: %w", step.Name, err)
 			}
 			updatedCount++
-		} else if step.Action == model.ResolvedActionInstall {
+		case model.ResolvedActionInstall:
 			// Use InstallArtifact for new packages (dependencies)
 			actionMsg := "installing"
 			emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
