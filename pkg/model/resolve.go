@@ -65,11 +65,13 @@ const (
 	StatusMissing ArtifactStatus = "missing"
 )
 
-// InstalledArtifact represents an installed artifact with its files.
+// InstalledArtifact represents an installed artifact with its files and installation metadata.
 type InstalledArtifact struct {
 	Name                string
 	Version             string
 	Description         string
+	OS                  string // target operating system
+	Arch                string // target architecture
 	InstalledAt         time.Time
 	InstalledFrom       string // URL or index where it was installed from
 	ArtifactMetaDir     string // Base directory for meta files

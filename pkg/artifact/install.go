@@ -106,6 +106,8 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		Name:                desc.Name,
 		Version:             desc.Version,
 		Description:         desc.Description,
+		OS:                  desc.OS,
+		Arch:                desc.Arch,
 		InstalledAt:         time.Now(),
 		InstalledFrom:       desc.URL,
 		ArtifactMetaDir:     metaPath,
@@ -140,6 +142,8 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 				Name:                dep.Name,
 				Version:             "invalid",
 				Description:         "invalid",
+				OS:                  "", // No OS info available for missing dependency
+				Arch:                "", // No Arch info available for missing dependency
 				InstalledAt:         time.Time{},
 				InstalledFrom:       "invalid",
 				ArtifactMetaDir:     "invalid",
