@@ -105,12 +105,12 @@ func emit(h Hooks, e Event) {
 }
 
 // Install resolves and installs according to the plan (sequentially for now).
-func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, opts InstallOptions) error {
+func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequest, opts InstallOptions) error {
 	if o.Index == nil {
 		return fmt.Errorf("index planner is not configured")
 	}
 
-	emit(o.Hooks, Event{Phase: "planning", Msg: req.Name})
+	emit(o.Hooks, Event{Phase: "planning", Msg: fmt.Sprintf("installing %d packages", len(requests))})
 
 	// Load currently installed artifacts for compatibility checking
 	var installedArtifacts []*model.InstalledArtifact
@@ -122,29 +122,38 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 		}
 	}
 
-	// Build resolve requests: main request + keep preferences for installed artifacts
-	requests := []model.ResolveRequest{
-		{
-			Name:              req.Name,
-			VersionConstraint: req.VersionConstraint,
-			OS:                req.OS,
-			Arch:              req.Arch,
-		},
+	// Build resolve requests: combine input requests with keep preferences for installed artifacts
+	allRequests := make([]model.ResolveRequest, len(requests))
+	copy(allRequests, requests)
+
+	// Determine OS/Arch from first request for keep preferences
+	os := "linux"   // default
+	arch := "amd64" // default
+	if len(requests) > 0 {
+		os = requests[0].OS
+		arch = requests[0].Arch
 	}
 
-	// Add keep preferences for all installed artifacts
+	// Add keep preferences for all installed artifacts that aren't already in our requests
+	installedMap := make(map[string]bool)
+	for _, req := range requests {
+		installedMap[req.Name] = true
+	}
+
 	for _, installed := range installedArtifacts {
-		requests = append(requests, model.ResolveRequest{
-			Name:              installed.Name,
-			VersionConstraint: "", // No hard constraint, just preference
-			OS:                req.OS,
-			Arch:              req.Arch,
-			OldVersion:        installed.Version,
-			KeepVersion:       true, // Prefer to keep current version
-		})
+		if !installedMap[installed.Name] {
+			allRequests = append(allRequests, model.ResolveRequest{
+				Name:              installed.Name,
+				VersionConstraint: "", // No hard constraint, just preference
+				OS:                os,
+				Arch:              arch,
+				OldVersion:        installed.Version,
+				KeepVersion:       true, // Prefer to keep current version
+			})
+		}
 	}
 
-	plan, err := o.Index.Resolve(ctx, requests)
+	plan, err := o.Index.Resolve(ctx, allRequests)
 	if err != nil {
 		return err
 	}
@@ -221,10 +230,13 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 			desc.URL = step.SourceURL.String()
 		}
 
-		// Determine installation reason: main requested package is manual, others are automatic
+		// Determine installation reason: requested packages are manual, others are automatic
 		reason := model.InstallationReasonAutomatic
-		if step.Name == req.Name {
-			reason = model.InstallationReasonManual
+		for _, req := range requests {
+			if step.Name == req.Name {
+				reason = model.InstallationReasonManual
+				break
+			}
 		}
 
 		switch action {
@@ -390,11 +402,11 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		return fmt.Errorf("index resolver is not configured")
 	}
 
-	// Build update requests for the target packages
-	requests := make([]model.ResolveRequest, 0, len(packagesToUpdate))
+	// Resolve the update plan
+	updateRequests := make([]model.ResolveRequest, 0, len(packagesToUpdate))
 	requested := make(map[string]struct{}, len(packagesToUpdate))
 	for _, pkg := range packagesToUpdate {
-		requests = append(requests, model.ResolveRequest{
+		updateRequests = append(updateRequests, model.ResolveRequest{
 			Name:              pkg.Name,
 			VersionConstraint: ">= " + pkg.Version, // Update to current version or higher
 			OS:                "linux",             // TODO: Get from system or config
@@ -411,7 +423,7 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		if _, already := requested[inst.Name]; already {
 			continue
 		}
-		requests = append(requests, model.ResolveRequest{
+		updateRequests = append(updateRequests, model.ResolveRequest{
 			Name:              inst.Name,
 			VersionConstraint: ">= 0.0.0", // no hard constraint; allow latest
 			OS:                "linux",
@@ -421,10 +433,10 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		})
 	}
 
-	emit(o.Hooks, Event{Phase: "planning", Msg: fmt.Sprintf("resolving updates for %d packages", len(requests))})
+	emit(o.Hooks, Event{Phase: "planning", Msg: fmt.Sprintf("resolving updates for %d packages", len(updateRequests))})
 
 	// Resolve the update plan
-	plan, err := o.Index.Resolve(ctx, requests)
+	plan, err := o.Index.Resolve(ctx, updateRequests)
 	if err != nil {
 		return fmt.Errorf("failed to resolve update plan: %w", err)
 	}

@@ -126,11 +126,13 @@ func TestInstall_DryRun(t *testing.T) {
 
 	// Setup test data
 	s1url, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	req := model.ResolveRequest{
-		Name:              "pkgA",
-		VersionConstraint: ">= 0.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
+	requests := []model.ResolveRequest{
+		{
+			Name:              "pkgA",
+			VersionConstraint: ">= 0.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
 	}
 
 	plan := model.ResolvedArtifacts{
@@ -156,9 +158,9 @@ func TestInstall_DryRun(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
-			require.Len(t, requests, 1, "should have one request for dry run")
-			assert.Equal(t, "pkgA", requests[0].Name, "request should be for pkgA")
+		DoAndReturn(func(_ context.Context, reqs []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			require.Len(t, reqs, 1, "should have one request for dry run")
+			assert.Equal(t, "pkgA", reqs[0].Name, "request should be for pkgA")
 			return plan, nil
 		}).
 		Times(1)
@@ -176,7 +178,7 @@ func TestInstall_DryRun(t *testing.T) {
 	// Execute dry run
 	err := orch.Install(
 		context.Background(),
-		req,
+		requests,
 		InstallOptions{DryRun: true},
 	)
 
@@ -186,7 +188,7 @@ func TestInstall_DryRun(t *testing.T) {
 
 	// Check first event is planning
 	assert.Equal(t, "planning", events[0].Phase, "first event should be planning phase")
-	assert.Equal(t, req.Name, events[0].Msg, "planning message should include package name")
+	assert.Equal(t, "installing 1 packages", events[0].Msg, "planning message should indicate 1 package")
 
 	// Check last event is done
 	lastEvent := events[len(events)-1]
@@ -214,11 +216,13 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	// Setup test data
 	tmp := t.TempDir()
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	req := model.ResolveRequest{
-		Name:              "pkgA",
-		VersionConstraint: "1.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
+	requests := []model.ResolveRequest{
+		{
+			Name:              "pkgA",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
 	}
 
 	step := model.ResolvedArtifact{
@@ -250,9 +254,9 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
-			require.Len(t, requests, 1, "should have one request")
-			assert.Equal(t, "pkgA", requests[0].Name, "request should be for pkgA")
+		DoAndReturn(func(_ context.Context, reqs []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			require.Len(t, reqs, 1, "should have one request")
+			assert.Equal(t, "pkgA", reqs[0].Name, "request should be for pkgA")
 			return plan, nil
 		}).
 		Times(1)
@@ -299,7 +303,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	}
 	err := orch.Install(
 		context.Background(),
-		req,
+		requests,
 		testOpts,
 	)
 
@@ -377,12 +381,6 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	require.NoError(t, os.WriteFile(tmpFile, []byte("test"), 0644), "failed to create temp file")
 
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	testReq := model.ResolveRequest{
-		Name:              "pkgA",
-		VersionConstraint: "1.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
-	}
 
 	step := model.ResolvedArtifact{
 		Name:      "pkgA",
@@ -399,9 +397,9 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
-			require.Len(t, requests, 1, "should have one request")
-			assert.Equal(t, "pkgA", requests[0].Name, "request should be for pkgA")
+		DoAndReturn(func(_ context.Context, reqs []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			require.Len(t, reqs, 1, "should have one request")
+			assert.Equal(t, "pkgA", reqs[0].Name, "request should be for pkgA")
 			return plan, nil
 		}).
 		Times(1)
@@ -440,7 +438,14 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	// Execute test
 	err := torch.Install(
 		context.Background(),
-		testReq,
+		[]model.ResolveRequest{
+			{
+				Name:              "pkgA",
+				VersionConstraint: "1.0.0",
+				OS:                "linux",
+				Arch:              "amd64",
+			},
+		},
 		InstallOptions{
 			CacheDir: tmpDir,
 		},
@@ -457,12 +462,6 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 
 	// Setup test data
 	tmpDir := t.TempDir()
-	testReq := model.ResolveRequest{
-		Name:              "pkgA",
-		VersionConstraint: "1.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
-	}
 
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
 	step := model.ResolvedArtifact{
@@ -480,9 +479,9 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
-			require.Len(t, requests, 1, "should have one request")
-			assert.Equal(t, "pkgA", requests[0].Name, "request should be for pkgA")
+		DoAndReturn(func(_ context.Context, reqs []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			require.Len(t, reqs, 1, "should have one request")
+			assert.Equal(t, "pkgA", reqs[0].Name, "request should be for pkgA")
 			return plan, nil
 		}).
 		Times(1)
@@ -509,7 +508,14 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	// Execute test
 	err := torch.Install(
 		context.Background(),
-		testReq,
+		[]model.ResolveRequest{
+			{
+				Name:              "pkgA",
+				VersionConstraint: "1.0.0",
+				OS:                "linux",
+				Arch:              "amd64",
+			},
+		},
 		InstallOptions{
 			CacheDir: tmpDir,
 		},
@@ -784,11 +790,13 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 
 	// Setup test data - single artifact that should be manual
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	req := model.ResolveRequest{
-		Name:              "pkgA",
-		VersionConstraint: "1.0.0",
-		OS:                "linux",
-		Arch:              "amd64",
+	requests := []model.ResolveRequest{
+		{
+			Name:              "pkgA",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
 	}
 
 	step := model.ResolvedArtifact{
@@ -810,9 +818,9 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 	// Setup expectations
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
-			require.Len(t, requests, 1, "should have one request")
-			assert.Equal(t, "pkgA", requests[0].Name, "request should be for pkgA")
+		DoAndReturn(func(_ context.Context, reqs []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+			require.Len(t, reqs, 1, "should have one request")
+			assert.Equal(t, "pkgA", reqs[0].Name, "request should be for pkgA")
 			return plan, nil
 		}).
 		Times(1)
@@ -849,7 +857,7 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 	// Execute test
 	err := orch.Install(
 		context.Background(),
-		req,
+		requests,
 		InstallOptions{
 			CacheDir: t.TempDir(),
 		},

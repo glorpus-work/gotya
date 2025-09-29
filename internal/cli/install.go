@@ -77,17 +77,19 @@ func runInstall(packages []string, dryRun bool, concurrency int, cacheDir string
 	opts := orchestrator.InstallOptions{CacheDir: cacheDir, Concurrency: concurrency, DryRun: dryRun}
 	ctx := context.Background()
 
-	// Process each dependency
+	// Build all resolve requests
+	var requests []model.ResolveRequest
 	for _, dep := range dependencies {
-		req := model.ResolveRequest{
+		requests = append(requests, model.ResolveRequest{
 			Name:              dep.Name,
 			VersionConstraint: dep.VersionConstraint,
 			OS:                cfg.Settings.Platform.OS,
 			Arch:              cfg.Settings.Platform.Arch,
-		}
-		if err := orch.Install(ctx, req, opts); err != nil {
-			return fmt.Errorf("failed to install %s: %w", dep.Name, err)
-		}
+		})
+	}
+
+	if err := orch.Install(ctx, requests, opts); err != nil {
+		return fmt.Errorf("failed to install packages: %w", err)
 	}
 
 	return nil
