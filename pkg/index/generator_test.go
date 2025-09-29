@@ -83,13 +83,13 @@ func TestGenerator_Generate(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		setup      func(t *testing.T) (*Generator, string)
+		setup      func() (*Generator, string)
 		wantErr    bool
 		assertions func(t *testing.T, index *Index)
 	}{
 		{
 			name: "successful generation",
-			setup: func(t *testing.T) (*Generator, string) {
+			setup: func() (*Generator, string) {
 				outputPath := filepath.Join(tempDir, "index.json")
 				return &Generator{
 					Dir:        artifactsDir,
@@ -113,7 +113,7 @@ func TestGenerator_Generate(t *testing.T) {
 		},
 		{
 			name: "with base path",
-			setup: func(t *testing.T) (*Generator, string) {
+			setup: func() (*Generator, string) {
 				outputPath := filepath.Join(tempDir, "index-with-base.json")
 				return &Generator{
 					Dir:            artifactsDir,
@@ -130,7 +130,7 @@ func TestGenerator_Generate(t *testing.T) {
 		},
 		{
 			name: "non-existent directory",
-			setup: func(t *testing.T) (*Generator, string) {
+			setup: func() (*Generator, string) {
 				outputPath := filepath.Join(tempDir, "index.json")
 				return &Generator{
 					Dir:        "/non/existent/directory",
@@ -143,7 +143,7 @@ func TestGenerator_Generate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			generator, outputPath := tt.setup(t)
+			generator, outputPath := tt.setup()
 
 			err := generator.Generate(context.Background())
 

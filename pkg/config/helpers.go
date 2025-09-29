@@ -53,7 +53,7 @@ func (c *Config) SetValue(key, value string) error {
 	return nil
 }
 
-// Returns the value as a string and any error encountered.
+// GetValue retrieves the configuration value for the given key as a string.
 func (c *Config) GetValue(key string) (string, error) {
 	switch key {
 	case "cache_dir":
@@ -73,7 +73,7 @@ func (c *Config) GetValue(key string) (string, error) {
 	}
 }
 
-// This is useful for displaying the configuration.
+// ToMap converts the configuration to a map of key-value pairs.
 func (c *Config) ToMap() map[string]string {
 	result := make(map[string]string)
 

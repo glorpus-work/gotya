@@ -51,7 +51,6 @@ func TestEnsureDir(t *testing.T) {
 	tests := []struct {
 		name        string
 		setup       func(t *testing.T) string
-		cleanup     func(t *testing.T, path string)
 		checkPerms  bool
 		expectError bool
 	}{
@@ -61,7 +60,6 @@ func TestEnsureDir(t *testing.T) {
 				dir := filepath.Join(t.TempDir(), "newdir")
 				return dir
 			},
-			cleanup:     func(_ *testing.T, path string) {},
 			checkPerms:  true,
 			expectError: false,
 		},
@@ -71,7 +69,6 @@ func TestEnsureDir(t *testing.T) {
 				dir := filepath.Join(t.TempDir(), "parent", "child", "nested")
 				return dir
 			},
-			cleanup:     func(_ *testing.T, path string) {},
 			checkPerms:  true,
 			expectError: false,
 		},
@@ -81,7 +78,6 @@ func TestEnsureDir(t *testing.T) {
 				dir := t.TempDir()
 				return dir
 			},
-			cleanup:     func(_ *testing.T, path string) {},
 			checkPerms:  false,
 			expectError: false,
 		},
@@ -90,10 +86,6 @@ func TestEnsureDir(t *testing.T) {
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			path := testCase.setup(t)
-			if testCase.cleanup != nil {
-				defer testCase.cleanup(t, path)
-			}
-
 			err := EnsureDir(path)
 
 			if testCase.expectError {

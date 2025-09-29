@@ -37,6 +37,7 @@ func NewManager(timeout time.Duration, userAgent string) *ManagerImpl {
 	}
 }
 
+// FetchAll downloads multiple items concurrently and returns a map of item IDs to downloaded file paths.
 func (m *ManagerImpl) FetchAll(ctx context.Context, items []Item, opts Options) (map[string]string, error) {
 	if opts.Concurrency <= 0 {
 		opts.Concurrency = max(2, runtime.NumCPU()/2)
@@ -111,6 +112,7 @@ func (m *ManagerImpl) FetchAll(ctx context.Context, items []Item, opts Options) 
 	return out, nil
 }
 
+// Fetch downloads a single item and returns the path to the downloaded file.
 func (m *ManagerImpl) Fetch(ctx context.Context, item Item, opts Options) (string, error) {
 	if opts.Dir == "" || !filepath.IsAbs(opts.Dir) {
 		return "", fmt.Errorf("download dir must be absolute: %s", opts.Dir)

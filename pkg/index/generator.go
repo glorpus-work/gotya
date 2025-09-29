@@ -118,7 +118,7 @@ func (g *Generator) Validate() error {
 // CountArtifacts counts the number of .gotya files in the source directory
 func (g *Generator) CountArtifacts() (int, error) {
 	count := 0
-	err := filepath.Walk(g.Dir, func(path string, info os.FileInfo, _ error) error {
+	err := filepath.Walk(g.Dir, func(_ string, info os.FileInfo, _ error) error {
 		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".gotya") {
 			count++
 		}

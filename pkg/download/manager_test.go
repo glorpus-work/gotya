@@ -253,13 +253,13 @@ func TestFetchAll_Concurrent(t *testing.T) {
 func TestFetch_ErrorHandling(t *testing.T) {
 	tests := []struct {
 		name        string
-		setupServer func(*testing.T) *httptest.Server
+		setupServer func() *httptest.Server
 		item        Item
 		expectError string
 	}{
 		{
 			name: "invalid URL",
-			setupServer: func(t *testing.T) *httptest.Server {
+			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusBadRequest)
 					_, _ = w.Write([]byte("bad request"))
@@ -273,8 +273,8 @@ func TestFetch_ErrorHandling(t *testing.T) {
 		},
 		{
 			name: "server error",
-			setupServer: func(t *testing.T) *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusInternalServerError)
 				}))
 			},
@@ -288,7 +288,7 @@ func TestFetch_ErrorHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := tt.setupServer(t)
+			server := tt.setupServer()
 			defer server.Close()
 
 			if tt.item.URL.Host == "" {
@@ -332,7 +332,7 @@ func TestFetch_WriteError(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping write error simulation on Windows; chmod does not reliably block writes")
 	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("test content"))
 	}))

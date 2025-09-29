@@ -444,6 +444,7 @@ func (c *Config) GetDatabasePath() string {
 	return filepath.Join(stateDir, "gotya", "state", "installed.json")
 }
 
+// GetIndexDir returns the path to the index cache directory.
 func (c *Config) GetIndexDir() string {
 	return filepath.Join(c.GetCacheDir(), "indexes")
 }
