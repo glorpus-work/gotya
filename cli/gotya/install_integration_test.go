@@ -486,3 +486,166 @@ func TestInstall_ConcurrentOperations(t *testing.T) {
 		}
 	})
 }
+
+func TestInstall_VersionUpgradeScenario(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Build a repo with multiple versions and explicit dependencies
+	defs := [][2]string{
+		{"packageA", "1.0.0"},
+		{"packageA", "2.0.0"},
+		{"packageB", "1.0.0"}, // packageB depends on packageA >= 2.0.0
+	}
+	deps := map[string][]string{
+		"packageB": {"packageA:>= 2.0.0"},
+	}
+	repoDir, _ := buildRepoDirWithArtifactsAndDeps(t, tempDir, defs, deps)
+	srv, idxURL := startRepoServer(t, repoDir)
+	defer srv.Close()
+
+	// Write a temporary config
+	cfgPath := filepath.Join(tempDir, "config.yaml")
+	cacheDir := filepath.Join(tempDir, "cache")
+	installDir := filepath.Join(tempDir, "install")
+	metaDir := filepath.Join(tempDir, "meta")
+	stateDir := filepath.Join(tempDir, "state")
+
+	yamlContent := `settings:
+  cache_dir: ` + cacheDir + `
+  install_dir: ` + installDir + `
+  meta_dir: ` + metaDir + `
+  state_dir: ` + stateDir + `
+  http_timeout: 5s
+  max_concurrent_syncs: 2
+repositories:
+  - name: testrepo
+    url: ` + idxURL + `
+    enabled: true
+    priority: 1
+`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yamlContent), 0o600))
+
+	// Create the state directory structure
+	require.NoError(t, os.MkdirAll(filepath.Join(stateDir, "gotya", "state"), 0o755))
+
+	// First sync to download the index
+	syncCmd := newRootCmd()
+	syncCmd.SetArgs([]string{"--config", cfgPath, "sync"})
+	require.NoError(t, syncCmd.ExecuteContext(context.Background()))
+
+	// First install packageA v1.0.0
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--config", cfgPath, "install", "packageA:1.0.0"})
+	require.NoError(t, cmd.ExecuteContext(context.Background()))
+
+	// Verify packageA v1.0.0 is installed (query DB directly)
+	installed := getInstalledArtifactsFromDB(t, cfgPath)
+	var aVer string
+	for _, a := range installed {
+		if a.Name == "packageA" {
+			aVer = a.Version
+			break
+		}
+	}
+	require.Equal(t, "1.0.0", aVer, "packageA should initially be 1.0.0")
+
+	// Now install packageB which requires packageA >= 2.0.0
+	// This should upgrade packageA from 1.0.0 to 2.0.0
+	cmd2 := newRootCmd()
+	cmd2.SetArgs([]string{"--config", cfgPath, "install", "packageB"})
+	require.NoError(t, cmd2.ExecuteContext(context.Background()))
+
+	// Verify both packages are installed with correct versions (query DB)
+	installed = getInstalledArtifactsFromDB(t, cfgPath)
+	var hasB bool
+	aVer = ""
+	for _, a := range installed {
+		if a.Name == "packageA" {
+			aVer = a.Version
+		}
+		if a.Name == "packageB" {
+			hasB = true
+		}
+	}
+	require.True(t, hasB, "packageB should be installed")
+	require.Equal(t, "2.0.0", aVer, "packageA should be upgraded to 2.0.0")
+}
+
+func TestInstall_DependencyCompatibilityConflict(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Build a repo with artifacts and explicit conflicting dependencies
+	defs := [][2]string{
+		{"packageA", "2.0.0"},
+		{"packageA", "3.0.0"},
+		{"packageC", "1.0.0"}, // Depends on A == 2.0.0
+		{"packageD", "1.0.0"}, // Requires A >= 3.0.0
+	}
+	deps := map[string][]string{
+		"packageC": {"packageA:= 2.0.0"},
+		"packageD": {"packageA:>= 3.0.0"},
+	}
+	repoDir, _ := buildRepoDirWithArtifactsAndDeps(t, tempDir, defs, deps)
+	srv, idxURL := startRepoServer(t, repoDir)
+	defer srv.Close()
+
+	// Write a temporary config
+	cfgPath := filepath.Join(tempDir, "config.yaml")
+	cacheDir := filepath.Join(tempDir, "cache")
+	installDir := filepath.Join(tempDir, "install")
+	metaDir := filepath.Join(tempDir, "meta")
+	stateDir := filepath.Join(tempDir, "state")
+
+	yamlContent := `settings:
+  cache_dir: ` + cacheDir + `
+  install_dir: ` + installDir + `
+  meta_dir: ` + metaDir + `
+  state_dir: ` + stateDir + `
+  http_timeout: 5s
+  max_concurrent_syncs: 2
+repositories:
+  - name: testrepo
+    url: ` + idxURL + `
+    enabled: true
+    priority: 1
+`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yamlContent), 0o600))
+
+	// Create the state directory structure
+	require.NoError(t, os.MkdirAll(filepath.Join(stateDir, "gotya", "state"), 0o755))
+
+	// First sync to download the index
+	syncCmd := newRootCmd()
+	syncCmd.SetArgs([]string{"--config", cfgPath, "sync"})
+	require.NoError(t, syncCmd.ExecuteContext(context.Background()))
+
+	// Install packageA v2.0.0 and packageC (which depends on A == 2.0.0)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"--config", cfgPath, "install", "packageA:2.0.0", "packageC"})
+	require.NoError(t, cmd.ExecuteContext(context.Background()))
+
+	// Verify both packages are installed (query DB)
+	installed := getInstalledArtifactsFromDB(t, cfgPath)
+	var hasC bool
+	var aVer string
+	for _, a := range installed {
+		if a.Name == "packageC" {
+			hasC = true
+		}
+		if a.Name == "packageA" {
+			aVer = a.Version
+		}
+	}
+	require.True(t, hasC, "packageC should be installed")
+	require.Equal(t, "2.0.0", aVer, "packageA version 2.0.0 should be listed")
+
+	// Now try to install packageD which requires packageA >= 3.0.0
+	// This should fail because upgrading packageA would break packageC
+	cmd2 := newRootCmd()
+	cmd2.SetArgs([]string{"--config", cfgPath, "install", "packageD"})
+	err := cmd2.ExecuteContext(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "packageA")
+	assert.Contains(t, err.Error(), "2.0.0")
+	assert.Contains(t, err.Error(), "3.0.0")
+}

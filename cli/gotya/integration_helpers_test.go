@@ -13,6 +13,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cperrin88/gotya/pkg/artifact/database"
+	"github.com/cperrin88/gotya/pkg/config"
+	"github.com/cperrin88/gotya/pkg/model"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,6 +40,40 @@ func buildRepoDirWithArtifacts(t *testing.T, root string, artifactDefs [][2]stri
 	outFile := filepath.Join(repoDir, "index.json")
 	generateIndexViaCLI(t, artifactsDir, outFile, "artifacts", true)
 	return repoDir, created
+}
+
+// buildRepoDirWithArtifactsAndDeps creates a repository directory with artifacts and allows
+// specifying dependencies per artifact via a map: deps[artifactName] = []"name:version_constraint".
+func buildRepoDirWithArtifactsAndDeps(t *testing.T, root string, artifactDefs [][2]string, deps map[string][]string) (string, []string) {
+	t.Helper()
+	repoDir := filepath.Join(root, "repo")
+	artifactsDir := filepath.Join(repoDir, "artifacts")
+	require.NoError(t, os.MkdirAll(artifactsDir, 0o755))
+
+	created := make([]string, 0, len(artifactDefs))
+	for _, def := range artifactDefs {
+		name, version := def[0], def[1]
+		src := createSampleArtifactSource(t, root)
+		dependencies := deps[name]
+		path := createArtifactViaCLI(t, src, name, version, artifactsDir, dependencies)
+		created = append(created, path)
+	}
+
+	outFile := filepath.Join(repoDir, "index.json")
+	generateIndexViaCLI(t, artifactsDir, outFile, "artifacts", true)
+	return repoDir, created
+}
+
+// getInstalledArtifactsFromDB loads the installed database using the config at cfgPath
+// and returns the list of installed artifacts.
+func getInstalledArtifactsFromDB(t *testing.T, cfgPath string) []*model.InstalledArtifact {
+	t.Helper()
+	cfg, err := config.LoadConfig(cfgPath)
+	require.NoError(t, err)
+
+	db := database.NewInstalledDatabase()
+	require.NoError(t, db.LoadDatabase(cfg.GetDatabasePath()))
+	return db.GetInstalledArtifacts()
 }
 
 // buildRepoDirWithArtifactsWithDeps creates a repository directory with artifacts that have dependencies.
