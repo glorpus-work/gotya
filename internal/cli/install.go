@@ -13,7 +13,6 @@ import (
 func NewInstallCmd() *cobra.Command {
 	var (
 		force       bool
-		skipDeps    bool
 		dryRun      bool
 		concurrency int
 		cacheDir    string
@@ -23,15 +22,14 @@ func NewInstallCmd() *cobra.Command {
 		Use:   "install [PACKAGE...]",
 		Short: "Install packages",
 		Long: `Install one or more packages from the configured repositories.
-Dependencies will be automatically resolved and installed unless --skip-deps is used.`,
+Dependencies will be automatically resolved and installed.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			return runInstall(args, force, skipDeps, dryRun, concurrency, cacheDir)
+			return runInstall(args, force, dryRun, concurrency, cacheDir)
 		},
 	}
 
 	cmd.Flags().BoolVar(&force, "force", false, "Force installation even if artifact already exists")
-	cmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "Skip dependency resolution")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Resolve and print actions without executing")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 0, "Number of parallel downloads (0=auto)")
 	cmd.Flags().StringVar(&cacheDir, "cache-dir", "", "Download cache directory (defaults to config)")
@@ -62,7 +60,7 @@ Use --all to update all installed packages.`,
 		return cmd
 	}
 */
-func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrency int, cacheDir string) error {
+func runInstall(packages []string, force bool, dryRun bool, concurrency int, cacheDir string) error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
@@ -106,11 +104,6 @@ func runInstall(packages []string, force, skipDeps bool, dryRun bool, concurrenc
 			OS:                cfg.Settings.Platform.OS,
 			Arch:              cfg.Settings.Platform.Arch,
 		}
-		// TODO: Implement --skip-deps functionality
-		// Currently, dependency resolution is always performed by the orchestrator.
-		// The skipDeps flag is accepted for future implementation but has no effect yet.
-		// To skip dependencies, the ResolveRequest would need a flag or the orchestrator
-		// would need a parameter to control dependency resolution.
 		if err := orch.Install(ctx, req, opts); err != nil {
 			return fmt.Errorf("failed to install %s: %w", pkgName, err)
 		}
