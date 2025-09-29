@@ -23,3 +23,10 @@ linters:
         - G306  # Expect WriteFile permissions to be 0600 or less
         - G115  # integer overflow conversion int -> uint32
 
+issues:
+  exclude-rules:
+    - path: "**/mocks/*.go"
+    - path: "_test.go"
+      linters:
+        - funlen
+
