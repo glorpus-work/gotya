@@ -88,10 +88,9 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 				return nil // Successfully updated installation reason
 			}
 			// Never downgrade from manual to automatic
-			if existingArtifact.InstallationReason == model.InstallationReasonManual && reason == model.InstallationReasonAutomatic {
-				return fmt.Errorf("artifact %s is already installed manually and cannot be downgraded to automatic", desc.Name)
+			if existingArtifact.InstallationReason == model.InstallationReasonManual {
+				reason = model.InstallationReasonManual
 			}
-			return fmt.Errorf("artifact %s is already installed", desc.Name)
 		case model.StatusMissing:
 			// This is a dummy entry, we'll replace it with the real artifact
 			// Save the reverse dependencies before removing the dummy entry

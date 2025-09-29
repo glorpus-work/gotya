@@ -213,8 +213,15 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 			reason = model.InstallationReasonManual
 		}
 
-		if err := o.ArtifactManager.InstallArtifact(ctx, desc, path, reason); err != nil {
-			return err
+		switch step.Action {
+		case model.ResolvedActionInstall:
+			if err := o.ArtifactManager.InstallArtifact(ctx, desc, path, reason); err != nil {
+				return err
+			}
+		case model.ResolvedActionUpdate:
+			if err := o.ArtifactManager.UpdateArtifact(ctx, path, desc); err != nil {
+				return err
+			}
 		}
 	}
 	emit(o.Hooks, Event{Phase: "done"})
