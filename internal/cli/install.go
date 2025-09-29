@@ -12,7 +12,6 @@ import (
 // NewInstallCmd creates the install command.
 func NewInstallCmd() *cobra.Command {
 	var (
-		force       bool
 		dryRun      bool
 		concurrency int
 		cacheDir    string
@@ -25,11 +24,10 @@ func NewInstallCmd() *cobra.Command {
 Dependencies will be automatically resolved and installed.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			return runInstall(args, force, dryRun, concurrency, cacheDir)
+			return runInstall(args, dryRun, concurrency, cacheDir)
 		},
 	}
 
-	cmd.Flags().BoolVar(&force, "force", false, "Force installation even if artifact already exists")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Resolve and print actions without executing")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 0, "Number of parallel downloads (0=auto)")
 	cmd.Flags().StringVar(&cacheDir, "cache-dir", "", "Download cache directory (defaults to config)")
@@ -37,7 +35,7 @@ Dependencies will be automatically resolved and installed.`,
 	return cmd
 }
 
-func runInstall(packages []string, force bool, dryRun bool, concurrency int, cacheDir string) error {
+func runInstall(packages []string, dryRun bool, concurrency int, cacheDir string) error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
