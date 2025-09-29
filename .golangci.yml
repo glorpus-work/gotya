@@ -5,6 +5,15 @@ linters:
   default: standard
   enable:
     - gosec
+    - gocritic
+    - revive
+    - gocyclo
+    - funlen
+    - ineffassign
+    - misspell
+    - goconst
+    - unused
+    - dupl
   settings:
     gosec:
       excludes:
