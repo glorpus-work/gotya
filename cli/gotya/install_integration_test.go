@@ -41,25 +41,16 @@ func TestInstall_BasicInstallFromRepository(t *testing.T) {
 	cmd.SetArgs([]string{"--config", cfgPath, "install", "testapp"})
 	require.NoError(t, cmd.ExecuteContext(context.Background()))
 
-	// Verify the artifact was installed by using the list command
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	listCmd := newRootCmd()
-	listCmd.SetArgs([]string{"--config", cfgPath, "list"})
-	require.NoError(t, listCmd.ExecuteContext(context.Background()))
-
-	// Restore stdout and read output
-	_ = w.Close()
-	os.Stdout = oldStdout
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	// Check that the artifact is listed in the output
-	require.Contains(t, output, "testapp", "testapp should be listed as installed")
-	require.Contains(t, output, "1.0.0", "testapp version should be listed as 1.0.0")
+	// Verify the artifact was installed by querying the DB
+	installed := getInstalledArtifactsFromDB(t, cfgPath)
+	var found bool
+	for _, a := range installed {
+		if a.Name == "testapp" && a.Version == "1.0.0" {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "testapp@1.0.0 should be installed")
 }
 
 func TestInstall_InstallWithDependencies(t *testing.T) {
@@ -116,26 +107,19 @@ repositories:
 	cmd.SetArgs([]string{"--config", cfgPath, "install", "testapp"})
 	require.NoError(t, cmd.ExecuteContext(context.Background()))
 
-	// Verify both artifacts were installed by using the list command
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	listCmd := newRootCmd()
-	listCmd.SetArgs([]string{"--config", cfgPath, "list"})
-	require.NoError(t, listCmd.ExecuteContext(context.Background()))
-
-	// Restore stdout and read output
-	_ = w.Close()
-	os.Stdout = oldStdout
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	// Check that both artifacts are listed in the output
-	require.Contains(t, output, "testapp", "testapp should be listed as installed")
-	require.Contains(t, output, "testlib", "testlib dependency should be listed as installed")
-	require.Contains(t, output, "1.0.0", "artifacts should have version 1.0.0")
+	// Verify both artifacts were installed by querying the DB
+	installed := getInstalledArtifactsFromDB(t, cfgPath)
+	var hasApp, hasLib bool
+	for _, a := range installed {
+		if a.Name == "testapp" && a.Version == "1.0.0" {
+			hasApp = true
+		}
+		if a.Name == "testlib" && a.Version == "1.0.0" {
+			hasLib = true
+		}
+	}
+	require.True(t, hasApp, "testapp@1.0.0 should be installed")
+	require.True(t, hasLib, "testlib@1.0.0 should be installed")
 }
 
 func TestInstall_DryRunMode(t *testing.T) {
@@ -162,23 +146,8 @@ func TestInstall_DryRunMode(t *testing.T) {
 	require.NoError(t, cmd.ExecuteContext(context.Background()))
 
 	// Verify no artifacts were actually installed (dry run)
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	listCmd := newRootCmd()
-	listCmd.SetArgs([]string{"--config", cfgPath, "list"})
-	require.NoError(t, listCmd.ExecuteContext(context.Background()))
-
-	// Restore stdout and read output
-	_ = w.Close()
-	os.Stdout = oldStdout
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	// Check that no artifacts are listed (dry run should not install anything)
-	assert.Contains(t, output, "No packages installed", "should show no packages installed in dry-run mode")
+	installed := getInstalledArtifactsFromDB(t, cfgPath)
+	assert.Len(t, installed, 0, "no packages should be installed in dry-run mode")
 }
 
 func TestInstall_WithCustomCacheDir(t *testing.T) {
@@ -226,25 +195,15 @@ repositories:
 	cmd.SetArgs([]string{"--config", cfgPath, "install", "--cache-dir", customCacheDir, "testapp"})
 	require.NoError(t, cmd.ExecuteContext(context.Background()))
 
-	// Verify the artifact was installed by using the list command
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	listCmd := newRootCmd()
-	listCmd.SetArgs([]string{"--config", cfgPath, "list"})
-	require.NoError(t, listCmd.ExecuteContext(context.Background()))
-
-	// Restore stdout and read output
-	_ = w.Close()
-	os.Stdout = oldStdout
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
-
-	// Check that the artifact is listed in the output
-	require.Contains(t, output, "testapp", "testapp should be listed as installed")
-	require.Contains(t, output, "1.0.0", "testapp version should be listed as 1.0.0")
+	// Verify the artifact was installed by querying the DB
+	installed := getInstalledArtifactsFromDB(t, cfgPath)
+	var ok bool
+	for _, a := range installed {
+		if a.Name == "testapp" && a.Version == "1.0.0" {
+			ok = true
+		}
+	}
+	require.True(t, ok, "testapp@1.0.0 should be installed")
 }
 
 func TestInstall_FailureScenarios(t *testing.T) {
@@ -342,17 +301,14 @@ repositories:
 		require.NoError(t, cmd.ExecuteContext(context.Background()))
 
 		// Verify the artifact was installed
-		oldStdout := os.Stdout
-		_, w, _ := os.Pipe()
-		os.Stdout = w
-
-		listCmd := newRootCmd()
-		listCmd.SetArgs([]string{"--config", cfgPath, "list"})
-		require.NoError(t, listCmd.ExecuteContext(context.Background()))
-
-		_ = w.Close()
-		os.Stdout = oldStdout
-
+		installed := getInstalledArtifactsFromDB(t, cfgPath)
+		var ok bool
+		for _, a := range installed {
+			if a.Name == "testapp" && a.Version == "1.0.0" {
+				ok = true
+			}
+		}
+		require.True(t, ok, "testapp@1.0.0 should be installed")
 	})
 
 }
