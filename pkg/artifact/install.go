@@ -116,8 +116,8 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		DataFiles:           dataFileEntries,
 		ReverseDependencies: existingReverseDeps, // Use the saved reverse dependencies if any
 		Status:              model.StatusInstalled,
-		Checksum:            "",     // Assuming checksum is handled elsewhere or set later
-		InstallationReason:  reason, // Use the provided installation reason
+		Checksum:            desc.Checksum,
+		InstallationReason:  reason,
 	}
 
 	// Record reverse dependencies for each dependency

@@ -126,14 +126,6 @@ func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequ
 	allRequests := make([]model.ResolveRequest, len(requests))
 	copy(allRequests, requests)
 
-	// Determine OS/Arch from first request for keep preferences
-	os := "linux"   // default
-	arch := "amd64" // default
-	if len(requests) > 0 {
-		os = requests[0].OS
-		arch = requests[0].Arch
-	}
-
 	// Add keep preferences for all installed artifacts that aren't already in our requests
 	installedMap := make(map[string]bool)
 	for _, req := range requests {
@@ -145,8 +137,8 @@ func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequ
 			allRequests = append(allRequests, model.ResolveRequest{
 				Name:              installed.Name,
 				VersionConstraint: "", // No hard constraint, just preference
-				OS:                os,
-				Arch:              arch,
+				OS:                installed.OS,
+				Arch:              installed.Arch,
 				OldVersion:        installed.Version,
 				KeepVersion:       true, // Prefer to keep current version
 			})
@@ -409,8 +401,8 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		updateRequests = append(updateRequests, model.ResolveRequest{
 			Name:              pkg.Name,
 			VersionConstraint: ">= " + pkg.Version, // Update to current version or higher
-			OS:                "linux",             // TODO: Get from system or config
-			Arch:              "amd64",             // TODO: Get from system or config
+			OS:                pkg.OS,
+			Arch:              pkg.Arch,
 			OldVersion:        pkg.Version,
 			KeepVersion:       false, // Always update to latest compatible
 		})
