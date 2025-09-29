@@ -1326,7 +1326,7 @@ func TestUpdate_SpecificPackageUpdate(t *testing.T) {
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
-			require.Len(t, requests, 1, "should have one request")
+			require.Len(t, requests, 2, "should have two requests")
 			assert.Equal(t, "pkgB", requests[0].Name, "request should be for pkgB")
 			assert.Equal(t, ">= 2.0.0", requests[0].VersionConstraint, "should request version >= 2.0.0")
 			return plan, nil
@@ -1377,7 +1377,7 @@ func TestUpdate_SpecificPackageUpdate(t *testing.T) {
 	assert.Equal(t, "planning", events[0].Phase)
 	assert.Equal(t, "analyzing installed packages", events[0].Msg)
 	assert.Equal(t, "planning", events[1].Phase)
-	assert.Equal(t, "resolving updates for 1 packages", events[1].Msg)
+	assert.Equal(t, "resolving updates for 2 packages", events[1].Msg)
 	assert.Equal(t, "downloading", events[2].Phase)
 	assert.Equal(t, "updating", events[3].Phase)
 	assert.Equal(t, "done", events[4].Phase)

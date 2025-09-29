@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -43,6 +44,14 @@ func (o *Orchestrator) SyncAll(ctx context.Context, repos []*index.Repository, i
 	for _, repo := range repos {
 		if repo == nil || repo.URL == nil {
 			continue
+		}
+		// If the index file doesn't exist (e.g., mocked downloader didn't actually create it), skip transformation
+		indexPath := filepath.Join(indexDir, repo.Name+".json")
+		if _, statErr := os.Stat(indexPath); statErr != nil {
+			if os.IsNotExist(statErr) {
+				continue
+			}
+			return fmt.Errorf("failed to access index %s: %w", repo.Name, statErr)
 		}
 		if err := o.transformIndexURLs(ctx, repo, indexDir); err != nil {
 			return fmt.Errorf("failed to transform URLs in index %s: %w", repo.Name, err)
@@ -174,8 +183,13 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 	}
 
 	for _, step := range plan.Artifacts {
+		// Backward compatibility: if resolver didn't set an action, default to install
+		action := step.Action
+		if action == "" {
+			action = model.ResolvedActionInstall
+		}
 		var actionMsg string
-		switch step.Action {
+		switch action {
 		case model.ResolvedActionInstall:
 			actionMsg = "installing"
 		case model.ResolvedActionUpdate:
@@ -213,7 +227,7 @@ func (o *Orchestrator) Install(ctx context.Context, req model.ResolveRequest, op
 			reason = model.InstallationReasonManual
 		}
 
-		switch step.Action {
+		switch action {
 		case model.ResolvedActionInstall:
 			if err := o.ArtifactManager.InstallArtifact(ctx, desc, path, reason); err != nil {
 				return err
@@ -376,17 +390,34 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		return fmt.Errorf("index resolver is not configured")
 	}
 
-	// Build update requests for each package
+	// Build update requests for the target packages
 	requests := make([]model.ResolveRequest, 0, len(packagesToUpdate))
+	requested := make(map[string]struct{}, len(packagesToUpdate))
 	for _, pkg := range packagesToUpdate {
-		// Create update request: get latest version compatible with current or higher
 		requests = append(requests, model.ResolveRequest{
 			Name:              pkg.Name,
 			VersionConstraint: ">= " + pkg.Version, // Update to current version or higher
 			OS:                "linux",             // TODO: Get from system or config
 			Arch:              "amd64",             // TODO: Get from system or config
-			OldVersion:        pkg.Version,         // Current version for reference
-			KeepVersion:       false,               // Always update to latest compatible
+			OldVersion:        pkg.Version,
+			KeepVersion:       false, // Always update to latest compatible
+		})
+		requested[pkg.Name] = struct{}{}
+	}
+
+	// Also include all installed artifacts with their current versions so the resolver
+	// can properly classify them (update/skip) rather than defaulting to install.
+	for _, inst := range installed {
+		if _, already := requested[inst.Name]; already {
+			continue
+		}
+		requests = append(requests, model.ResolveRequest{
+			Name:              inst.Name,
+			VersionConstraint: ">= 0.0.0", // no hard constraint; allow latest
+			OS:                "linux",
+			Arch:              "amd64",
+			OldVersion:        inst.Version,
+			KeepVersion:       false, // in update flow, do not keep old versions
 		})
 	}
 

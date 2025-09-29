@@ -16,6 +16,57 @@ func setupTestManager(t *testing.T, artifactsJSON string) *ManagerImpl {
 	return NewManager([]*Repository{repo}, dir)
 }
 
+func TestResolve_KeepVersionPreferenceHonored_NoUnnecessaryUpdates(t *testing.T) {
+	// Simulate scenario: installing a new, unrelated package should NOT update other installed packages
+	// when KeepVersion=true and the old version satisfies constraints.
+	mgr := setupTestManager(t, `[
+        {"name":"tool","version":"1.0.0","url":"https://ex/tool-1.0","checksum":"tool1"},
+        {"name":"lib","version":"1.0.0","url":"https://ex/lib-1.0","checksum":"lib1"},
+        {"name":"lib","version":"2.0.0","url":"https://ex/lib-2.0","checksum":"lib2"}
+    ]`)
+
+	// Requests mimic orchestrator install: main request plus keep preference for installed artifacts
+	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		{
+			Name:              "tool",
+			VersionConstraint: "1.0.0",
+			OS:                "linux",
+			Arch:              "amd64",
+		},
+		{
+			Name:        "lib",
+			OS:          "linux",
+			Arch:        "amd64",
+			OldVersion:  "1.0.0",
+			KeepVersion: true, // prefer keeping lib@1.0.0 if possible
+		},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, plan.Artifacts, 2)
+
+	// Find entries by name to avoid depending on topo order
+	var libStep, toolStep *model.ResolvedArtifact
+	for i := range plan.Artifacts {
+		if plan.Artifacts[i].Name == "lib" {
+			libStep = &plan.Artifacts[i]
+		}
+		if plan.Artifacts[i].Name == "tool" {
+			toolStep = &plan.Artifacts[i]
+		}
+	}
+	require.NotNil(t, libStep)
+	require.NotNil(t, toolStep)
+
+	// Expectation: resolver should keep lib at 1.0.0 (skip) and install tool@1.0.0
+	assert.Equal(t, "1.0.0", libStep.Version)
+	assert.Equal(t, model.ResolvedActionSkip, libStep.Action)
+	assert.Contains(t, libStep.Reason, "already at the required version")
+
+	assert.Equal(t, "1.0.0", toolStep.Version)
+	assert.Equal(t, model.ResolvedActionInstall, toolStep.Action)
+}
+
 func TestResolve_SimpleDependencyChain(t *testing.T) {
 	// Test a simple dependency chain: a -> b -> c
 	mgr := setupTestManager(t, `[
@@ -264,33 +315,26 @@ func TestResolve_WithInstalledArtifacts_CompatibleVersions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, plan.Artifacts, 2)
 
-	// The resolver chooses the latest available version that satisfies constraints
-	// Since lib@1.0.0 is already installed but there's a newer lib@2.0.0 available,
-	// it should update to the latest version
-	var libID string
-	for _, artifact := range plan.Artifacts {
-		if artifact.Name == "lib" {
-			libID = artifact.GetID()
-			break
+	// With KeepVersion=true and constraint ">= 1.0.0", prefer keeping lib@1.0.0
+	// Validate by finding entries by name
+	var libStep, appStep *model.ResolvedArtifact
+	for i := range plan.Artifacts {
+		if plan.Artifacts[i].Name == "lib" {
+			libStep = &plan.Artifacts[i]
+		}
+		if plan.Artifacts[i].Name == "app" {
+			appStep = &plan.Artifacts[i]
 		}
 	}
-	assert.Contains(t, []string{"lib@2.0.0", "lib@3.0.0"}, libID, "lib should be updated to latest available version")
+	require.NotNil(t, libStep)
+	require.NotNil(t, appStep)
 
-	// Verify the action and reason
-	var libAction model.ResolvedAction
-	var libReason string
-	for _, artifact := range plan.Artifacts {
-		if artifact.Name == "lib" {
-			libAction = artifact.Action
-			libReason = artifact.Reason
-			break
-		}
-	}
-	assert.Equal(t, model.ResolvedActionUpdate, libAction, "lib should be updated")
-	assert.Contains(t, libReason, "updating")
+	assert.Equal(t, "1.0.0", libStep.Version)
+	assert.Equal(t, model.ResolvedActionSkip, libStep.Action)
+	assert.Contains(t, libStep.Reason, "already at the required version")
 
-	assert.Equal(t, "app@2.0.0", plan.Artifacts[1].GetID())
-	assert.Equal(t, model.ResolvedActionInstall, plan.Artifacts[1].Action)
+	assert.Equal(t, "2.0.0", appStep.Version)
+	assert.Equal(t, model.ResolvedActionInstall, appStep.Action)
 }
 
 func TestResolve_WithInstalledArtifacts_IncompatibleVersions(t *testing.T) {
@@ -394,7 +438,7 @@ func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
 	mgr := setupTestManager(t, `[
 		{"name":"app","version":"3.0.0","dependencies":[
 			{"name":"lib-a","version_constraint":">= 2.0.0"},
-			{"name":"lib-b","version_constraint":">= 1.0.0"}
+			{"name":"lib-b","version_constraint":">= 2.0.0"}
 		],"url":"https://ex/app-3.0","checksum":"app3"},
 		{"name":"lib-a","version":"2.0.0","url":"https://ex/lib-a-2.0","checksum":"liba2"},
 		{"name":"lib-a","version":"3.0.0","url":"https://ex/lib-a-3.0","checksum":"liba3"},
@@ -432,21 +476,20 @@ func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, plan.Artifacts, 3)
 
-	// lib-a should be updated to latest version (3.0.0) since >= 2.0.0 is required
-	// lib-b should be updated to latest version (2.0.0) since >= 1.0.0 is required and 2.0.0 is available
-	// app should be installed
-
-	var libAAction, appAction model.ResolvedAction
+	var libAAction, libBAction, appAction model.ResolvedAction
 	for _, artifact := range plan.Artifacts {
 		switch artifact.Name {
 		case "lib-a":
 			libAAction = artifact.Action
+		case "lib-b":
+			libBAction = artifact.Action
 		case "app":
 			appAction = artifact.Action
 		}
 	}
 
-	assert.Equal(t, model.ResolvedActionUpdate, libAAction, "lib-a should be updated to latest version")
+	assert.Equal(t, model.ResolvedActionSkip, libAAction, "lib-a should be kept")
+	assert.Equal(t, model.ResolvedActionUpdate, libBAction, "lib-b should be updated to latest version")
 	assert.Equal(t, model.ResolvedActionInstall, appAction, "app should be installed")
 }
 
@@ -455,12 +498,15 @@ func TestResolve_MultipleRequestsWithMixedKeepVersion(t *testing.T) {
 	mgr := setupTestManager(t, `[
 		{"name":"app","version":"2.0.0","dependencies":[
 			{"name":"lib-a","version_constraint":">= 1.0.0"},
-			{"name":"lib-b","version_constraint":">= 1.0.0"}
+			{"name":"lib-b","version_constraint":">= 1.0.0"},
+			{"name":"lib-c","version_constraint":">= 2.0.0"}
 		],"url":"https://ex/app-2.0","checksum":"app2"},
 		{"name":"lib-a","version":"1.0.0","url":"https://ex/lib-a-1.0","checksum":"liba1"},
 		{"name":"lib-a","version":"2.0.0","url":"https://ex/lib-a-2.0","checksum":"liba2"},
 		{"name":"lib-b","version":"1.0.0","url":"https://ex/lib-b-1.0","checksum":"libb1"},
-		{"name":"lib-b","version":"2.0.0","url":"https://ex/lib-b-2.0","checksum":"libb2"}
+		{"name":"lib-b","version":"2.0.0","url":"https://ex/lib-b-2.0","checksum":"libb2"},
+		{"name":"lib-c","version":"1.0.0","url":"https://ex/lib-c-1.0","checksum":"libc1"},
+		{"name":"lib-c","version":"2.0.0","url":"https://ex/lib-c-2.0","checksum":"libc2"}
 	]`)
 
 	// Test with mixed KeepVersion settings
@@ -489,28 +535,40 @@ func TestResolve_MultipleRequestsWithMixedKeepVersion(t *testing.T) {
 			OldVersion:        "1.0.0",
 			KeepVersion:       false,
 		},
+		{
+			Name:              "lib-c",
+			VersionConstraint: "",
+			OS:                "linux",
+			Arch:              "amd64",
+			OldVersion:        "1.0.0",
+			KeepVersion:       true,
+		},
 	})
 
 	require.NoError(t, err)
-	require.Len(t, plan.Artifacts, 3)
+	require.Len(t, plan.Artifacts, 4)
 
 	// Verify actions based on KeepVersion settings
-	var libAAction, libBAction, appAction model.ResolvedAction
+	var libAAction, libBAction, libCAction, appAction model.ResolvedAction
 	for _, artifact := range plan.Artifacts {
 		switch artifact.Name {
 		case "lib-a":
 			libAAction = artifact.Action
 		case "lib-b":
 			libBAction = artifact.Action
+		case "lib-c":
+			libCAction = artifact.Action
 		case "app":
 			appAction = artifact.Action
 		}
 	}
 
 	// lib-a should be updated (even with KeepVersion=true, latest version wins)
-	assert.Equal(t, model.ResolvedActionUpdate, libAAction, "lib-a should be updated despite KeepVersion=true")
+	assert.Equal(t, model.ResolvedActionSkip, libAAction, "lib-a should be kept")
 	// lib-b should be updated (KeepVersion=false)
 	assert.Equal(t, model.ResolvedActionUpdate, libBAction, "lib-b should be updated")
+	// lib-c should be updated (KeepVersion=true, dependency version wins)
+	assert.Equal(t, model.ResolvedActionUpdate, libCAction, "lib-c should be updated")
 	// app should be installed
 	assert.Equal(t, model.ResolvedActionInstall, appAction, "app should be installed")
 }

@@ -132,10 +132,27 @@ func (r *multiResolver) resolveNode(name string) error {
 
 	constraint := r.combineConstraints(r.constraints[name])
 
-	// Get the best version that satisfies the hard constraint
-	desc, err := r.manager.ResolveArtifact(name, constraint, r.getCommonOS(), r.getCommonArch())
-	if err != nil {
-		return err
+	// Try to honor keep preference by pinning to OldVersion if possible.
+	// If the pinned resolution fails, fall back to the general hard constraint.
+	var desc *model.IndexArtifactDescriptor
+	var err error
+	if pref, hasPref := r.preferences[name]; hasPref && pref.keepVersion && pref.oldVersion != "" {
+		pinned := constraint + ", = " + pref.oldVersion
+		if d, e := r.manager.ResolveArtifact(name, pinned, r.getCommonOS(), r.getCommonArch()); e == nil {
+			desc = d
+		} else {
+			// fall back to non-pinned constraint
+			desc, err = r.manager.ResolveArtifact(name, constraint, r.getCommonOS(), r.getCommonArch())
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		// No keep preference, resolve with hard constraint
+		desc, err = r.manager.ResolveArtifact(name, constraint, r.getCommonOS(), r.getCommonArch())
+		if err != nil {
+			return err
+		}
 	}
 
 	// Check if we have a preference for this package (indicating it was already installed)
