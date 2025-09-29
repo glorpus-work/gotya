@@ -53,7 +53,7 @@ func (o *Orchestrator) SyncAll(ctx context.Context, repos []*index.Repository, i
 			}
 			return fmt.Errorf("failed to access index %s: %w", repo.Name, statErr)
 		}
-		if err := o.transformIndexURLs(ctx, repo, indexDir); err != nil {
+		if err := o.transformIndexURLs(repo, indexDir); err != nil {
 			return fmt.Errorf("failed to transform URLs in index %s: %w", repo.Name, err)
 		}
 	}
@@ -63,7 +63,7 @@ func (o *Orchestrator) SyncAll(ctx context.Context, repos []*index.Repository, i
 
 // transformIndexURLs converts relative URLs in the downloaded index to absolute URLs
 // based on the repository server URL.
-func (o *Orchestrator) transformIndexURLs(ctx context.Context, repo *index.Repository, indexDir string) error {
+func (o *Orchestrator) transformIndexURLs(repo *index.Repository, indexDir string) error {
 	indexPath := filepath.Join(indexDir, repo.Name+".json")
 
 	// Parse the index
