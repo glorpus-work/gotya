@@ -37,29 +37,6 @@ Dependencies will be automatically resolved and installed.`,
 	return cmd
 }
 
-/*
-// NewUpdateCmd creates the update command.
-
-	func NewUpdateCmd() *cobra.Command {
-		var all bool
-
-		cmd := &cobra.Command{
-			Use:   "update [PACKAGE...]",
-			Short: "Update packages",
-			Long: `Update one or more installed packages to their latest versions.
-
-Use --all to update all installed packages.`,
-
-			RunE: func(_ *cobra.Command, args []string) error {
-				return runUpdate(args, all)
-			},
-		}
-
-		cmd.Flags().BoolVar(&all, "all", false, "Update all installed packages")
-
-		return cmd
-	}
-*/
 func runInstall(packages []string, force bool, dryRun bool, concurrency int, cacheDir string) error {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -111,54 +88,3 @@ func runInstall(packages []string, force bool, dryRun bool, concurrency int, cac
 
 	return nil
 }
-
-/*
-func runUpdate(packages []string, all bool) error {
-	cfg, err := loadConfig()
-	if err != nil {
-		return err
-	}
-
-	// Create orchestrator with hooks
-	orch := orchestrator.New(planner, artifactManager, dlManager, artifactManager, hooks)
-
-	// Create orchestrator with nil hooks manager for now
-	pkgInstaller := orchestrator.New(cfg, artifactManager, dlManager, artifactManager, orchestrator.Hooks{})
-
-	// Get packages to update
-	var packagesToUpdate []string
-	switch {
-	case all:
-		// Load installed packages database to get all installed packages
-		installedDB, err := pkgpkg.LoadInstalledDatabase(cfg.GetDatabasePath())
-		if err != nil {
-			return fmt.Errorf("failed to load installed packages database: %w", err)
-		}
-		// Get list of installed packages
-		for _, artifact := range installedDB.Artifacts {
-			packagesToUpdate = append(packagesToUpdate, artifact.Name)
-		}
-	case len(packages) > 0:
-		packagesToUpdate = packages
-	default:
-		return fmt.Errorf("no packages specified and --all flag not used")
-	}
-
-	// Process each artifact
-	updated := false
-	for _, pkgName := range packagesToUpdate {
-		wasUpdated, err := pkgInstaller.UpdateArtifact(pkgName)
-		if err != nil {
-			logger.Warnf("Failed to update %s: %v", pkgName, err)
-			continue
-		}
-		updated = updated || wasUpdated
-	}
-
-	if !updated {
-		logger.Info("All packages are up to date")
-	}
-
-	return nil
-}
-*/
