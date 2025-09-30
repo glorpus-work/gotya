@@ -42,3 +42,4 @@ linters:
         linters:
           - funlen
           - goconst
+          - err113
