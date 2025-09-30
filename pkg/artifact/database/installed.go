@@ -74,18 +74,20 @@ func (installedDB *InstalledManagerImpl) LoadDatabase(dbPath string) error {
 	return installedDB.parseInstalledDatabaseFromReader(file)
 }
 
-// parseInstalledDatabaseFromReader parses the database from an io.Reader.
-func (installedDB *InstalledManagerImpl) parseInstalledDatabaseFromReader(reader io.Reader) error {
-	data, err := io.ReadAll(reader)
-	if err != nil {
-		return fmt.Errorf("failed to read database: %w", err)
+// SetInstallationReason updates the installation reason for an artifact
+func (installedDB *InstalledManagerImpl) SetInstallationReason(name string, reason model.InstallationReason) error {
+	installedDB.rwMutex.Lock()
+	defer installedDB.rwMutex.Unlock()
+
+	for _, artifact := range installedDB.Artifacts {
+		if artifact.Name == name {
+			artifact.InstallationReason = reason
+			installedDB.LastUpdate = time.Now()
+			return nil
+		}
 	}
 
-	if err := json.Unmarshal(data, installedDB); err != nil {
-		return fmt.Errorf("failed to parse database: %w", err)
-	}
-
-	return nil
+	return fmt.Errorf("artifact %s not found: %w", name, errors.ErrArtifactNotFound)
 }
 
 // SaveDatabase saves the installed packages database to file.
@@ -237,18 +239,16 @@ func (installedDB *InstalledManagerImpl) FilteredArtifacts(nameFilter string) []
 	return filtered
 }
 
-// SetInstallationReason updates the installation reason for an artifact
-func (installedDB *InstalledManagerImpl) SetInstallationReason(name string, reason model.InstallationReason) error {
-	installedDB.rwMutex.Lock()
-	defer installedDB.rwMutex.Unlock()
-
-	for _, artifact := range installedDB.Artifacts {
-		if artifact.Name == name {
-			artifact.InstallationReason = reason
-			installedDB.LastUpdate = time.Now()
-			return nil
-		}
+// parseInstalledDatabaseFromReader parses the database from an io.Reader.
+func (installedDB *InstalledManagerImpl) parseInstalledDatabaseFromReader(reader io.Reader) error {
+	data, err := io.ReadAll(reader)
+	if err != nil {
+		return fmt.Errorf("failed to read database: %w", err)
 	}
 
-	return fmt.Errorf("artifact %s not found: %w", name, errors.ErrArtifactNotFound)
+	if err := json.Unmarshal(data, installedDB); err != nil {
+		return fmt.Errorf("failed to parse database: %w", err)
+	}
+
+	return nil
 }
