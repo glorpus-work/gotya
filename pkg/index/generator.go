@@ -208,6 +208,8 @@ func (g *Generator) Generate(ctx context.Context) error {
 // If no baseline path is set, it returns nil without an error.
 func (g *Generator) loadBaselineIndex() (*Index, error) {
 	if g.BaselineIndexPath == "" {
+		// Return nil, nil to indicate no baseline available (not an error condition)
+		//nolint:nilnil // This is intentional: nil return value with nil error means no baseline
 		return nil, nil
 	}
 
