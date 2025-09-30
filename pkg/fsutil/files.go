@@ -6,8 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 	"syscall"
 )
 
@@ -68,34 +66,6 @@ func isCrossFilesystemError(err error) bool {
 		if errno, ok := linkError.Err.(syscall.Errno); ok {
 			return errno == syscall.EXDEV
 		}
-	}
-
-	// Check for *os.PathError which might contain syscall errors
-	var pathErr *os.PathError
-	if errors.As(err, &pathErr) {
-		return isCrossFilesystemError(pathErr.Err)
-	}
-
-	// Fallback to string matching for cases where error types don't work
-	// (e.g., on Windows or other systems where EXDEV isn't available)
-	errMsg := strings.ToLower(err.Error())
-	crossDevicePatterns := []string{
-		"cross-device",
-		"cross device",
-		"invalid cross-device",
-		"resource busy", // Sometimes indicates cross-filesystem
-	}
-
-	for _, pattern := range crossDevicePatterns {
-		if strings.Contains(errMsg, pattern) {
-			return true
-		}
-	}
-
-	// On Windows, the error might be different, but let's be conservative
-	// and only treat obvious cross-device errors as such
-	if runtime.GOOS == "windows" {
-		return strings.Contains(errMsg, "cross-device") || strings.Contains(errMsg, "device")
 	}
 
 	return false
