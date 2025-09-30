@@ -72,6 +72,25 @@ func buildURLIndex(items []Item) (map[string][]int, error) {
 	return byURL, nil
 }
 
+func mapResultsByID(items []Item, results []string) map[string]string {
+	out := make(map[string]string, len(items))
+	for i, it := range items {
+		out[it.ID] = results[i]
+	}
+	return out
+}
+
+// Fetch downloads a single item and returns the path to the downloaded file.
+func (m *ManagerImpl) Fetch(ctx context.Context, item Item, opts Options) (string, error) {
+	if opts.Dir == "" || !filepath.IsAbs(opts.Dir) {
+		return "", fmt.Errorf("download dir must be absolute: %s: %w", opts.Dir, pkgerrors.ErrInvalidPath)
+	}
+	if err := os.MkdirAll(opts.Dir, fsutil.DirModeSecure); err != nil {
+		return "", pkgerrors.Wrap(err, "could not create download dir")
+	}
+	return m.fetchOne(ctx, item, opts)
+}
+
 func (m *ManagerImpl) runDownloadWorkers(ctx context.Context, items []Item, byURL map[string][]int, opts Options) ([]string, error) {
 	results := make([]string, len(items))
 	var firstErr error
@@ -115,25 +134,6 @@ func (m *ManagerImpl) runDownloadWorkers(ctx context.Context, items []Item, byUR
 		return nil, firstErr
 	}
 	return results, nil
-}
-
-func mapResultsByID(items []Item, results []string) map[string]string {
-	out := make(map[string]string, len(items))
-	for i, it := range items {
-		out[it.ID] = results[i]
-	}
-	return out
-}
-
-// Fetch downloads a single item and returns the path to the downloaded file.
-func (m *ManagerImpl) Fetch(ctx context.Context, item Item, opts Options) (string, error) {
-	if opts.Dir == "" || !filepath.IsAbs(opts.Dir) {
-		return "", fmt.Errorf("download dir must be absolute: %s: %w", opts.Dir, pkgerrors.ErrInvalidPath)
-	}
-	if err := os.MkdirAll(opts.Dir, fsutil.DirModeSecure); err != nil {
-		return "", pkgerrors.Wrap(err, "could not create download dir")
-	}
-	return m.fetchOne(ctx, item, opts)
 }
 
 func (m *ManagerImpl) fetchOne(ctx context.Context, item Item, opts Options) (string, error) {

@@ -239,57 +239,6 @@ func (c *Config) ToYAML() ([]byte, error) {
 	return data, nil
 }
 
-// applyDefaults fills in missing values with defaults.
-func (c *Config) applyDefaults() {
-	defaults := DefaultConfig()
-
-	// Apply default settings if not set
-	if c.Settings.CacheTTL == 0 {
-		c.Settings.CacheTTL = defaults.Settings.CacheTTL
-	}
-	if c.Settings.HTTPTimeout == 0 {
-		c.Settings.HTTPTimeout = defaults.Settings.HTTPTimeout
-	}
-	if c.Settings.MaxConcurrent == 0 {
-		c.Settings.MaxConcurrent = defaults.Settings.MaxConcurrent
-	}
-	if c.Settings.OutputFormat == "" {
-		c.Settings.OutputFormat = defaults.Settings.OutputFormat
-	}
-	if c.Settings.LogLevel == "" {
-		c.Settings.LogLevel = defaults.Settings.LogLevel
-	}
-	if c.Settings.CacheDir == "" {
-		c.Settings.CacheDir = defaults.Settings.CacheDir
-	}
-	if c.Settings.StateDir == "" {
-		c.Settings.StateDir = defaults.Settings.StateDir
-	}
-	if c.Settings.MetaDir == "" {
-		c.Settings.MetaDir = defaults.Settings.MetaDir
-	}
-	if c.Settings.InstallDir == "" {
-		c.Settings.InstallDir = defaults.Settings.InstallDir
-	}
-	if c.Settings.Platform.OS == "" {
-		c.Settings.Platform.OS = defaults.Settings.Platform.OS
-	}
-	if c.Settings.Platform.Arch == "" {
-		c.Settings.Platform.Arch = defaults.Settings.Platform.Arch
-	}
-
-	// Set enabled to true by default for repositories if not explicitly set
-	for i := range c.Repositories {
-		if c.Repositories[i].Name != "" && c.Repositories[i].URL != "" {
-			// In Go, bool defaults to false, so we need to explicitly set enabled repos
-			// This assumes all configured repos should be enabled by default
-			if c.Repositories[i].Name != "" { // Only enable if repo has a name
-				c.Repositories[i].Enabled = true
-			}
-		}
-	}
-}
-
 // Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
 	if c == nil {
@@ -468,6 +417,57 @@ func (c *Config) GetStateDir() string {
 // GetMetaDir returns the path to the meta directory.
 func (c *Config) GetMetaDir() string {
 	return c.Settings.MetaDir
+}
+
+// applyDefaults fills in missing values with defaults.
+func (c *Config) applyDefaults() {
+	defaults := DefaultConfig()
+
+	// Apply default settings if not set
+	if c.Settings.CacheTTL == 0 {
+		c.Settings.CacheTTL = defaults.Settings.CacheTTL
+	}
+	if c.Settings.HTTPTimeout == 0 {
+		c.Settings.HTTPTimeout = defaults.Settings.HTTPTimeout
+	}
+	if c.Settings.MaxConcurrent == 0 {
+		c.Settings.MaxConcurrent = defaults.Settings.MaxConcurrent
+	}
+	if c.Settings.OutputFormat == "" {
+		c.Settings.OutputFormat = defaults.Settings.OutputFormat
+	}
+	if c.Settings.LogLevel == "" {
+		c.Settings.LogLevel = defaults.Settings.LogLevel
+	}
+	if c.Settings.CacheDir == "" {
+		c.Settings.CacheDir = defaults.Settings.CacheDir
+	}
+	if c.Settings.StateDir == "" {
+		c.Settings.StateDir = defaults.Settings.StateDir
+	}
+	if c.Settings.MetaDir == "" {
+		c.Settings.MetaDir = defaults.Settings.MetaDir
+	}
+	if c.Settings.InstallDir == "" {
+		c.Settings.InstallDir = defaults.Settings.InstallDir
+	}
+	if c.Settings.Platform.OS == "" {
+		c.Settings.Platform.OS = defaults.Settings.Platform.OS
+	}
+	if c.Settings.Platform.Arch == "" {
+		c.Settings.Platform.Arch = defaults.Settings.Platform.Arch
+	}
+
+	// Set enabled to true by default for repositories if not explicitly set
+	for i := range c.Repositories {
+		if c.Repositories[i].Name != "" && c.Repositories[i].URL != "" {
+			// In Go, bool defaults to false, so we need to explicitly set enabled repos
+			// This assumes all configured repos should be enabled by default
+			if c.Repositories[i].Name != "" { // Only enable if repo has a name
+				c.Repositories[i].Enabled = true
+			}
+		}
+	}
 }
 
 func getUserDataDir() (string, error) {

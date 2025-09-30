@@ -178,6 +178,17 @@ func (rm *ManagerImpl) GetIndex(name string) (*Index, error) {
 	return index, nil
 }
 
+// Reload clears and reloads indexes from disk
+func (rm *ManagerImpl) Reload() error {
+	rm.indexes = make(map[string]*Index, len(rm.repositories))
+	return rm.loadIndexes()
+}
+
+// ListRepositories returns a list of all configured repositories.
+func (rm *ManagerImpl) ListRepositories() []*Repository {
+	return rm.repositories
+}
+
 func (rm *ManagerImpl) getIndexes() (map[string]*Index, error) {
 	if len(rm.indexes) == 0 {
 		if err := rm.loadIndexes(); err != nil {
@@ -185,12 +196,6 @@ func (rm *ManagerImpl) getIndexes() (map[string]*Index, error) {
 		}
 	}
 	return rm.indexes, nil
-}
-
-// Reload clears and reloads indexes from disk
-func (rm *ManagerImpl) Reload() error {
-	rm.indexes = make(map[string]*Index, len(rm.repositories))
-	return rm.loadIndexes()
 }
 
 func (rm *ManagerImpl) loadIndexes() error {
@@ -202,11 +207,6 @@ func (rm *ManagerImpl) loadIndexes() error {
 		rm.indexes[repo.Name] = index
 	}
 	return nil
-}
-
-// ListRepositories returns a list of all configured repositories.
-func (rm *ManagerImpl) ListRepositories() []*Repository {
-	return rm.repositories
 }
 
 func (rm *ManagerImpl) getRepository(name string) (*Repository, error) {

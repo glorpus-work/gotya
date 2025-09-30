@@ -19,6 +19,8 @@ linters:
     - err113
     - testifylint
     - nilnil
+    - copyloopvar
+    - funcorder
   settings:
     decorder:
       disable-dec-order-check: false

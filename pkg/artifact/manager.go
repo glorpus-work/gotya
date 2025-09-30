@@ -320,25 +320,6 @@ func (m ManagerImpl) findArtifactsDependingOn(db *database.InstalledManagerImpl,
 	}
 }
 
-// convertToResolvedArtifacts converts database artifacts to the expected ResolvedArtifacts format
-func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*model.InstalledArtifact) model.ResolvedArtifacts {
-	resolved := make([]model.ResolvedArtifact, 0, len(artifacts))
-
-	for _, artifact := range artifacts {
-		resolvedArtifact := model.ResolvedArtifact{
-			Name:      artifact.Name,
-			Version:   artifact.Version,
-			OS:        m.os,
-			Arch:      m.arch,
-			SourceURL: nil,
-			Checksum:  artifact.Checksum,
-		}
-		resolved = append(resolved, resolvedArtifact)
-	}
-
-	return model.ResolvedArtifacts{Artifacts: resolved}
-}
-
 // GetOrphanedAutomaticArtifacts returns all installed artifacts that are automatic and have no reverse dependencies
 func (m ManagerImpl) GetOrphanedAutomaticArtifacts() ([]string, error) {
 	// Load the installed database
@@ -346,7 +327,6 @@ func (m ManagerImpl) GetOrphanedAutomaticArtifacts() ([]string, error) {
 	if err := db.LoadDatabase(m.installedDBPath); err != nil {
 		return nil, fmt.Errorf("failed to load installed database: %w", err)
 	}
-
 	var orphaned []string
 
 	// Iterate through all installed artifacts
@@ -390,6 +370,25 @@ func (m ManagerImpl) GetInstalledArtifacts() ([]*model.InstalledArtifact, error)
 	}
 
 	return installed, nil
+}
+
+// convertToResolvedArtifacts converts database artifacts to the expected ResolvedArtifacts format
+func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*model.InstalledArtifact) model.ResolvedArtifacts {
+	resolved := make([]model.ResolvedArtifact, 0, len(artifacts))
+
+	for _, artifact := range artifacts {
+		resolvedArtifact := model.ResolvedArtifact{
+			Name:      artifact.Name,
+			Version:   artifact.Version,
+			OS:        m.os,
+			Arch:      m.arch,
+			SourceURL: nil,
+			Checksum:  artifact.Checksum,
+		}
+		resolved = append(resolved, resolvedArtifact)
+	}
+
+	return model.ResolvedArtifacts{Artifacts: resolved}
 }
 
 func (m ManagerImpl) getArtifactMetaInstallPath(artifactName string) string {
