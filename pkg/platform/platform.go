@@ -3,7 +3,6 @@ package platform
 import (
 	"fmt"
 	"runtime"
-	"strings"
 )
 
 // Platform represents a target platform with OS and Architecture.
@@ -12,6 +11,14 @@ type Platform struct {
 	OS   string `yaml:"os"`
 	Arch string `yaml:"arch"`
 }
+
+const (
+	// AnyOS represents any possible OS
+	AnyOS = "any"
+
+	// AnyArch represents any possible architecture
+	AnyArch = "any"
+)
 
 // CurrentPlatform returns the current platform (OS and architecture).
 func CurrentPlatform() Platform {
@@ -26,12 +33,12 @@ func CurrentPlatform() Platform {
 	}
 
 	return Platform{
-		OS:   NormalizeOS(goos),
-		Arch: NormalizeArch(goarch),
+		OS:   goos,
+		Arch: goarch,
 	}
 }
 
-// Detect returns the current OS and architecture as normalized strings.
+// Detect returns the current OS and architecture as strings.
 // This is a convenience function that returns the same values as CurrentPlatform()
 // but as separate return values for backward compatibility.
 func Detect() (os, arch string) {
@@ -48,49 +55,4 @@ func (p Platform) Matches(target Platform) bool {
 // String returns a string representation of the platform.
 func (p Platform) String() string {
 	return fmt.Sprintf("%s/%s", p.OS, p.Arch)
-}
-
-// NormalizeOS normalizes OS names to a common format.
-func NormalizeOS(osName string) string {
-	switch strings.ToLower(strings.TrimSpace(osName)) {
-	case "darwin":
-		return OSDarwin
-	case "win", "windows":
-		return OSWindows
-	case "linux":
-		return OSLinux
-	case "freebsd", "openbsd", "netbsd":
-		return strings.ToLower(strings.TrimSpace(osName)) // Keep as is but normalized to lowercase
-	default:
-		return strings.ToLower(strings.TrimSpace(osName))
-	}
-}
-
-// NormalizeArch normalizes architecture names to a common format.
-func NormalizeArch(arch string) string {
-	switch strings.ToLower(strings.TrimSpace(arch)) {
-	case "x86_64", "x64":
-		return ArchAMD64
-	case "i386", "i486", "i586", "i686":
-		return Arch386
-	case "aarch64":
-		return ArchARM64
-	case "armv6l", "armv7l":
-		return ArchARM
-	default:
-		return strings.ToLower(strings.TrimSpace(arch))
-	}
-}
-
-// IsCompatible checks if the current platform is compatible with the target platform.
-func IsCompatible(targetOS, targetArch string) bool {
-	current := CurrentPlatform()
-	targetOS = NormalizeOS(targetOS)
-	targetArch = NormalizeArch(targetArch)
-
-	// Handle "any" wildcards
-	osMatch := targetOS == AnyOS || current.OS == targetOS
-	archMatch := targetArch == AnyArch || current.Arch == targetArch
-
-	return osMatch && archMatch
 }

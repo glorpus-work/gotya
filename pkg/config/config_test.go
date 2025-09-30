@@ -97,36 +97,6 @@ func TestValidateConfig(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "invalid OS",
-			config: &Config{
-				Settings: Settings{
-					Platform: PlatformConfig{
-						OS:   "invalid-os",
-						Arch: "amd64",
-					},
-					OutputFormat:  "text",
-					MaxConcurrent: 1,
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid OS",
-		},
-		{
-			name: "invalid Arch",
-			config: &Config{
-				Settings: Settings{
-					Platform: PlatformConfig{
-						OS:   "linux",
-						Arch: "invalid-arch",
-					},
-					OutputFormat:  "text",
-					MaxConcurrent: 1,
-				},
-			},
-			wantErr: true,
-			errMsg:  "invalid architecture",
-		},
-		{
 			name: "invalid log level",
 			config: &Config{
 				Settings: Settings{

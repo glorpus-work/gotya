@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-
-	"github.com/cperrin88/gotya/pkg/platform"
 )
 
 const (
@@ -38,7 +36,7 @@ func getAppDataDir() (string, error) {
 	}
 
 	// Special case for Linux: follow XDG Base Directory Specification
-	if runtime.GOOS == platform.OSLinux {
+	if runtime.GOOS == "linux" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("failed to get user home directory: %w", err)

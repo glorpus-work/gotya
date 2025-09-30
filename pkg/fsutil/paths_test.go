@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/cperrin88/gotya/pkg/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -91,7 +90,7 @@ func TestEnsureDir(t *testing.T) {
 				assert.DirExists(t, path)
 
 				// Verify permissions (only check on Unix-like systems)
-				if testCase.checkPerms && runtime.GOOS != platform.OSWindows {
+				if testCase.checkPerms && runtime.GOOS != "windows" {
 					info, err := os.Stat(path)
 					require.NoError(t, err)
 					assert.Equal(t, os.FileMode(DirModeDefault), info.Mode().Perm())
@@ -160,7 +159,7 @@ func TestEnsureFileDir(t *testing.T) {
 }
 
 func TestEnsureDir_PermissionDenied(t *testing.T) {
-	if runtime.GOOS == platform.OSWindows {
+	if runtime.GOOS == "windows" {
 		t.Skip("Skipping permission test on Windows")
 	}
 

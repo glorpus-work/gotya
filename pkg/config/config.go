@@ -16,7 +16,6 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/fsutil"
-	"github.com/cperrin88/gotya/pkg/platform"
 	"gopkg.in/yaml.v3"
 )
 
@@ -247,9 +246,6 @@ func (c *Config) Validate() error {
 	if err := validateRepositories(c.Repositories); err != nil {
 		return err
 	}
-	if err := validatePlatform(c.Settings.Platform); err != nil {
-		return err
-	}
 	if err := validateSettings(c.Settings); err != nil {
 		return err
 	}
@@ -269,26 +265,6 @@ func validateRepositories(repos []*RepositoryConfig) error {
 			return errors.ErrRepositoryExistsWithName(repo.Name)
 		}
 		repoNames[repo.Name] = true
-	}
-	return nil
-}
-
-func validatePlatform(p PlatformConfig) error {
-	if p.OS != "" {
-		switch p.OS {
-		case platform.OSWindows, platform.OSLinux, platform.OSDarwin,
-			platform.OSFreeBSD, platform.OSOpenBSD, platform.OSNetBSD:
-			// ok
-		default:
-			return errors.ErrInvalidOSValueWithDetails(p.OS, platform.GetValidOS())
-		}
-	}
-	if p.Arch != "" {
-		switch p.Arch {
-		case "amd64", "386", "arm", "arm64":
-		default:
-			return errors.ErrInvalidArchValueWithDetails(p.Arch, platform.GetValidArch())
-		}
 	}
 	return nil
 }
@@ -477,7 +453,7 @@ func getUserDataDir() (string, error) {
 	}
 
 	// Special case for Linux: follow XDG Base Directory Specification
-	if runtime.GOOS == platform.OSLinux {
+	if runtime.GOOS == "linux" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return "", fmt.Errorf("failed to get user home directory: %w", err)

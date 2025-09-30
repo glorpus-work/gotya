@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/platform"
 )
 
 // SetValue sets a configuration value by key
@@ -28,19 +27,11 @@ func (c *Config) SetValue(key, value string) error {
 		c.Settings.LogLevel = value
 	case "platform.os":
 		if value != "" {
-			normalized := platform.NormalizeOS(value)
-			if normalized == "" {
-				return fmt.Errorf("invalid OS value: %s. Valid values are: %v: %w", value, platform.GetValidOS(), errors.ErrInvalidOSValue)
-			}
-			c.Settings.Platform.OS = normalized
+			c.Settings.Platform.OS = value
 		}
 	case "platform.arch":
 		if value != "" {
-			normalized := platform.NormalizeArch(value)
-			if normalized == "" {
-				return fmt.Errorf("invalid architecture value: %s. Valid values are: %v: %w", value, platform.GetValidArch(), errors.ErrInvalidArchValue)
-			}
-			c.Settings.Platform.Arch = normalized
+			c.Settings.Platform.Arch = value
 		}
 	case "platform.prefer_native":
 		preferNative, err := strconv.ParseBool(value)

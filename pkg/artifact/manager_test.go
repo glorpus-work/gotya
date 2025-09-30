@@ -11,7 +11,6 @@ import (
 	"github.com/cperrin88/gotya/pkg/artifact/database"
 	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/model"
-	"github.com/cperrin88/gotya/pkg/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +36,7 @@ var (
 )
 
 func TestNewManager(t *testing.T) {
-	mgr := NewManager(platform.OSLinux, platform.ArchAMD64, t.TempDir(), "", "", "")
+	mgr := NewManager("linux", "amd64", t.TempDir(), "", "", "")
 	assert.NotNil(t, mgr)
 }
 
