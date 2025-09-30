@@ -183,8 +183,14 @@ func TestGenerator_describeArtifact(t *testing.T) {
 			name: "valid artifact",
 			setup: func() string {
 				path := filepath.Join(os.TempDir(), "valid-artifact.gotya")
-				// Note: This function doesn't need t parameter since it doesn't use testing.T methods
-				// We can create the test artifact without needing the testing context
+				// Create a valid test artifact
+				createTestArtifact(t, path, &artifact.Metadata{
+					Name:        "valid-artifact",
+					Version:     "1.0.0",
+					OS:          "linux",
+					Arch:        "amd64",
+					Description: "Valid test artifact",
+				})
 				return path
 			},
 			wantErr: false,
@@ -412,9 +418,6 @@ func TestGenerator_makeURL(t *testing.T) {
 		})
 	}
 }
-
-// createTestArtifact creates a test artifact file with the given metadata
-// createTestIndex creates a test index file with the given artifacts
 func createTestIndex(t *testing.T, path string, artifacts []*model.IndexArtifactDescriptor) {
 	index := Index{
 		FormatVersion: CurrentFormatVersion,
