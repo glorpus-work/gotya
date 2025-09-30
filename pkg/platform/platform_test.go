@@ -5,6 +5,9 @@ import (
 	"testing"
 )
 
+// currentPlatformFunc allows us to mock CurrentPlatform for testing
+var currentPlatformFunc = CurrentPlatform
+
 func TestCurrentPlatform(t *testing.T) {
 	platform := CurrentPlatform()
 
@@ -273,6 +276,3 @@ func TestIsCompatible(t *testing.T) {
 		})
 	}
 }
-
-// currentPlatformFunc allows us to mock CurrentPlatform for testing
-var currentPlatformFunc = CurrentPlatform
