@@ -18,6 +18,7 @@ linters:
     - staticcheck
     - err113
     - testifylint
+    - nilnil
   settings:
     decorder:
       disable-dec-order-check: false

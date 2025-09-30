@@ -356,7 +356,7 @@ func (o *Orchestrator) buildInstallRequests(requests []model.ResolveRequest) ([]
 // prefetchPlanArtifacts downloads artifacts for a plan when a downloader is configured.
 func (o *Orchestrator) prefetchPlanArtifacts(ctx context.Context, plan model.ResolvedArtifacts, dlOpts download.Options) (map[string]string, error) {
 	if o.DL == nil || !filepath.IsAbs(dlOpts.Dir) {
-		return nil, nil
+		return map[string]string{}, nil
 	}
 	items := make([]download.Item, 0, len(plan.Artifacts))
 	for _, s := range plan.Artifacts {
@@ -366,7 +366,7 @@ func (o *Orchestrator) prefetchPlanArtifacts(ctx context.Context, plan model.Res
 		items = append(items, download.Item{ID: s.GetID(), URL: s.SourceURL, Checksum: s.Checksum})
 	}
 	if len(items) == 0 {
-		return nil, nil
+		return map[string]string{}, nil
 	}
 	emit(o.Hooks, Event{Phase: "downloading", Msg: "prefetching artifacts"})
 	fetched, err := o.DL.FetchAll(ctx, items, dlOpts)
