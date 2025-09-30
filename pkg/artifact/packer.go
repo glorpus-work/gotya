@@ -92,7 +92,7 @@ func (p *Packer) Pack() (string, error) {
 		return "", err
 	}
 
-	archiveManager := archive.NewArchiveManager()
+	archiveManager := archive.NewManager()
 	if err := archiveManager.Create(context.Background(), p.tempDir, p.getOutputFile()); err != nil {
 		return "", err
 	}

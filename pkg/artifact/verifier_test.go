@@ -15,7 +15,7 @@ import (
 
 func TestVerifier_extractArtifact_Success(t *testing.T) {
 	tempDir := t.TempDir()
-	archiveManager := archive.NewArchiveManager()
+	archiveManager := archive.NewManager()
 
 	// Create a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
@@ -51,7 +51,7 @@ func TestVerifier_extractArtifact_Success(t *testing.T) {
 
 func TestVerifier_extractArtifact_NonExistentFile(t *testing.T) {
 	tempDir := t.TempDir()
-	archiveManager := archive.NewArchiveManager()
+	archiveManager := archive.NewManager()
 
 	// Try to extract a non-existent artifact
 	err := archiveManager.ExtractAll(context.Background(), "/nonexistent/path.gotya", tempDir)
@@ -61,7 +61,7 @@ func TestVerifier_extractArtifact_NonExistentFile(t *testing.T) {
 
 func TestVerifier_extractArtifact_InvalidArchive(t *testing.T) {
 	tempDir := t.TempDir()
-	archiveManager := archive.NewArchiveManager()
+	archiveManager := archive.NewManager()
 
 	// Try to extract a non-existent artifact file
 	err := archiveManager.ExtractAll(context.Background(), "/nonexistent/path.gotya", tempDir)
@@ -71,7 +71,7 @@ func TestVerifier_extractArtifact_InvalidArchive(t *testing.T) {
 
 func TestVerifier_extractArtifact_MetaPackage(t *testing.T) {
 	tempDir := t.TempDir()
-	archiveManager := archive.NewArchiveManager()
+	archiveManager := archive.NewManager()
 
 	// Create a test meta-package (no data directory)
 	testArtifact := filepath.Join(tempDir, "test-meta.gotya")
@@ -103,7 +103,7 @@ func TestVerifier_extractArtifact_MetaPackage(t *testing.T) {
 
 func TestVerifier_extractArtifact_WithSymlinks(t *testing.T) {
 	tempDir := t.TempDir()
-	archiveManager := archive.NewArchiveManager()
+	archiveManager := archive.NewManager()
 
 	// Create a test artifact using the standard setup
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
@@ -136,7 +136,7 @@ func TestVerifier_extractArtifact_Permissions(t *testing.T) {
 		t.Skip("skipping permission test on Windows")
 	}
 	tempDir := t.TempDir()
-	archiveManager := archive.NewArchiveManager()
+	archiveManager := archive.NewManager()
 
 	// Create a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
@@ -287,7 +287,7 @@ func TestVerifier_Verify(t *testing.T) {
 
 func TestVerifier_extractArtifact_OverwriteProtection(t *testing.T) {
 	tempDir := t.TempDir()
-	archiveManager := archive.NewArchiveManager()
+	archiveManager := archive.NewManager()
 
 	// Create a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")

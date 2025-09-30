@@ -23,7 +23,7 @@ type ManagerImpl struct {
 	artifactMetaInstallDir string
 	installedDBPath        string
 	verifier               *Verifier
-	archiveManager         *archive.ArchiveManager
+	archiveManager         *archive.Manager
 }
 
 // NewManager creates a new artifact manager instance with the specified configuration.
@@ -37,7 +37,7 @@ func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInst
 		artifactMetaInstallDir: artifactMetaInstallDir,
 		installedDBPath:        installedDBPath,
 		verifier:               NewVerifier(),
-		archiveManager:         archive.NewArchiveManager(),
+		archiveManager:         archive.NewManager(),
 	}
 }
 

@@ -10,12 +10,7 @@ import (
 
 // NewGenerateCmd creates a new command for generating repository indexes.
 func NewGenerateCmd() *cobra.Command {
-	var (
-		basePath string
-		baseline string
-		force    bool
-	)
-
+	opts := &generateOptions{}
 	cmd := &cobra.Command{
 		Use:   "generate <source-dir> <output-file>",
 		Short: "Generate a repository index from .gotya artifacts",
@@ -24,60 +19,11 @@ func NewGenerateCmd() *cobra.Command {
 The index will include metadata from all .gotya files found in the source directory
 and its subdirectories. The output will be written to the specified file.`,
 		Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			sourceDir := args[0]
-			outputFile := args[1]
-
-			// Convert to absolute paths for better error messages
-			absSourceDir, err := filepath.Abs(sourceDir)
-			if err != nil {
-				return fmt.Errorf("invalid source directory: %w", err)
-			}
-
-			abosluteOutputFile, err := filepath.Abs(outputFile)
-			if err != nil {
-				return fmt.Errorf("invalid output file: %w", err)
-			}
-
-			// Initialize and configure the generator
-			gen := index.NewGenerator(absSourceDir, abosluteOutputFile)
-			gen.BasePath = basePath
-			gen.ForceOverwrite = force
-
-			// Set baseline if provided
-			if baseline != "" {
-				abosluteBaseline, err := filepath.Abs(baseline)
-				if err != nil {
-					return fmt.Errorf("invalid baseline file path: %w", err)
-				}
-				gen.WithBaseline(abosluteBaseline)
-			}
-
-			// Run the generation
-			if err := gen.Generate(cmd.Context()); err != nil {
-				return fmt.Errorf("failed to generate index: %w", err)
-			}
-
-			// Count artifacts for the success message
-			count, err := gen.CountArtifacts()
-			if err != nil {
-				// Non-fatal, just log a warning
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Failed to count artifacts: %v\n", err)
-			}
-
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Successfully generated index with %d artifacts at %s\n",
-				count, abosluteOutputFile)
-			return nil
-		},
+		RunE: func(cmd *cobra.Command, args []string) error { return runGenerate(cmd, args, opts) },
 	}
 
 	// Add flags
-	cmd.Flags().StringVarP(&basePath, "base-path", "b", "artifacts",
-		"Base path for artifact URLs in the index (e.g., 'artifacts')")
-	cmd.Flags().StringVar(&baseline, "baseline", "",
-		"Path to an existing index file to use as a baseline for merging")
-	cmd.Flags().BoolVarP(&force, "force", "f", false,
-		"Overwrite output file if it exists")
+	addGenerateFlags(cmd, opts)
 
 	// Add examples
 	cmd.Example = `  # Basic usage
@@ -93,4 +39,65 @@ and its subdirectories. The output will be written to the specified file.`,
   gotya index generate --baseline=./old-index.json ./artifacts ./repo/updated-index.json`
 
 	return cmd
+}
+
+type generateOptions struct {
+	basePath string
+	baseline string
+	force    bool
+}
+
+func addGenerateFlags(cmd *cobra.Command, o *generateOptions) {
+	cmd.Flags().StringVarP(&o.basePath, "base-path", "b", "artifacts",
+		"Base path for artifact URLs in the index (e.g., 'artifacts')")
+	cmd.Flags().StringVar(&o.baseline, "baseline", "",
+		"Path to an existing index file to use as a baseline for merging")
+	cmd.Flags().BoolVarP(&o.force, "force", "f", false,
+		"Overwrite output file if it exists")
+}
+
+func runGenerate(cmd *cobra.Command, args []string, o *generateOptions) error {
+	sourceDir := args[0]
+	outputFile := args[1]
+
+	// Convert to absolute paths for better error messages
+	absSourceDir, err := filepath.Abs(sourceDir)
+	if err != nil {
+		return fmt.Errorf("invalid source directory: %w", err)
+	}
+
+	absoluteOutputFile, err := filepath.Abs(outputFile)
+	if err != nil {
+		return fmt.Errorf("invalid output file: %w", err)
+	}
+
+	// Initialize and configure the generator
+	gen := index.NewGenerator(absSourceDir, absoluteOutputFile)
+	gen.BasePath = o.basePath
+	gen.ForceOverwrite = o.force
+
+	// Set baseline if provided
+	if o.baseline != "" {
+		absoluteBaseline, err := filepath.Abs(o.baseline)
+		if err != nil {
+			return fmt.Errorf("invalid baseline file path: %w", err)
+		}
+		gen.WithBaseline(absoluteBaseline)
+	}
+
+	// Run the generation
+	if err := gen.Generate(cmd.Context()); err != nil {
+		return fmt.Errorf("failed to generate index: %w", err)
+	}
+
+	// Count artifacts for the success message
+	count, err := gen.CountArtifacts()
+	if err != nil {
+		// Non-fatal, just log a warning
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: Failed to count artifacts: %v\n", err)
+	}
+
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Successfully generated index with %d artifacts at %s\n",
+		count, absoluteOutputFile)
+	return nil
 }

@@ -287,7 +287,7 @@ func (g *Generator) describeArtifact(ctx context.Context, filePath string) (*mod
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Extract the metadata file from the artifact
-	archiveManager := archive.NewArchiveManager()
+	archiveManager := archive.NewManager()
 	metaFilePath := filepath.Join(tempDir, "artifact.json")
 	err = archiveManager.ExtractFile(ctx, filePath, path.Join("meta", "artifact.json"), metaFilePath)
 	if err != nil {

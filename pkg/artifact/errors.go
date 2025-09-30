@@ -70,8 +70,8 @@ type (
 		Path string
 	}
 
-	// ArtifactVerificationError is returned when artifact verification fails.
-	ArtifactVerificationError struct {
+	// VerificationError is returned when artifact verification fails.
+	VerificationError struct {
 		ExpectedName    string
 		ExpectedVersion string
 		ActualName      string
@@ -109,8 +109,8 @@ func (e *PathTraversalError) Error() string {
 	return fmt.Sprintf("path traversal attempt detected: %s.", e.Path)
 }
 
-// Error implements the error interface for ArtifactVerificationError.
-func (e *ArtifactVerificationError) Error() string {
+// Error implements the error interface for VerificationError.
+func (e *VerificationError) Error() string {
 	return fmt.Sprintf("artifact verification failed: expected %s@%s, got %s@%s.",
 		e.ExpectedName, e.ExpectedVersion, e.ActualName, e.ActualVersion)
 }
@@ -130,9 +130,9 @@ func NewPathTraversalError(path string) error {
 	return &PathTraversalError{Path: path}
 }
 
-// NewArtifactVerificationError creates a new ArtifactVerificationError.
-func NewArtifactVerificationError(expectedName, expectedVersion, actualName, actualVersion string) error {
-	return &ArtifactVerificationError{
+// NewVerificationError creates a new VerificationError.
+func NewVerificationError(expectedName, expectedVersion, actualName, actualVersion string) error {
+	return &VerificationError{
 		ExpectedName:    expectedName,
 		ExpectedVersion: expectedVersion,
 		ActualName:      actualName,

@@ -1,3 +1,4 @@
+// Package main provides the gotya CLI entrypoint.
 package main
 
 import (

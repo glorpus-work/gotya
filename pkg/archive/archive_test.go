@@ -35,7 +35,7 @@ func TestArchiveManager_ExtractAll(t *testing.T) {
 	}
 
 	// Create archive manager
-	am := NewArchiveManager()
+	am := NewManager()
 
 	// Create archive
 	archivePath := filepath.Join(tempDir, "test.tar.gz")
@@ -103,7 +103,7 @@ func TestArchiveManager_ExtractFile(t *testing.T) {
 	}
 
 	// Create archive manager
-	am := NewArchiveManager()
+	am := NewManager()
 
 	// Create archive
 	archivePath := filepath.Join(tempDir, "test.tar.gz")

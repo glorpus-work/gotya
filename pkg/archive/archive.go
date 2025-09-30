@@ -1,3 +1,4 @@
+// Package archive provides utilities for creating and extracting artifact archives.
 package archive
 
 import (
@@ -11,16 +12,16 @@ import (
 	"github.com/mholt/archives"
 )
 
-// ArchiveManager handles archive extraction and creation operations
-type ArchiveManager struct{}
+// Manager handles archive extraction and creation operations.
+type Manager struct{}
 
-// NewArchiveManager creates a new ArchiveManager instance
-func NewArchiveManager() *ArchiveManager {
-	return &ArchiveManager{}
+// NewManager creates a new Manager instance.
+func NewManager() *Manager {
+	return &Manager{}
 }
 
 // ExtractAll extracts all files from an archive to the specified destination directory
-func (am *ArchiveManager) ExtractAll(ctx context.Context, archivePath, destDir string) error {
+func (am *Manager) ExtractAll(ctx context.Context, archivePath, destDir string) error {
 	// Open the archive file
 	fsys, err := archives.FileSystem(ctx, archivePath, nil)
 	if err != nil {
@@ -124,7 +125,7 @@ func (am *ArchiveManager) ExtractAll(ctx context.Context, archivePath, destDir s
 }
 
 // ExtractFile extracts a specific file from an archive to the specified destination
-func (am *ArchiveManager) ExtractFile(ctx context.Context, archivePath, filePath, destPath string) error {
+func (am *Manager) ExtractFile(ctx context.Context, archivePath, filePath, destPath string) error {
 	// Open the archive file
 	fsys, err := archives.FileSystem(ctx, archivePath, nil)
 	if err != nil {
@@ -163,7 +164,7 @@ func (am *ArchiveManager) ExtractFile(ctx context.Context, archivePath, filePath
 }
 
 // Create creates an archive from the specified source directory
-func (am *ArchiveManager) Create(ctx context.Context, sourceDir, archivePath string) error {
+func (am *Manager) Create(ctx context.Context, sourceDir, archivePath string) error {
 	// Compute absolute native and forward-slash normalized roots
 	absolutePath, err := filepath.Abs(sourceDir)
 	if err != nil {

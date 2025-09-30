@@ -31,75 +31,15 @@ func NewArtifactCmd() *cobra.Command {
 
 // newArtifactCreateCommand creates the 'artifact create' command.
 func newArtifactCreateCommand() *cobra.Command {
-	// Command line flags
-	var (
-		sourceDir    string
-		outputDir    string
-		pkgName      string
-		pkgVer       string
-		pkgOS        string
-		pkgArch      string
-		maintainer   string
-		description  string
-		dependencies []string
-		hooks        map[string]string
-	)
-
+	opts := &createOptions{}
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a new artifact",
 		Long: `Create a new gotya artifact from a source directory.
 The source directory should contain a 'meta/artifact.json' file and a 'files/' directory.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			// Parse dependencies
-			parsedDeps, err := ParseDependencies(dependencies)
-			if err != nil {
-				return fmt.Errorf("failed to parse dependencies: %w", err)
-			}
-
-			packer := artifact.NewPacker(
-				pkgName,
-				pkgVer,
-				pkgOS,
-				pkgArch,
-				maintainer,
-				description,
-				parsedDeps,
-				hooks,
-				sourceDir,
-				outputDir,
-			)
-			outputFile, err := packer.Pack()
-			if err != nil {
-				return fmt.Errorf("failed to create artifact: %w", err)
-			}
-			fmt.Printf("Successfully created artifact: %s\n", outputFile)
-			return nil
-		},
+		RunE: func(_ *cobra.Command, _ []string) error { return runCreateArtifact(opts) },
 	}
-
-	// Add flags with descriptions and defaults
-	cmd.Flags().StringVarP(&sourceDir, "source", "s", ".", "Source directory containing artifact files (required)")
-	cmd.Flags().StringVarP(&outputDir, "output", "o", ".", "Output directory for the created artifact")
-	cmd.Flags().StringVar(&pkgName, "name", "", "Artifact name (required, overrides name in artifact.json)")
-	cmd.Flags().StringVar(&pkgVer, "version", "0.1.0", "Artifact version (e.g., 1.0.0, overrides version in artifact.json)")
-	cmd.Flags().StringVar(&pkgOS, "os", runtime.GOOS, "Target operating system")
-	cmd.Flags().StringVar(&pkgArch, "arch", runtime.GOARCH, "Target architecture")
-	cmd.Flags().StringVar(&maintainer, "maintainer", "", "Artifact maintainer (name <email>)")
-	cmd.Flags().StringVar(&description, "description", "", "Artifact description")
-	cmd.Flags().StringSliceVar(&dependencies, "depends", nil, "Artifact dependencies (comma-separated)")
-	cmd.Flags().StringToStringVar(&hooks, "hooks", nil, "Artifact hooks in format 'hooks=script.tengo' (comma-separated)")
-
-	// Mark required flags
-	if err := cmd.MarkFlagRequired("source"); err != nil {
-		// This should never happen since we control the flag names
-		panic(fmt.Sprintf("failed to mark source as required: %v", err))
-	}
-	if err := cmd.MarkFlagRequired("name"); err != nil {
-		// This should never happen since we control the flag names
-		panic(fmt.Sprintf("failed to mark name as required: %v", err))
-	}
-
+	addCreateFlags(cmd, opts)
 	return cmd
 }
 
@@ -160,4 +100,68 @@ including file hashes and metadata structure.`,
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	return cmd
+}
+
+// createOptions holds flags for the create command.
+type createOptions struct {
+	sourceDir    string
+	outputDir    string
+	pkgName      string
+	pkgVer       string
+	pkgOS        string
+	pkgArch      string
+	maintainer   string
+	description  string
+	dependencies []string
+	hooks        map[string]string
+}
+
+func addCreateFlags(cmd *cobra.Command, o *createOptions) {
+	// Add flags with descriptions and defaults
+	cmd.Flags().StringVarP(&o.sourceDir, "source", "s", ".", "Source directory containing artifact files (required)")
+	cmd.Flags().StringVarP(&o.outputDir, "output", "o", ".", "Output directory for the created artifact")
+	cmd.Flags().StringVar(&o.pkgName, "name", "", "Artifact name (required, overrides name in artifact.json)")
+	cmd.Flags().StringVar(&o.pkgVer, "version", "0.1.0", "Artifact version (e.g., 1.0.0, overrides version in artifact.json)")
+	cmd.Flags().StringVar(&o.pkgOS, "os", runtime.GOOS, "Target operating system")
+	cmd.Flags().StringVar(&o.pkgArch, "arch", runtime.GOARCH, "Target architecture")
+	cmd.Flags().StringVar(&o.maintainer, "maintainer", "", "Artifact maintainer (name <email>)")
+	cmd.Flags().StringVar(&o.description, "description", "", "Artifact description")
+	cmd.Flags().StringSliceVar(&o.dependencies, "depends", nil, "Artifact dependencies (comma-separated)")
+	cmd.Flags().StringToStringVar(&o.hooks, "hooks", nil, "Artifact hooks in format 'hooks=script.tengo' (comma-separated)")
+
+	// Mark required flags
+	must(cmd.MarkFlagRequired("source"))
+	must(cmd.MarkFlagRequired("name"))
+}
+
+func runCreateArtifact(o *createOptions) error {
+	// Parse dependencies
+	parsedDeps, err := ParseDependencies(o.dependencies)
+	if err != nil {
+		return fmt.Errorf("failed to parse dependencies: %w", err)
+	}
+	packer := artifact.NewPacker(
+		o.pkgName,
+		o.pkgVer,
+		o.pkgOS,
+		o.pkgArch,
+		o.maintainer,
+		o.description,
+		parsedDeps,
+		o.hooks,
+		o.sourceDir,
+		o.outputDir,
+	)
+	outputFile, err := packer.Pack()
+	if err != nil {
+		return fmt.Errorf("failed to create artifact: %w", err)
+	}
+	fmt.Printf("Successfully created artifact: %s\n", outputFile)
+	return nil
+}
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
