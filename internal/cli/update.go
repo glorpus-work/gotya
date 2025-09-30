@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/orchestrator"
 	"github.com/spf13/cobra"
 )
@@ -55,7 +56,7 @@ func runUpdate(packages []string, all, dryRun bool, concurrency int, cacheDir st
 	// Verify interfaces
 	planner, ok := indexManager.(orchestrator.ArtifactResolver)
 	if !ok {
-		return fmt.Errorf("index manager does not support planning (missing Resolve method)")
+		return fmt.Errorf("index manager does not support planning (missing Resolve method): %w", errors.ErrValidation)
 	}
 
 	// Create progress hooks
@@ -82,7 +83,7 @@ func runUpdate(packages []string, all, dryRun bool, concurrency int, cacheDir st
 
 	// Validate arguments
 	if !all && len(packages) == 0 {
-		return fmt.Errorf("no packages specified and --all flag not used")
+		return fmt.Errorf("no packages specified and --all flag not used: %w", errors.ErrNoArtifactsSpecified)
 	}
 
 	// Execute update

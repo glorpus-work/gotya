@@ -48,10 +48,12 @@ var (
 // Artifact installation error functions.
 var (
 	// ErrArtifactAlreadyInstalled returns an error for when a artifact is already installed.
+	//nolint:err113 // Function variable for creating contextual errors is appropriate here
 	ErrArtifactAlreadyInstalled = func(pkgName string) error {
 		return fmt.Errorf("artifact %s is already installed (use --force to reinstall)", pkgName)
 	}
 	// ErrArtifactNotInstalled returns an error for when a artifact is not installed.
+	//nolint:err113 // Function variable for creating contextual errors is appropriate here
 	ErrArtifactNotInstalled = func(pkgName string) error {
 		return fmt.Errorf("artifact %s is not installed", pkgName)
 	}

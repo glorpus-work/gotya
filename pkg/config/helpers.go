@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/platform"
 )
 
@@ -29,7 +30,7 @@ func (c *Config) SetValue(key, value string) error {
 		if value != "" {
 			normalized := platform.NormalizeOS(value)
 			if normalized == "" {
-				return fmt.Errorf("invalid OS value: %s. Valid values are: %v", value, platform.GetValidOS())
+				return fmt.Errorf("invalid OS value: %s. Valid values are: %v: %w", value, platform.GetValidOS(), errors.ErrInvalidOSValue)
 			}
 			c.Settings.Platform.OS = normalized
 		}
@@ -37,18 +38,18 @@ func (c *Config) SetValue(key, value string) error {
 		if value != "" {
 			normalized := platform.NormalizeArch(value)
 			if normalized == "" {
-				return fmt.Errorf("invalid architecture value: %s. Valid values are: %v", value, platform.GetValidArch())
+				return fmt.Errorf("invalid architecture value: %s. Valid values are: %v: %w", value, platform.GetValidArch(), errors.ErrInvalidArchValue)
 			}
 			c.Settings.Platform.Arch = normalized
 		}
 	case "platform.prefer_native":
 		preferNative, err := strconv.ParseBool(value)
 		if err != nil {
-			return fmt.Errorf("invalid boolean value for platform.prefer_native: %s", value)
+			return fmt.Errorf("invalid boolean value for platform.prefer_native: %s: %w", value, errors.ErrInvalidBoolValue)
 		}
 		c.Settings.Platform.PreferNative = preferNative
 	default:
-		return fmt.Errorf("unknown configuration key: %s", key)
+		return fmt.Errorf("unknown configuration key: %s: %w", key, errors.ErrUnknownConfigKey)
 	}
 	return nil
 }
@@ -69,7 +70,7 @@ func (c *Config) GetValue(key string) (string, error) {
 	case "platform.prefer_native":
 		return strconv.FormatBool(c.Settings.Platform.PreferNative), nil
 	default:
-		return "", fmt.Errorf("unknown configuration key: %s", key)
+		return "", fmt.Errorf("unknown configuration key: %s: %w", key, errors.ErrUnknownConfigKey)
 	}
 }
 

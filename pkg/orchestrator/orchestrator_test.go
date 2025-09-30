@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/cperrin88/gotya/pkg/download"
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/model"
 	mocks "github.com/cperrin88/gotya/pkg/orchestrator/mocks"
@@ -85,7 +86,7 @@ func TestSyncAll_DownloadError(t *testing.T) {
 	defer ctrl.Finish()
 
 	dl := mocks.NewMockDownloader(ctrl)
-	expectedErr := fmt.Errorf("download failed")
+	expectedErr := errors.ErrDownloadFailed
 	dl.EXPECT().FetchAll(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, expectedErr).
 		Times(1)
@@ -410,7 +411,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 		Return(map[string]string{step.GetID(): tmpFile}, nil).
 		Times(1)
 
-	expectedErr := fmt.Errorf("installation failed")
+	expectedErr := errors.ErrArtifactInvalid
 	art := mocks.NewMockArtifactManager(ctrl)
 	art.EXPECT().
 		GetInstalledArtifacts().
@@ -751,7 +752,7 @@ func TestUninstall_ArtifactUninstallError(t *testing.T) {
 		VersionConstraint: "1.0.0",
 	}
 
-	expectedErr := fmt.Errorf("failed to uninstall artifact")
+	expectedErr := errors.ErrArtifactNotFound
 
 	// Create mocks
 	reverseIdx := mocks.NewMockArtifactReverseResolver(ctrl)
@@ -968,7 +969,7 @@ func TestCleanup_GetOrphanedError(t *testing.T) {
 	am := mocks.NewMockArtifactManager(ctrl)
 
 	// Set up expectations - getting orphaned artifacts fails
-	expectedError := fmt.Errorf("database connection failed")
+	expectedError := errors.ErrValidation
 	am.EXPECT().
 		GetOrphanedAutomaticArtifacts().
 		Return(nil, expectedError)
@@ -1039,7 +1040,7 @@ func TestUpdate_GetInstalledArtifactsError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	expectedErr := fmt.Errorf("database connection failed")
+	expectedErr := errors.ErrValidation
 
 	// Setup mocks
 	am := mocks.NewMockArtifactManager(ctrl)
@@ -1408,7 +1409,7 @@ func TestCleanup_UninstallError(t *testing.T) {
 		Return(nil)
 
 	// Second uninstall fails
-	uninstallError := fmt.Errorf("permission denied")
+	uninstallError := errors.ErrFileNotFound
 	am.EXPECT().
 		UninstallArtifact(gomock.Any(), "orphaned2", true).
 		Return(uninstallError)

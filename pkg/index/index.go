@@ -63,7 +63,7 @@ func ParseIndex(data []byte) (*Index, error) {
 
 	// Validate format version
 	if index.FormatVersion == "" {
-		return nil, fmt.Errorf("missing format version in index")
+		return nil, fmt.Errorf("missing format version in index: %w", errors.ErrValidation)
 	}
 
 	return &index, nil

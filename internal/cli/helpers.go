@@ -8,6 +8,7 @@ import (
 	"github.com/cperrin88/gotya/pkg/artifact"
 	"github.com/cperrin88/gotya/pkg/config"
 	"github.com/cperrin88/gotya/pkg/download"
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/index"
 	"github.com/cperrin88/gotya/pkg/model"
 )
@@ -131,14 +132,14 @@ func ParseDependencies(deps []string) ([]model.Dependency, error) {
 		parts := strings.SplitN(depStr, ":", 2)
 		name := strings.TrimSpace(parts[0])
 		if name == "" {
-			return nil, fmt.Errorf("invalid dependency format: empty package name in '%s'", depStr)
+			return nil, fmt.Errorf("invalid dependency format: empty package name in '%s': %w", depStr, errors.ErrValidation)
 		}
 
 		var versionConstraint string
 		if len(parts) == 2 {
 			versionConstraint = strings.TrimSpace(parts[1])
 			if versionConstraint == "" {
-				return nil, fmt.Errorf("invalid dependency format: empty version constraint for package '%s'", name)
+				return nil, fmt.Errorf("invalid dependency format: empty version constraint for package '%s': %w", name, errors.ErrValidation)
 			}
 		} else {
 			// Default version constraint if none provided

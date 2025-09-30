@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cperrin88/gotya/pkg/artifact"
+	"github.com/cperrin88/gotya/pkg/errors"
 )
 
 // NewArtifactCmd creates a new artifact command.
@@ -64,7 +65,7 @@ including file hashes and metadata structure.`,
 			}
 
 			if filePath == "" {
-				return fmt.Errorf("missing required argument: file path")
+				return fmt.Errorf("missing required argument: file path: %w", errors.ErrValidation)
 			}
 
 			// Convert to absolute path
@@ -75,7 +76,7 @@ including file hashes and metadata structure.`,
 
 			// Check if file exists
 			if _, err := os.Stat(absPath); os.IsNotExist(err) {
-				return fmt.Errorf("artifact file not found: %s", absPath)
+				return fmt.Errorf("artifact file not found: %s: %w", absPath, errors.ErrFileNotFound)
 			}
 
 			log.Printf("Verifying artifact: %s\n", absPath)

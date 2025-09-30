@@ -6,6 +6,7 @@ import (
 	slices2 "slices"
 	"strings"
 
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
@@ -22,7 +23,7 @@ func (rm *ManagerImpl) Resolve(ctx context.Context, requests []model.ResolveRequ
 	_ = ctx // reserved for future use
 
 	if len(requests) == 0 {
-		return model.ResolvedArtifacts{}, fmt.Errorf("no resolve requests provided")
+		return model.ResolvedArtifacts{}, fmt.Errorf("no resolve requests provided: %w", errors.ErrValidation)
 	}
 
 	// Normalize version constraints
@@ -127,7 +128,7 @@ func (r *multiResolver) resolveAll() error {
 
 func (r *multiResolver) resolveNode(name string) error {
 	if _, ok := r.visiting[name]; ok {
-		return fmt.Errorf("dependency cycle detected involving %s", name)
+		return fmt.Errorf("dependency cycle detected involving %s: %w", name, errors.ErrValidation)
 	}
 	r.visiting[name] = struct{}{}
 	defer delete(r.visiting, name)

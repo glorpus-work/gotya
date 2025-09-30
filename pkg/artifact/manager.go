@@ -10,6 +10,7 @@ import (
 	"github.com/cperrin88/gotya/internal/logger"
 	"github.com/cperrin88/gotya/pkg/archive"
 	"github.com/cperrin88/gotya/pkg/artifact/database"
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
@@ -74,13 +75,13 @@ func NewManager(operatingSystem, arch, artifactCacheDir, artifactInstallDir, art
 func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) (err error) {
 	// Input validation
 	if desc == nil {
-		return fmt.Errorf("artifact descriptor cannot be nil")
+		return fmt.Errorf("artifact descriptor cannot be nil: %w", errors.ErrValidation)
 	}
 	if desc.Name == "" {
-		return fmt.Errorf("artifact name cannot be empty")
+		return fmt.Errorf("artifact name cannot be empty: %w", errors.ErrValidation)
 	}
 	if localPath == "" {
-		return fmt.Errorf("local path cannot be empty")
+		return fmt.Errorf("local path cannot be empty: %w", errors.ErrValidation)
 	}
 
 	// Set up rollback in case of failure
@@ -130,7 +131,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 			existingReverseDeps = existingArtifact.ReverseDependencies
 			db.RemoveArtifact(desc.Name)
 		default:
-			return fmt.Errorf("artifact %s has unknown status: %s", desc.Name, existingArtifact.Status)
+			return fmt.Errorf("artifact %s has unknown status: %s: %w", desc.Name, existingArtifact.Status, errors.ErrValidation)
 		}
 	}
 
@@ -154,7 +155,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 func (m ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string, purge bool) error {
 	// Input validation
 	if artifactName == "" {
-		return fmt.Errorf("artifact name cannot be empty")
+		return fmt.Errorf("artifact name cannot be empty: %w", errors.ErrValidation)
 	}
 
 	// Load the installed database
@@ -165,12 +166,12 @@ func (m ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string,
 
 	// Check if the artifact is installed
 	if !db.IsArtifactInstalled(artifactName) {
-		return fmt.Errorf("artifact %s is not installed", artifactName)
+		return fmt.Errorf("artifact %s is not installed: %w", artifactName, errors.ErrArtifactNotFound)
 	}
 
 	artifact := db.FindArtifact(artifactName)
 	if artifact == nil {
-		return fmt.Errorf("artifact %s not found in database", artifactName)
+		return fmt.Errorf("artifact %s not found in database: %w", artifactName, errors.ErrArtifactNotFound)
 	}
 
 	// Handle purge mode
@@ -187,13 +188,13 @@ func (m ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string,
 func (m ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string, newDescriptor *model.IndexArtifactDescriptor) error {
 	// Input validation
 	if newArtifactPath == "" {
-		return fmt.Errorf("new artifact path cannot be empty")
+		return fmt.Errorf("new artifact path cannot be empty: %w", errors.ErrValidation)
 	}
 	if newDescriptor == nil {
-		return fmt.Errorf("new artifact descriptor cannot be nil")
+		return fmt.Errorf("new artifact descriptor cannot be nil: %w", errors.ErrValidation)
 	}
 	if newDescriptor.Name == "" {
-		return fmt.Errorf("artifact name cannot be empty")
+		return fmt.Errorf("artifact name cannot be empty: %w", errors.ErrValidation)
 	}
 
 	// Load the installed database
@@ -204,12 +205,12 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string,
 
 	// Check if the artifact is installed
 	if !db.IsArtifactInstalled(newDescriptor.Name) {
-		return fmt.Errorf("artifact %s is not installed", newDescriptor.Name)
+		return fmt.Errorf("artifact %s is not installed: %w", newDescriptor.Name, errors.ErrArtifactNotFound)
 	}
 
 	installedArtifact := db.FindArtifact(newDescriptor.Name)
 	if installedArtifact == nil {
-		return fmt.Errorf("artifact %s not found in database", newDescriptor.Name)
+		return fmt.Errorf("artifact %s not found in database: %w", newDescriptor.Name, errors.ErrArtifactNotFound)
 	}
 
 	// Verify the new artifact before proceeding
@@ -219,7 +220,7 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string,
 
 	// Validate that the new artifact name matches the installed artifact name
 	if installedArtifact.Name != newDescriptor.Name {
-		return fmt.Errorf("cannot update artifact %s with artifact %s: name mismatch", newDescriptor.Name, newDescriptor.Name)
+		return fmt.Errorf("cannot update artifact %s with artifact %s: name mismatch: %w", newDescriptor.Name, newDescriptor.Name, errors.ErrValidation)
 	}
 
 	// Check if this is actually an update (different version or URL)
@@ -230,7 +231,7 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string,
 			// This is an automatic -> manual upgrade, proceed with installation
 			logger.Debug("Upgrading automatic installation to manual", logger.Fields{"artifact": newDescriptor.Name})
 		} else {
-			return fmt.Errorf("artifact %s is already at the latest version", newDescriptor.Name)
+			return fmt.Errorf("artifact %s is already at the latest version: %w", newDescriptor.Name, errors.ErrValidation)
 		}
 	}
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cperrin88/gotya/pkg/artifact/database"
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
@@ -19,7 +20,7 @@ func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) error
 
 	// Check if metadata directory exists
 	if _, err := os.Stat(metaSrcDir); os.IsNotExist(err) {
-		return fmt.Errorf("metadata directory not found in artifact")
+		return fmt.Errorf("metadata directory not found in artifact: %w", errors.ErrFileNotFound)
 	}
 
 	err := os.MkdirAll(m.artifactMetaInstallDir, 0o755)

@@ -43,7 +43,7 @@ func (m *ManagerImpl) FetchAll(ctx context.Context, items []Item, opts Options) 
 		opts.Concurrency = max(2, runtime.NumCPU()/2)
 	}
 	if opts.Dir == "" || !filepath.IsAbs(opts.Dir) {
-		return nil, fmt.Errorf("download dir must be absolute: %s", opts.Dir)
+		return nil, fmt.Errorf("download dir must be absolute: %w: %s", pkgerrors.ErrInvalidPath, opts.Dir)
 	}
 	if err := os.MkdirAll(opts.Dir, fsutil.DirModeSecure); err != nil {
 		return nil, pkgerrors.Wrap(err, "could not create download dir")
@@ -64,7 +64,7 @@ func buildURLIndex(items []Item) (map[string][]int, error) {
 	byURL := make(map[string][]int)
 	for i, it := range items {
 		if it.URL == nil {
-			return nil, fmt.Errorf("item %d has nil URL", i)
+			return nil, fmt.Errorf("item %d has nil URL: %w", i, pkgerrors.ErrDownloadFailed)
 		}
 		key := it.URL.String()
 		byURL[key] = append(byURL[key], i)
@@ -128,7 +128,7 @@ func mapResultsByID(items []Item, results []string) map[string]string {
 // Fetch downloads a single item and returns the path to the downloaded file.
 func (m *ManagerImpl) Fetch(ctx context.Context, item Item, opts Options) (string, error) {
 	if opts.Dir == "" || !filepath.IsAbs(opts.Dir) {
-		return "", fmt.Errorf("download dir must be absolute: %s", opts.Dir)
+		return "", fmt.Errorf("download dir must be absolute: %s: %w", opts.Dir, pkgerrors.ErrInvalidPath)
 	}
 	if err := os.MkdirAll(opts.Dir, fsutil.DirModeSecure); err != nil {
 		return "", pkgerrors.Wrap(err, "could not create download dir")
@@ -138,7 +138,7 @@ func (m *ManagerImpl) Fetch(ctx context.Context, item Item, opts Options) (strin
 
 func (m *ManagerImpl) fetchOne(ctx context.Context, item Item, opts Options) (string, error) {
 	if item.URL == nil {
-		return "", fmt.Errorf("nil URL")
+		return "", fmt.Errorf("nil URL: %w", pkgerrors.ErrDownloadFailed)
 	}
 	filename := selectFilename(item)
 	absPath := filepath.Join(opts.Dir, filename)
@@ -160,7 +160,7 @@ func (m *ManagerImpl) fetchOne(ctx context.Context, item Item, opts Options) (st
 			return "", err
 		}
 		if !ok {
-			return "", fmt.Errorf("checksum mismatch for %s", item.URL)
+			return "", fmt.Errorf("checksum mismatch for %s: %w", item.URL, pkgerrors.ErrFileHashMismatch)
 		}
 	}
 	if err := finalizeFile(tmpPath, absPath); err != nil {
@@ -205,7 +205,7 @@ func (m *ManagerImpl) doRequest(ctx context.Context, item Item) (*http.Response,
 	}
 	if resp.StatusCode != http.StatusOK {
 		_ = resp.Body.Close()
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %d: %w", resp.StatusCode, pkgerrors.ErrDownloadFailed)
 	}
 	return resp, nil
 }

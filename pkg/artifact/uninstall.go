@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/cperrin88/gotya/pkg/artifact/database"
+	"github.com/cperrin88/gotya/pkg/errors"
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
@@ -88,7 +89,7 @@ func (m ManagerImpl) uninstallSelectively(_ context.Context, db *database.Instal
 func (m ManagerImpl) deleteFile(path string, dirsToCheck map[string]bool) error {
 	if err := os.Remove(path); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("file not found: %s", path)
+			return fmt.Errorf("file not found: %s: %w", path, errors.ErrFileNotFound)
 		}
 		return fmt.Errorf("failed to remove file %s: %w", path, err)
 	}

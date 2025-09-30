@@ -256,7 +256,7 @@ func (g *Generator) processArtifacts(ctx context.Context, baseline *Index) ([]*m
 		key := fmt.Sprintf("%s@%s", desc.Name, desc.Version)
 		if existing, exists := artifacts[key]; exists {
 			if !artifactsEqual(desc, existing) {
-				return fmt.Errorf("conflict for artifact %s@%s: metadata differs from baseline", desc.Name, desc.Version)
+				return fmt.Errorf("conflict for artifact %s@%s: metadata differs from baseline: %w", desc.Name, desc.Version, errors.ErrIndexConflict)
 			}
 		}
 		artifacts[key] = desc

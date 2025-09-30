@@ -306,9 +306,12 @@ func ErrInvalidBoolValueWithDetails(key, value string) error {
 	return fmt.Errorf("%w for %s: %s", ErrInvalidBoolValue, key, value)
 }
 
-// ErrRepositoryNotFound creates an error for when a repository with the given name is not found.
-func ErrRepositoryNotFound(name string) error {
-	return fmt.Errorf("index with name %s not found", name)
+// ErrRepositoryNotFound is returned when a repository with the given name is not found.
+var ErrRepositoryNotFound = fmt.Errorf("repository not found")
+
+// ErrRepositoryNotFoundWithName creates an error for when a repository with the given name is not found.
+func ErrRepositoryNotFoundWithName(name string) error {
+	return fmt.Errorf("%w: %s", ErrRepositoryNotFound, name)
 }
 
 // ErrUnknownConfigKeyWithName is a helper to create a wrapped error with the unknown key.

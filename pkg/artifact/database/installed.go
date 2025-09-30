@@ -250,5 +250,5 @@ func (installedDB *InstalledManagerImpl) SetInstallationReason(name string, reas
 		}
 	}
 
-	return fmt.Errorf("artifact %s not found", name)
+	return fmt.Errorf("artifact %s not found: %w", name, errors.ErrArtifactNotFound)
 }

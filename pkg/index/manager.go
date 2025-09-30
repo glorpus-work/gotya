@@ -96,10 +96,9 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 		// Artifact exists but no version matches the constraints
 		availableVersions := availableVersionsForPlatform(repoArtifacts, os, arch)
 		if len(availableVersions) == 0 {
-			return nil, fmt.Errorf("artifact %s not found for %s/%s in any repository", name, os, arch)
+			return nil, fmt.Errorf("artifact %s not found for %s/%s in any repository: %w", name, os, arch, ErrArtifactNotFound)
 		}
-		return nil, fmt.Errorf("artifact %s not found with version constraint %s (available versions: %v, os: %s, arch: %s)",
-			name, version, availableVersions, os, arch)
+		return nil, fmt.Errorf("artifact %s not found with version constraint %s (available versions: %v, os: %s, arch: %s): %w", name, version, availableVersions, os, arch, ErrArtifactNotFound)
 	}
 
 	finalArtifact := selectBestByPriorityAndVersion(repoPrioArtifacts)
@@ -131,7 +130,7 @@ func (rm *ManagerImpl) filterAndGroupByPriority(repoArtifacts map[string][]*mode
 			}
 			repo, err := rm.getRepository(idxName)
 			if err != nil {
-				return nil, errors.ErrRepositoryNotFound(idxName)
+				return nil, errors.ErrRepositoryNotFoundWithName(idxName)
 			}
 			if repoPrioArtifacts[repo.Priority] == nil {
 				repoPrioArtifacts[repo.Priority] = make([]*model.IndexArtifactDescriptor, 0, 5)
@@ -215,7 +214,7 @@ func (rm *ManagerImpl) getRepository(name string) (*Repository, error) {
 		return r.Name == name
 	})
 	if idx == -1 {
-		return nil, errors.ErrRepositoryNotFound(name)
+		return nil, errors.ErrRepositoryNotFoundWithName(name)
 	}
 	return rm.repositories[idx], nil
 }
