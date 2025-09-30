@@ -108,8 +108,8 @@ func TestCleanAll(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "artifact file should be deleted")
 
 	// Verify the result contains the expected sizes
-	assert.Greater(t, result.IndexFreed, int64(0), "should have freed some index data")
-	assert.Greater(t, result.ArtifactFreed, int64(0), "should have freed some artifact data")
+	assert.Positive(t, result.IndexFreed, "should have freed some index data")
+	assert.Positive(t, result.ArtifactFreed, "should have freed some artifact data")
 	assert.Equal(t, result.IndexFreed+result.ArtifactFreed, result.TotalFreed, "total should be sum of index and artifact")
 }
 
@@ -132,7 +132,7 @@ func TestCleanIndexesOnly(t *testing.T) {
 	assert.NoError(t, err, "artifact file should still exist")
 
 	// Verify the result
-	assert.Greater(t, result.IndexFreed, int64(0), "should have freed some index data")
+	assert.Positive(t, result.IndexFreed, "should have freed some index data")
 	assert.Equal(t, int64(0), result.ArtifactFreed, "no artifact data should be freed")
 	assert.Equal(t, result.IndexFreed, result.TotalFreed, "total should equal index freed")
 }
@@ -177,7 +177,7 @@ func TestCleanArtifactsOnly(t *testing.T) {
 	result, err := mgr.Clean(cache.CleanOptions{Artifacts: true})
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Greater(t, result.ArtifactFreed, int64(0), "should have freed some artifact data")
+	assert.Positive(t, result.ArtifactFreed, "should have freed some artifact data")
 	assert.Equal(t, int64(0), result.IndexFreed, "no index data should be freed")
 
 	// Verify artifact file was deleted
@@ -201,9 +201,9 @@ func TestGetInfo(t *testing.T) {
 
 	// Verify all fields are set correctly
 	assert.Equal(t, tempDir, info.Directory)
-	assert.Greater(t, info.TotalSize, int64(0))
-	assert.Greater(t, info.IndexSize, int64(0))
-	assert.Greater(t, info.ArtifactSize, int64(0))
+	assert.Positive(t, info.TotalSize)
+	assert.Positive(t, info.IndexSize)
+	assert.Positive(t, info.ArtifactSize)
 	assert.Equal(t, 1, info.IndexFiles)
 	assert.Equal(t, 1, info.ArtifactFiles)
 	assert.False(t, info.LastCleaned.IsZero(), "LastCleaned should be set")

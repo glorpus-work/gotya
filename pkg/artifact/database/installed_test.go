@@ -60,7 +60,7 @@ func TestInstalledManager(t *testing.T) {
 			// Remove existing artifact
 			removed := db.RemoveArtifact("test-artifact")
 			assert.True(t, removed)
-			assert.Len(t, db.Artifacts, 0)
+			assert.Empty(t, db.Artifacts)
 
 			// Try to remove non-existent artifact
 			removed = db.RemoveArtifact("non-existent")

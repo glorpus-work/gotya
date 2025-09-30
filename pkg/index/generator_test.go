@@ -254,7 +254,7 @@ func TestGenerator_WithBaseline(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should contain both the baseline artifact and the new one
-	assert.Equal(t, 2, len(result.Artifacts), "should contain both baseline and new artifact")
+	assert.Len(t, result.Artifacts, 2, "should contain both baseline and new artifact")
 
 	// Verify the artifacts are present
 	foundExisting := false
@@ -362,7 +362,7 @@ func TestGenerator_WithBaseline_NoNewArtifacts(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should contain only the baseline artifact
-	assert.Equal(t, 1, len(result.Artifacts), "should contain only the baseline artifact")
+	assert.Len(t, result.Artifacts, 1, "should contain only the baseline artifact")
 	assert.Equal(t, "baseline-only", result.Artifacts[0].Name)
 }
 

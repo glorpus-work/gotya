@@ -72,7 +72,7 @@ func TestSaveConfig(t *testing.T) {
 	// Verify the file exists and has content
 	data, err := os.ReadFile(configPath)
 	require.NoError(t, err)
-	assert.True(t, len(data) > 0)
+	assert.NotEmpty(t, data)
 
 	// Load it back and verify
 	loadedCfg, err := LoadConfig(configPath)
@@ -277,7 +277,7 @@ func TestRepositoryManagement(t *testing.T) {
 	// Test RemoveRepository
 	removed := cfg.RemoveRepository("test-repo")
 	assert.True(t, removed)
-	assert.Len(t, cfg.Repositories, 0)
+	assert.Empty(t, cfg.Repositories)
 
 	// Test Remove non-existent index
 	removed = cfg.RemoveRepository("non-existent")
