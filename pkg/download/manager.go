@@ -49,7 +49,18 @@ func (m *ManagerImpl) FetchAll(ctx context.Context, items []Item, opts Options) 
 		return nil, pkgerrors.Wrap(err, "could not create download dir")
 	}
 
-	// de-duplicate by URL string to avoid downloading the same resource multiple times in a batch
+	byURL, err := buildURLIndex(items)
+	if err != nil {
+		return nil, err
+	}
+	results, err := m.runDownloadWorkers(ctx, items, byURL, opts)
+	if err != nil {
+		return nil, err
+	}
+	return mapResultsByID(items, results), nil
+}
+
+func buildURLIndex(items []Item) (map[string][]int, error) {
 	byURL := make(map[string][]int)
 	for i, it := range items {
 		if it.URL == nil {
@@ -58,7 +69,10 @@ func (m *ManagerImpl) FetchAll(ctx context.Context, items []Item, opts Options) 
 		key := it.URL.String()
 		byURL[key] = append(byURL[key], i)
 	}
+	return byURL, nil
+}
 
+func (m *ManagerImpl) runDownloadWorkers(ctx context.Context, items []Item, byURL map[string][]int, opts Options) ([]string, error) {
 	results := make([]string, len(items))
 	var firstErr error
 	var mu sync.Mutex
@@ -66,13 +80,11 @@ func (m *ManagerImpl) FetchAll(ctx context.Context, items []Item, opts Options) 
 	tasks := make(chan string)
 	var wg sync.WaitGroup
 
-	// worker pool
 	for w := 0; w < opts.Concurrency; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for urlStr := range tasks {
-				// pick the first representative index for this URL
 				idx := byURL[urlStr][0]
 				path, err := m.fetchOne(ctx, items[idx], opts)
 				mu.Lock()
@@ -80,7 +92,6 @@ func (m *ManagerImpl) FetchAll(ctx context.Context, items []Item, opts Options) 
 					if firstErr == nil {
 						firstErr = err
 					}
-					// still mark all duplicates with empty to signal failure
 					for _, i := range byURL[urlStr] {
 						results[i] = ""
 					}
@@ -100,16 +111,18 @@ func (m *ManagerImpl) FetchAll(ctx context.Context, items []Item, opts Options) 
 	}
 	close(tasks)
 	wg.Wait()
-
 	if firstErr != nil {
 		return nil, firstErr
 	}
+	return results, nil
+}
 
+func mapResultsByID(items []Item, results []string) map[string]string {
 	out := make(map[string]string, len(items))
 	for i, it := range items {
 		out[it.ID] = results[i]
 	}
-	return out, nil
+	return out
 }
 
 // Fetch downloads a single item and returns the path to the downloaded file.
@@ -127,47 +140,77 @@ func (m *ManagerImpl) fetchOne(ctx context.Context, item Item, opts Options) (st
 	if item.URL == nil {
 		return "", fmt.Errorf("nil URL")
 	}
-
-	// choose a filename: prefer provided, then checksum-based, then hash of URL path
-	filename := item.Filename
-	if filename == "" {
-		if item.Checksum != "" {
-			filename = item.Checksum
-		} else {
-			h := sha256.Sum256([]byte(item.URL.String()))
-			filename = hex.EncodeToString(h[:])
-		}
-	}
+	filename := selectFilename(item)
 	absPath := filepath.Join(opts.Dir, filename)
-
-	// If file exists and checksum matches (if provided), reuse it
-	if st, err := os.Stat(absPath); err == nil && st.Size() > 0 {
-		if item.Checksum == "" {
-			return absPath, nil
-		}
-		ok, err := verifySHA256(absPath, item.Checksum)
-		if err == nil && ok {
-			return absPath, nil
-		}
-		// otherwise, re-download
+	if reuse, ok := tryReuseExisting(absPath, item.Checksum); ok {
+		return reuse, nil
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, item.URL.String(), http.NoBody)
+	resp, err := m.doRequest(ctx, item)
 	if err != nil {
-		return "", pkgerrors.Wrap(err, "failed to create request")
-	}
-	req.Header.Set("User-Agent", m.userAgent)
-
-	resp, err := m.client.Do(req)
-	if err != nil {
-		return "", pkgerrors.Wrap(err, "download failed")
+		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	tmpPath, err := writeBodyToTemp(resp, absPath)
+	if err != nil {
+		return "", err
 	}
+	if item.Checksum != "" {
+		ok, err := verifySHA256(tmpPath, item.Checksum)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", fmt.Errorf("checksum mismatch for %s", item.URL)
+		}
+	}
+	if err := finalizeFile(tmpPath, absPath); err != nil {
+		return "", err
+	}
+	return absPath, nil
+}
 
-	// write to temp file then atomically rename
+func selectFilename(item Item) string {
+	if item.Filename != "" {
+		return item.Filename
+	}
+	if item.Checksum != "" {
+		return item.Checksum
+	}
+	h := sha256.Sum256([]byte(item.URL.String()))
+	return hex.EncodeToString(h[:])
+}
+
+func tryReuseExisting(absPath, checksum string) (string, bool) {
+	if st, err := os.Stat(absPath); err == nil && st.Size() > 0 {
+		if checksum == "" {
+			return absPath, true
+		}
+		ok, err := verifySHA256(absPath, checksum)
+		if err == nil && ok {
+			return absPath, true
+		}
+	}
+	return "", false
+}
+
+func (m *ManagerImpl) doRequest(ctx context.Context, item Item) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, item.URL.String(), http.NoBody)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, "failed to create request")
+	}
+	req.Header.Set("User-Agent", m.userAgent)
+	resp, err := m.client.Do(req)
+	if err != nil {
+		return nil, pkgerrors.Wrap(err, "download failed")
+	}
+	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	return resp, nil
+}
+
+func writeBodyToTemp(resp *http.Response, absPath string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(absPath), fsutil.DirModeSecure); err != nil {
 		return "", pkgerrors.Wrap(err, "could not create download dir")
 	}
@@ -189,26 +232,17 @@ func (m *ManagerImpl) fetchOne(ctx context.Context, item Item, opts Options) (st
 	if err := tmp.Close(); err != nil {
 		return "", pkgerrors.Wrap(err, "could not close file")
 	}
+	return tmpPath, nil
+}
 
-	// verify checksum if provided
-	if item.Checksum != "" {
-		ok, err := verifySHA256(tmpPath, item.Checksum)
-		if err != nil {
-			return "", err
-		}
-		if !ok {
-			return "", fmt.Errorf("checksum mismatch for %s", item.URL)
-		}
-	}
-
+func finalizeFile(tmpPath, absPath string) error {
 	if err := os.Rename(tmpPath, absPath); err != nil {
-		return "", pkgerrors.Wrap(err, "could not finalize file")
+		return pkgerrors.Wrap(err, "could not finalize file")
 	}
 	if err := os.Chmod(absPath, fsutil.FileModeSecure); err != nil {
-		return "", pkgerrors.Wrap(err, "could not set permissions")
+		return pkgerrors.Wrap(err, "could not set permissions")
 	}
-
-	return absPath, nil
+	return nil
 }
 
 func verifySHA256(path string, wantHex string) (bool, error) {
