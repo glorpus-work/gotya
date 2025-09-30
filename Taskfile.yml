@@ -70,14 +70,14 @@ tasks:
     deps:
       - install-go-mutesting
     cmds:
-      - go-mutesting --exec "go test ./pkg/..." ./pkg/...
+      - go-mutesting ./pkg/...
 
   mutate-verbose:
     desc: Run mutation testing with verbose output
     deps:
       - install-go-mutesting
     cmds:
-      - go-mutesting --debug pkg/... internal/...
+      - go-mutesting --debug ./pkg/...
 
   # Lint and format
   lint:
