@@ -88,63 +88,21 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 		return nil, err
 	}
 
-	repoPrioArtifacts := make(map[uint][]*model.IndexArtifactDescriptor)
-
-	for idxName, pkgs := range repoArtifacts {
-		for _, pkg := range pkgs {
-			if !pkg.MatchVersion(version) {
-				continue
-			}
-			if !pkg.MatchOs(os) {
-				continue
-			}
-			if !pkg.MatchArch(arch) {
-				continue
-			}
-
-			repo, err := rm.getRepository(idxName)
-			if err != nil {
-				return nil, errors.ErrRepositoryNotFound(idxName)
-			}
-			if repoPrioArtifacts[repo.Priority] == nil {
-				repoPrioArtifacts[repo.Priority] = make([]*model.IndexArtifactDescriptor, 0, 5)
-			}
-			repoPrioArtifacts[repo.Priority] = append(repoPrioArtifacts[repo.Priority], pkg)
-		}
+	repoPrioArtifacts, err := rm.filterAndGroupByPriority(repoArtifacts, version, os, arch)
+	if err != nil {
+		return nil, err
 	}
 	if len(repoPrioArtifacts) == 0 {
 		// Artifact exists but no version matches the constraints
-		// Let's gather information about available versions for better error messages
-		availableVersions := make([]string, 0)
-		for _, pkgs := range repoArtifacts {
-			for _, pkg := range pkgs {
-				if pkg.MatchOs(os) && pkg.MatchArch(arch) {
-					availableVersions = append(availableVersions, pkg.Version)
-				}
-			}
-		}
-
+		availableVersions := availableVersionsForPlatform(repoArtifacts, os, arch)
 		if len(availableVersions) == 0 {
-			// No versions match the OS/arch constraints
 			return nil, fmt.Errorf("artifact %s not found for %s/%s in any repository", name, os, arch)
 		}
-		// Versions exist but none match the version constraint
 		return nil, fmt.Errorf("artifact %s not found with version constraint %s (available versions: %v, os: %s, arch: %s)",
 			name, version, availableVersions, os, arch)
 	}
 
-	prios := slices.Collect(maps.Keys(repoPrioArtifacts))
-	sort.Sort(sort.Reverse(UintSlice(prios)))
-
-	var finalArtifact *model.IndexArtifactDescriptor
-	for _, prio := range prios {
-		for _, pkg := range repoPrioArtifacts[prio] {
-			if finalArtifact == nil || pkg.GetVersion().GreaterThanOrEqual(finalArtifact.GetVersion()) {
-				finalArtifact = pkg
-			}
-		}
-	}
-
+	finalArtifact := selectBestByPriorityAndVersion(repoPrioArtifacts)
 	if finalArtifact == nil {
 		return nil, ErrArtifactNotFound
 	}
@@ -161,6 +119,55 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 		Dependencies: finalArtifact.Dependencies,
 	}
 	return desc, nil
+}
+
+// filterAndGroupByPriority filters artifacts by constraints and groups them by repository priority.
+func (rm *ManagerImpl) filterAndGroupByPriority(repoArtifacts map[string][]*model.IndexArtifactDescriptor, version, os, arch string) (map[uint][]*model.IndexArtifactDescriptor, error) {
+	repoPrioArtifacts := make(map[uint][]*model.IndexArtifactDescriptor)
+	for idxName, pkgs := range repoArtifacts {
+		for _, pkg := range pkgs {
+			if !pkg.MatchVersion(version) || !pkg.MatchOs(os) || !pkg.MatchArch(arch) {
+				continue
+			}
+			repo, err := rm.getRepository(idxName)
+			if err != nil {
+				return nil, errors.ErrRepositoryNotFound(idxName)
+			}
+			if repoPrioArtifacts[repo.Priority] == nil {
+				repoPrioArtifacts[repo.Priority] = make([]*model.IndexArtifactDescriptor, 0, 5)
+			}
+			repoPrioArtifacts[repo.Priority] = append(repoPrioArtifacts[repo.Priority], pkg)
+		}
+	}
+	return repoPrioArtifacts, nil
+}
+
+// availableVersionsForPlatform lists versions that match OS/arch regardless of version constraint.
+func availableVersionsForPlatform(repoArtifacts map[string][]*model.IndexArtifactDescriptor, os, arch string) []string {
+	versions := make([]string, 0)
+	for _, pkgs := range repoArtifacts {
+		for _, pkg := range pkgs {
+			if pkg.MatchOs(os) && pkg.MatchArch(arch) {
+				versions = append(versions, pkg.Version)
+			}
+		}
+	}
+	return versions
+}
+
+// selectBestByPriorityAndVersion selects the highest-priority, highest-version artifact.
+func selectBestByPriorityAndVersion(repoPrioArtifacts map[uint][]*model.IndexArtifactDescriptor) *model.IndexArtifactDescriptor {
+	prios := slices.Collect(maps.Keys(repoPrioArtifacts))
+	sort.Sort(sort.Reverse(UintSlice(prios)))
+	var finalArtifact *model.IndexArtifactDescriptor
+	for _, prio := range prios {
+		for _, pkg := range repoPrioArtifacts[prio] {
+			if finalArtifact == nil || pkg.GetVersion().GreaterThanOrEqual(finalArtifact.GetVersion()) {
+				finalArtifact = pkg
+			}
+		}
+	}
+	return finalArtifact
 }
 
 // GetIndex retrieves the index for a specific repository by name.

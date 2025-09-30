@@ -295,9 +295,21 @@ func (c *Config) Validate() error {
 	if c == nil {
 		return errors.ErrConfigValidation
 	}
+	if err := validateRepositories(c.Repositories); err != nil {
+		return err
+	}
+	if err := validatePlatform(c.Settings.Platform); err != nil {
+		return err
+	}
+	if err := validateSettings(c.Settings); err != nil {
+		return err
+	}
+	return nil
+}
 
+func validateRepositories(repos []*RepositoryConfig) error {
 	repoNames := make(map[string]bool)
-	for i, repo := range c.Repositories {
+	for i, repo := range repos {
 		if repo.Name == "" {
 			return errors.ErrEmptyRepositoryNameWithIndex(i)
 		}
@@ -309,58 +321,47 @@ func (c *Config) Validate() error {
 		}
 		repoNames[repo.Name] = true
 	}
+	return nil
+}
 
-	// Validate platform settings
-	if c.Settings.Platform.OS != "" {
-		switch c.Settings.Platform.OS {
+func validatePlatform(p PlatformConfig) error {
+	if p.OS != "" {
+		switch p.OS {
 		case platform.OSWindows, platform.OSLinux, platform.OSDarwin,
 			platform.OSFreeBSD, platform.OSOpenBSD, platform.OSNetBSD:
-			// Valid OS
+			// ok
 		default:
-			return errors.ErrInvalidOSValueWithDetails(c.Settings.Platform.OS, platform.GetValidOS())
+			return errors.ErrInvalidOSValueWithDetails(p.OS, platform.GetValidOS())
 		}
 	}
-
-	if c.Settings.Platform.Arch != "" {
-		switch c.Settings.Platform.Arch {
+	if p.Arch != "" {
+		switch p.Arch {
 		case "amd64", "386", "arm", "arm64":
-			// Valid architecture
 		default:
-			return errors.ErrInvalidArchValueWithDetails(c.Settings.Platform.Arch, platform.GetValidArch())
+			return errors.ErrInvalidArchValueWithDetails(p.Arch, platform.GetValidArch())
 		}
 	}
+	return nil
+}
 
-	// Validate settings
-	if c.Settings.HTTPTimeout < 0 {
+func validateSettings(s Settings) error {
+	if s.HTTPTimeout < 0 {
 		return errors.ErrHTTPTimeoutNegative
 	}
-	if c.Settings.CacheTTL < 0 {
+	if s.CacheTTL < 0 {
 		return errors.ErrCacheTTLNegative
 	}
-	if c.Settings.MaxConcurrent < 1 {
+	if s.MaxConcurrent < 1 {
 		return errors.ErrMaxConcurrentInvalid
 	}
-
-	// Validate output format - only 'text' and 'json' are supported
-	validFormats := map[string]bool{
-		"text": true,
-		"json": true,
+	validFormats := map[string]bool{"text": true, "json": true}
+	if !validFormats[s.OutputFormat] {
+		return errors.ErrInvalidOutputFormatWithDetails(s.OutputFormat)
 	}
-	if !validFormats[c.Settings.OutputFormat] {
-		return errors.ErrInvalidOutputFormatWithDetails(c.Settings.OutputFormat)
+	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
+	if !validLevels[strings.ToLower(s.LogLevel)] {
+		return errors.ErrInvalidLogLevelWithDetails(s.LogLevel)
 	}
-
-	// Validate log level
-	validLevels := map[string]bool{
-		"debug": true,
-		"info":  true,
-		"warn":  true,
-		"error": true,
-	}
-	if !validLevels[strings.ToLower(c.Settings.LogLevel)] {
-		return errors.ErrInvalidLogLevelWithDetails(c.Settings.LogLevel)
-	}
-
 	return nil
 }
 

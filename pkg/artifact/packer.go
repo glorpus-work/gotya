@@ -185,73 +185,86 @@ func (p *Packer) copyInputDir() error {
 		tempPath := filepath.Join(p.tempDir, relPath)
 		switch d.Type() & os.ModeType {
 		case os.ModeDir:
-			if err := os.Mkdir(tempPath, fsutil.DirModeDefault); err != nil {
-				return errors.Wrapf(err, "error creating directory %s", path)
-			}
+			return p.copyDirEntryDir(tempPath, path)
 		case os.ModeSymlink:
-			target, err := os.Readlink(path)
-			if err != nil {
-				return errors.Wrapf(err, "error reading symlink %s", path)
-			}
-			if filepath.IsAbs(target) {
-				return errors.Wrapf(errors.ErrInvalidPath, "symlink %s is absolute", path)
-			}
-			absTarget, err := filepath.Abs(target)
-			if err != nil {
-				return errors.Wrapf(err, "error getting absolute path of symlink %s", path)
-			}
-			if !strings.HasPrefix(absTarget, absInputDir) {
-				return errors.Wrapf(errors.ErrInvalidPath, "symlink %s points outside the input directory", path)
-			}
-			if err := os.Symlink(target, tempPath); err != nil {
-				return errors.Wrapf(err, "error creating symlink %s", path)
-			}
+			return p.copyDirEntrySymlink(absInputDir, path, tempPath)
 		default:
-			out, err := fsutil.CreateFilePerm(tempPath, fsutil.FileModeDefault)
-			if err != nil {
-				return errors.Wrapf(err, "error creating file %s", path)
-			}
-
-			in, err := os.Open(path)
-			if err != nil {
-				_ = out.Close()
-				return errors.Wrapf(err, "error opening file %s", path)
-			}
-
-			hash := sha256.New()
-			if _, err := io.Copy(hash, in); err != nil {
-				_ = in.Close()
-				_ = out.Close()
-				return errors.Wrapf(err, "error copying file %s", path)
-			}
-
-			// Normalize to forward slashes for archive-internal paths
-			p.metadata.Hashes[filepath.ToSlash(relPath)] = fmt.Sprintf("%x", hash.Sum(nil))
-
-			if _, err := in.Seek(0, 0); err != nil {
-				_ = in.Close()
-				_ = out.Close()
-				return err
-			}
-
-			if _, err := io.Copy(out, in); err != nil {
-				_ = in.Close()
-				_ = out.Close()
-				return errors.Wrapf(err, "error copying file %s", path)
-			}
-			// Close both files to avoid handle leaks (important on Windows)
-			if err := in.Close(); err != nil {
-				_ = out.Close()
-				return err
-			}
-			if err := out.Close(); err != nil {
-				return err
-			}
+			return p.copyDirEntryFile(path, relPath, tempPath)
 		}
-
-		return nil
 	})
 	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *Packer) copyDirEntryDir(tempPath, sourcePath string) error {
+	if err := os.Mkdir(tempPath, fsutil.DirModeDefault); err != nil {
+		return errors.Wrapf(err, "error creating directory %s", sourcePath)
+	}
+	return nil
+}
+
+func (p *Packer) copyDirEntrySymlink(absInputDir, sourcePath, tempPath string) error {
+	target, err := os.Readlink(sourcePath)
+	if err != nil {
+		return errors.Wrapf(err, "error reading symlink %s", sourcePath)
+	}
+	if filepath.IsAbs(target) {
+		return errors.Wrapf(errors.ErrInvalidPath, "symlink %s is absolute", sourcePath)
+	}
+	absTarget, err := filepath.Abs(target)
+	if err != nil {
+		return errors.Wrapf(err, "error getting absolute path of symlink %s", sourcePath)
+	}
+	if !strings.HasPrefix(absTarget, absInputDir) {
+		return errors.Wrapf(errors.ErrInvalidPath, "symlink %s points outside the input directory", sourcePath)
+	}
+	if err := os.Symlink(target, tempPath); err != nil {
+		return errors.Wrapf(err, "error creating symlink %s", sourcePath)
+	}
+	return nil
+}
+
+func (p *Packer) copyDirEntryFile(sourcePath, relPath, tempPath string) error {
+	out, err := fsutil.CreateFilePerm(tempPath, fsutil.FileModeDefault)
+	if err != nil {
+		return errors.Wrapf(err, "error creating file %s", sourcePath)
+	}
+
+	in, err := os.Open(sourcePath)
+	if err != nil {
+		_ = out.Close()
+		return errors.Wrapf(err, "error opening file %s", sourcePath)
+	}
+
+	hash := sha256.New()
+	if _, err := io.Copy(hash, in); err != nil {
+		_ = in.Close()
+		_ = out.Close()
+		return errors.Wrapf(err, "error copying file %s", sourcePath)
+	}
+
+	// Normalize to forward slashes for archive-internal paths
+	p.metadata.Hashes[filepath.ToSlash(relPath)] = fmt.Sprintf("%x", hash.Sum(nil))
+
+	if _, err := in.Seek(0, 0); err != nil {
+		_ = in.Close()
+		_ = out.Close()
+		return err
+	}
+
+	if _, err := io.Copy(out, in); err != nil {
+		_ = in.Close()
+		_ = out.Close()
+		return errors.Wrapf(err, "error copying file %s", sourcePath)
+	}
+	// Close both files to avoid handle leaks (important on Windows)
+	if err := in.Close(); err != nil {
+		_ = out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
 		return err
 	}
 	return nil

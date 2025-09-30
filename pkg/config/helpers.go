@@ -91,47 +91,47 @@ func (c *Config) ToMap() map[string]string {
 		// Handle yaml tags with options (e.g., "cache_dir,omitempty")
 		yamlKey := strings.Split(yamlTag, ",")[0]
 
-		// Get the field value and convert to string
+		// Get the field value and convert to string via helper
 		fieldValue := settingsValue.Field(fieldIndex)
-		var strValue string
-
-		switch fieldValue.Kind() {
-		case reflect.Invalid:
-			strValue = ""
-		case reflect.Bool:
-			strValue = strconv.FormatBool(fieldValue.Bool())
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			strValue = strconv.FormatInt(fieldValue.Int(), 10)
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-			strValue = strconv.FormatUint(fieldValue.Uint(), 10)
-		case reflect.Float32, reflect.Float64:
-			strValue = strconv.FormatFloat(fieldValue.Float(), 'f', -1, 64)
-		case reflect.Complex64, reflect.Complex128:
-			strValue = fmt.Sprint(fieldValue.Complex())
-		case reflect.Array, reflect.Slice:
-			strValue = fmt.Sprintf("%v", fieldValue.Interface())
-		case reflect.Chan, reflect.Func, reflect.UnsafePointer:
-			strValue = fieldValue.Type().String() + " value"
-		case reflect.Interface, reflect.Pointer:
-			if fieldValue.IsNil() {
-				strValue = "<nil>"
-			} else {
-				strValue = fmt.Sprintf("%v", fieldValue.Elem().Interface())
-			}
-		case reflect.Map:
-			strValue = fmt.Sprintf("%v", fieldValue.Interface())
-		case reflect.String:
-			strValue = fieldValue.String()
-		case reflect.Struct:
-			strValue = fmt.Sprintf("%+v", fieldValue.Interface())
-		default:
-			strValue = fmt.Sprintf("%v", fieldValue.Interface())
-		}
-
-		result[yamlKey] = strValue
+		result[yamlKey] = toStringValue(fieldValue)
 	}
 
 	return result
+}
+
+// toStringValue converts a reflect.Value to its string representation.
+func toStringValue(fieldValue reflect.Value) string {
+	switch fieldValue.Kind() {
+	case reflect.Invalid:
+		return ""
+	case reflect.Bool:
+		return strconv.FormatBool(fieldValue.Bool())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.FormatInt(fieldValue.Int(), 10)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return strconv.FormatUint(fieldValue.Uint(), 10)
+	case reflect.Float32, reflect.Float64:
+		return strconv.FormatFloat(fieldValue.Float(), 'f', -1, 64)
+	case reflect.Complex64, reflect.Complex128:
+		return fmt.Sprint(fieldValue.Complex())
+	case reflect.Array, reflect.Slice:
+		return fmt.Sprintf("%v", fieldValue.Interface())
+	case reflect.Chan, reflect.Func, reflect.UnsafePointer:
+		return fieldValue.Type().String() + " value"
+	case reflect.Interface, reflect.Pointer:
+		if fieldValue.IsNil() {
+			return "<nil>"
+		}
+		return fmt.Sprintf("%v", fieldValue.Elem().Interface())
+	case reflect.Map:
+		return fmt.Sprintf("%v", fieldValue.Interface())
+	case reflect.String:
+		return fieldValue.String()
+	case reflect.Struct:
+		return fmt.Sprintf("%+v", fieldValue.Interface())
+	default:
+		return fmt.Sprintf("%v", fieldValue.Interface())
+	}
 }
 
 // NewDefaultConfig creates a new configuration with default values.

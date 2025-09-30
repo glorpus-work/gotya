@@ -62,43 +62,9 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		return fmt.Errorf("failed to parse metadata: %w", err)
 	}
 
-	// Process all files from the hashes map in a single loop
-	var (
-		metaFileEntries []model.InstalledFile
-		dataFileEntries []model.InstalledFile
-	)
-
-	hash, err := calculateFileHash(metadataFilePath)
+	metaFiles, dataFiles, err := buildInstalledFileEntries(metadata, metadataFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to calculate hash: %w", err)
-	}
-
-	entry := model.InstalledFile{
-		Path: metadataFile,
-		Hash: hash,
-	}
-	metaFileEntries = append(metaFileEntries, entry)
-
-	// Process all other files
-	for relPath, hash := range metadata.Hashes {
-		// Check if it's a data file (starts with artifactDataDir/)
-		if strings.HasPrefix(relPath, artifactDataDir+"/") {
-			// Remove the artifactDataDir/ prefix
-			dataRelPath := strings.TrimPrefix(relPath, artifactDataDir+"/")
-			entry := model.InstalledFile{
-				Path: dataRelPath,
-				Hash: hash,
-			}
-			dataFileEntries = append(dataFileEntries, entry)
-		} else {
-			metaRelPath := strings.TrimPrefix(relPath, artifactMetaDir+"/")
-			// It's a metadata file
-			entry := model.InstalledFile{
-				Path: metaRelPath,
-				Hash: hash,
-			}
-			metaFileEntries = append(metaFileEntries, entry)
-		}
+		return err
 	}
 
 	// Create and add the artifact to the database
@@ -112,61 +78,78 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		InstalledFrom:       desc.URL,
 		ArtifactMetaDir:     metaPath,
 		ArtifactDataDir:     m.getArtifactDataInstallPath(desc.Name),
-		MetaFiles:           metaFileEntries,
-		DataFiles:           dataFileEntries,
-		ReverseDependencies: existingReverseDeps, // Use the saved reverse dependencies if any
+		MetaFiles:           metaFiles,
+		DataFiles:           dataFiles,
+		ReverseDependencies: existingReverseDeps,
 		Status:              model.StatusInstalled,
 		Checksum:            desc.Checksum,
 		InstallationReason:  reason,
 	}
 
-	// Record reverse dependencies for each dependency
-	for _, dep := range desc.Dependencies {
-		existingArtifact := db.FindArtifact(dep.Name)
-		if existingArtifact != nil {
-			if existingArtifact.Status == model.StatusMissing {
-				// Update the dummy entry to a real installed artifact
-				// Note: We can't update the dummy entry with real metadata here because
-				// we don't have the dependency's actual metadata. The dummy entry will
-				// be replaced when the dependency is actually installed.
-				// For now, just update the status and reverse dependencies.
-				existingArtifact.Status = model.StatusInstalled
-				// Don't modify other fields as we don't have the real dependency metadata
-			} else {
-				// Add current artifact to existing dependency's reverse dependencies
-				existingArtifact.ReverseDependencies = append(existingArtifact.ReverseDependencies, desc.Name)
-			}
-		} else {
-			// Create a dummy entry for missing dependency
-			dummyArtifact := &model.InstalledArtifact{
-				Name:                dep.Name,
-				Version:             "invalid",
-				Description:         "invalid",
-				OS:                  "", // No OS info available for missing dependency
-				Arch:                "", // No Arch info available for missing dependency
-				InstalledAt:         time.Time{},
-				InstalledFrom:       "invalid",
-				ArtifactMetaDir:     "invalid",
-				ArtifactDataDir:     "invalid",
-				MetaFiles:           make([]model.InstalledFile, 0),
-				DataFiles:           make([]model.InstalledFile, 0),
-				ReverseDependencies: []string{desc.Name},
-				Status:              model.StatusMissing,
-				Checksum:            "invalid",
-				InstallationReason:  model.InstallationReasonAutomatic, // Dependency installed automatically
-			}
-			db.AddArtifact(dummyArtifact)
-		}
-	}
-
+	recordReverseDependencies(db, desc)
 	db.AddArtifact(installedArtifact)
 
 	// Save the database
 	if err := db.SaveDatabase(m.installedDBPath); err != nil {
 		return fmt.Errorf("failed to save installed database: %w", err)
 	}
-
 	return nil
+}
+
+// buildInstalledFileEntries builds InstalledFile entries from metadata and metadata file path.
+func buildInstalledFileEntries(metadata *Metadata, metadataFilePath string) ([]model.InstalledFile, []model.InstalledFile, error) {
+	var metaFileEntries []model.InstalledFile
+	var dataFileEntries []model.InstalledFile
+
+	hash, err := calculateFileHash(metadataFilePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to calculate hash: %w", err)
+	}
+	metaFileEntries = append(metaFileEntries, model.InstalledFile{Path: metadataFile, Hash: hash})
+
+	for relPath, h := range metadata.Hashes {
+		if strings.HasPrefix(relPath, artifactDataDir+"/") {
+			dataRelPath := strings.TrimPrefix(relPath, artifactDataDir+"/")
+			dataFileEntries = append(dataFileEntries, model.InstalledFile{Path: dataRelPath, Hash: h})
+		} else {
+			metaRelPath := strings.TrimPrefix(relPath, artifactMetaDir+"/")
+			metaFileEntries = append(metaFileEntries, model.InstalledFile{Path: metaRelPath, Hash: h})
+		}
+	}
+	return metaFileEntries, dataFileEntries, nil
+}
+
+// recordReverseDependencies updates reverse dependency links (and dummy entries) in the DB.
+func recordReverseDependencies(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor) {
+	for _, dep := range desc.Dependencies {
+		existingArtifact := db.FindArtifact(dep.Name)
+		if existingArtifact != nil {
+			if existingArtifact.Status == model.StatusMissing {
+				existingArtifact.Status = model.StatusInstalled
+			} else {
+				existingArtifact.ReverseDependencies = append(existingArtifact.ReverseDependencies, desc.Name)
+			}
+			continue
+		}
+		// Create a dummy entry for missing dependency
+		db.AddArtifact(&model.InstalledArtifact{
+			Name:                dep.Name,
+			Version:             "invalid",
+			Description:         "invalid",
+			OS:                  "",
+			Arch:                "",
+			InstalledAt:         time.Time{},
+			InstalledFrom:       "invalid",
+			ArtifactMetaDir:     "invalid",
+			ArtifactDataDir:     "invalid",
+			MetaFiles:           make([]model.InstalledFile, 0),
+			DataFiles:           make([]model.InstalledFile, 0),
+			ReverseDependencies: []string{desc.Name},
+			Status:              model.StatusMissing,
+			Checksum:            "invalid",
+			InstallationReason:  model.InstallationReasonAutomatic,
+		})
+	}
 }
 
 // installRollback cleans up any partially installed files in case of an error

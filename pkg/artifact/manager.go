@@ -26,6 +26,35 @@ type ManagerImpl struct {
 	archiveManager         *archive.Manager
 }
 
+// loadInstalledDB loads or initializes the installed artifacts database.
+func (m ManagerImpl) loadInstalledDB() (*database.InstalledManagerImpl, error) {
+	db := database.NewInstalledDatabase()
+	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+		return nil, fmt.Errorf("failed to load installed database: %w", err)
+	}
+	return db, nil
+}
+
+// extractAndInstall extracts the artifact to a temp dir and installs files into final locations.
+func (m ManagerImpl) extractAndInstall(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) (bool, error) {
+	extractDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s", desc.Name))
+	if err != nil {
+		return false, fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(extractDir) }()
+
+	if err := m.archiveManager.ExtractAll(ctx, localPath, extractDir); err != nil {
+		return false, fmt.Errorf("failed to extract artifact: %w", err)
+	}
+
+	// TODO: pre-install hooks
+
+	if err := m.installArtifactFiles(desc.Name, extractDir); err != nil {
+		return false, fmt.Errorf("failed to install artifact files: %w", err)
+	}
+	return true, nil
+}
+
 // NewManager creates a new artifact manager instance with the specified configuration.
 // It initializes the manager with OS/arch info, cache directories, install directories, and database path.
 func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInstallDir, installedDBPath string) *ManagerImpl {
@@ -68,9 +97,9 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	}
 
 	// Load or create the installed database
-	db := database.NewInstalledDatabase()
-	if err = db.LoadDatabase(m.installedDBPath); err != nil {
-		return fmt.Errorf("failed to load installed database: %w", err)
+	db, err := m.loadInstalledDB()
+	if err != nil {
+		return err
 	}
 
 	// Check if the artifact is already installed
@@ -105,23 +134,10 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 		}
 	}
 
-	extractDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s", desc.Name))
-	if err != nil {
-		return fmt.Errorf("failed to create temp directory: %w", err)
+	// Extract and install files
+	if installed, err = m.extractAndInstall(ctx, desc, localPath); err != nil {
+		return err
 	}
-	defer func() { _ = os.RemoveAll(extractDir) }()
-
-	if err = m.archiveManager.ExtractAll(ctx, localPath, extractDir); err != nil {
-		return fmt.Errorf("failed to extract artifact: %w", err)
-	}
-
-	// TODO: pre-install hooks
-
-	// Install the artifact files
-	if err = m.installArtifactFiles(desc.Name, extractDir); err != nil {
-		return fmt.Errorf("failed to install artifact files: %w", err)
-	}
-	installed = true // Mark that we've installed files that might need cleanup
 
 	// Add the installed artifact to the database
 	err = m.addArtifactToDatabase(db, desc, existingReverseDeps, reason)
