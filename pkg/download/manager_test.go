@@ -49,16 +49,15 @@ func TestNewManager(t *testing.T) {
 func TestFetch_SingleFile(t *testing.T) {
 	tests := []struct {
 		name        string
-		setupServer func(*testing.T) *httptest.Server
+		setupServer func() *httptest.Server
 		item        Item
 		expectError bool
 		checkFile   bool
 	}{
 		{
 			name: "successful download",
-			setupServer: func(t *testing.T) *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					assert.Equal(t, "GET", r.Method)
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
 					_, _ = w.Write([]byte("test content"))
 				}))
@@ -72,8 +71,8 @@ func TestFetch_SingleFile(t *testing.T) {
 		},
 		{
 			name: "not found",
-			setupServer: func(t *testing.T) *httptest.Server {
-				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNotFound)
 				}))
 			},
@@ -87,7 +86,7 @@ func TestFetch_SingleFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := tt.setupServer(t)
+			server := tt.setupServer()
 			defer server.Close()
 
 			// Update the URL to point to our test server

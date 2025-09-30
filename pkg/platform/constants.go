@@ -1,3 +1,5 @@
+// Package platform provides constants and utilities for handling platform-specific
+// information such as operating systems and architectures.
 package platform
 
 // Package platform provides constants and utilities for handling platform-specific

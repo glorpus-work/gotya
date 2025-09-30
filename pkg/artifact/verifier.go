@@ -50,7 +50,7 @@ func (v *Verifier) VerifyArtifact(ctx context.Context, artifact *model.IndexArti
 // VerifyArtifactFromPath verifies an artifact from a local directory path against the provided descriptor.
 // This method works on already extracted artifacts and is useful when the artifact has already been extracted
 // or when working with local directories. If the descriptor is nil, only the internal consistency is verified.
-func (v *Verifier) VerifyArtifactFromPath(ctx context.Context, artifact *model.IndexArtifactDescriptor, dirPath string) error {
+func (v *Verifier) VerifyArtifactFromPath(_ context.Context, artifact *model.IndexArtifactDescriptor, dirPath string) error {
 	// Check if the directory exists
 	if _, err := os.Stat(dirPath); err != nil {
 		return errors.ErrArtifactNotFound

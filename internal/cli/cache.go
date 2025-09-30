@@ -81,7 +81,7 @@ func runCacheClean(all, indexes, packages bool) error {
 	// Create cache manager and operation
 	cacheDir := getCacheDir(config)
 	cacheManager := cache.NewManager(cacheDir)
-	cacheOp := cache.NewCacheOperation(cacheManager)
+	cacheOp := cache.NewOperation(cacheManager)
 
 	// Clean the cache
 	// Use the correct method signature for Clean
@@ -104,7 +104,7 @@ func runCacheInfo(_ *cobra.Command, _ []string) error {
 	// Create cache manager and operation
 	cacheDir := getCacheDir(config)
 	cacheManager := cache.NewManager(cacheDir)
-	cacheOp := cache.NewCacheOperation(cacheManager)
+	cacheOp := cache.NewOperation(cacheManager)
 
 	// Get cache info
 	info, err := cacheOp.GetInfo()
@@ -127,7 +127,7 @@ func runCacheDir(_ *cobra.Command, _ []string) error {
 	// Create cache manager and operation
 	cacheDir := getCacheDir(config)
 	cacheManager := cache.NewManager(cacheDir)
-	cacheOp := cache.NewCacheOperation(cacheManager)
+	cacheOp := cache.NewOperation(cacheManager)
 
 	// Get and print cache directory
 	fmt.Println(cacheOp.GetDirectory())

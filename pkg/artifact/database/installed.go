@@ -221,9 +221,7 @@ func (installedDB *InstalledManagerImpl) FilteredArtifacts(nameFilter string) []
 
 	if nameFilter == "" {
 		// Return all artifacts if no filter provided
-		artifacts := make([]*model.InstalledArtifact, len(installedDB.Artifacts))
-		copy(artifacts, installedDB.Artifacts)
-		return artifacts
+		return installedDB.GetInstalledArtifacts()
 	}
 
 	// Filter artifacts by name

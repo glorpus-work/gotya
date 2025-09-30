@@ -36,7 +36,7 @@ func (m ManagerImpl) removeArtifactFromDatabase(db *database.InstalledManagerImp
 }
 
 // uninstallWithPurge removes the entire artifact directories recursively
-func (m ManagerImpl) uninstallWithPurge(ctx context.Context, db *database.InstalledManagerImpl, artifact *model.InstalledArtifact) error {
+func (m ManagerImpl) uninstallWithPurge(_ context.Context, db *database.InstalledManagerImpl, artifact *model.InstalledArtifact) error {
 	// Clean up reverse dependencies from other artifacts
 	m.cleanupReverseDependencies(db, artifact)
 
@@ -55,7 +55,7 @@ func (m ManagerImpl) uninstallWithPurge(ctx context.Context, db *database.Instal
 }
 
 // uninstallSelectively removes only the files listed in the database, tracking directories for cleanup
-func (m ManagerImpl) uninstallSelectively(ctx context.Context, db *database.InstalledManagerImpl, artifact *model.InstalledArtifact) error {
+func (m ManagerImpl) uninstallSelectively(_ context.Context, db *database.InstalledManagerImpl, artifact *model.InstalledArtifact) error {
 	// Clean up reverse dependencies from other artifacts
 	m.cleanupReverseDependencies(db, artifact)
 

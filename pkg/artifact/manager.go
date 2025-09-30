@@ -13,6 +13,8 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
+// ManagerImpl is the default implementation of the Manager interface for artifact operations.
+// It handles installation, uninstallation, updates, and verification of artifacts.
 type ManagerImpl struct {
 	os                     string
 	arch                   string
@@ -24,6 +26,8 @@ type ManagerImpl struct {
 	archiveManager         *archive.ArchiveManager
 }
 
+// NewManager creates a new artifact manager instance with the specified configuration.
+// It initializes the manager with OS/arch info, cache directories, install directories, and database path.
 func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInstallDir, installedDBPath string) *ManagerImpl {
 	return &ManagerImpl{
 		os:                     os,
@@ -130,6 +134,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 	return nil
 }
 
+// UninstallArtifact removes an installed artifact from the system.
 func (m ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string, purge bool) error {
 	// Input validation
 	if artifactName == "" {
@@ -245,13 +250,14 @@ func (m ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string,
 	return nil
 }
 
+// VerifyArtifact verifies that an artifact exists and is valid.
 func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
 	filePath := filepath.Join(m.artifactCacheDir, fmt.Sprintf("%s_%s_%s_%s.gotya", artifact.Name, artifact.Version, artifact.OS, artifact.Arch))
 	return m.verifier.VerifyArtifact(ctx, artifact, filePath)
 }
 
 // ReverseResolve returns the list of artifacts that depend on the given artifact recursively
-func (m ManagerImpl) ReverseResolve(ctx context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error) {
+func (m ManagerImpl) ReverseResolve(_ context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error) {
 	// Load the installed database
 	db := database.NewInstalledDatabase()
 	if err := db.LoadDatabase(m.installedDBPath); err != nil {

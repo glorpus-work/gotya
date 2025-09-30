@@ -24,6 +24,7 @@ var allowedTopLevelFiles = []string{
 	artifactDataDir,
 }
 
+// Packer creates .gotya artifacts from input directories.
 type Packer struct {
 	name         string
 	version      string
@@ -40,6 +41,7 @@ type Packer struct {
 	metadata  *Metadata
 }
 
+// NewPacker creates a new Packer instance with the specified configuration.
 func NewPacker(name, version, os, arch, maintainer, description string, dependencies []model.Dependency, hooks map[string]string, inputDir, outputDir string) *Packer {
 	return &Packer{
 		name:         name,
@@ -55,6 +57,7 @@ func NewPacker(name, version, os, arch, maintainer, description string, dependen
 	}
 }
 
+// Pack creates a .gotya artifact from the configured input directory and returns the path to the created artifact.
 func (p *Packer) Pack() (string, error) {
 	dir, err := os.MkdirTemp("", "gotya-packer")
 	if err != nil {

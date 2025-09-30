@@ -8,20 +8,20 @@ import (
 	"github.com/cperrin88/gotya/pkg/errors"
 )
 
-// CacheOperation represents an operation that can be performed on the cache.
-type CacheOperation struct {
+// Operation represents an operation that can be performed on the cache.
+type Operation struct {
 	manager Manager
 }
 
-// NewCacheOperation creates a new cache operation instance.
-func NewCacheOperation(manager Manager) *CacheOperation {
-	return &CacheOperation{
+// NewOperation creates a new cache operation instance.
+func NewOperation(manager Manager) *Operation {
+	return &Operation{
 		manager: manager,
 	}
 }
 
 // Clean cleans the cache based on the provided options.
-func (op *CacheOperation) Clean(all, indexes, packages bool) (string, error) {
+func (op *Operation) Clean(all, indexes, packages bool) (string, error) {
 	options := CleanOptions{
 		All:       all,
 		Indexes:   indexes,
@@ -63,7 +63,7 @@ func (op *CacheOperation) Clean(all, indexes, packages bool) (string, error) {
 }
 
 // GetInfo returns information about the cache.
-func (op *CacheOperation) GetInfo() (string, error) {
+func (op *Operation) GetInfo() (string, error) {
 	info, err := op.manager.GetInfo()
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get cache info")
@@ -91,12 +91,12 @@ func (op *CacheOperation) GetInfo() (string, error) {
 }
 
 // GetDirectory returns the cache directory path.
-func (op *CacheOperation) GetDirectory() string {
+func (op *Operation) GetDirectory() string {
 	return op.manager.GetDirectory()
 }
 
 // SetDirectory sets a new cache directory.
-func (op *CacheOperation) SetDirectory(dir string) error {
+func (op *Operation) SetDirectory(dir string) error {
 	if dir == "" {
 		return errors.Wrap(errors.ErrInvalidConfigPath, "cache directory cannot be empty")
 	}

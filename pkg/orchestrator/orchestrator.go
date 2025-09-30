@@ -1,3 +1,6 @@
+// Package orchestrator provides high-level operations for managing artifacts,
+// including installation, uninstallation, updates, and cleanup of orphaned artifacts.
+// It coordinates between index resolution, downloading, and artifact management.
 package orchestrator
 
 import (

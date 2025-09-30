@@ -1,3 +1,5 @@
+// Package model provides data structures and types for representing artifacts,
+// dependencies, and related metadata in the gotya package manager.
 package model
 
 // Package model provides data structures and types for representing artifacts,

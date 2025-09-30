@@ -9,20 +9,20 @@ import (
 	"github.com/cperrin88/gotya/pkg/fsutil"
 )
 
-// CacheManager implements the Manager interface.
-type CacheManager struct {
+// DefaultManager implements the Manager interface for cache operations.
+type DefaultManager struct {
 	directory string
 }
 
 // NewManager creates a new cache manager.
-func NewManager(directory string) *CacheManager {
-	return &CacheManager{
+func NewManager(directory string) *DefaultManager {
+	return &DefaultManager{
 		directory: directory,
 	}
 }
 
 // NewDefaultManager creates a new cache manager with default directory.
-func NewDefaultManager() (*CacheManager, error) {
+func NewDefaultManager() (*DefaultManager, error) {
 	cacheDir, err := fsutil.GetCacheDir()
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get user cache directory")
@@ -37,7 +37,7 @@ func NewDefaultManager() (*CacheManager, error) {
 }
 
 // Clean removes cached files according to the specified options.
-func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
+func (cm *DefaultManager) Clean(options CleanOptions) (*CleanResult, error) {
 	result := &CleanResult{}
 
 	// Default to cleaning all if no specific flags are set
@@ -67,7 +67,7 @@ func (cm *CacheManager) Clean(options CleanOptions) (*CleanResult, error) {
 }
 
 // GetInfo returns information about the cache.
-func (cm *CacheManager) GetInfo() (*Info, error) {
+func (cm *DefaultManager) GetInfo() (*Info, error) {
 	info := &Info{
 		Directory:   cm.directory,
 		LastCleaned: time.Now(), // Set current time as last cleaned time
@@ -98,12 +98,12 @@ func (cm *CacheManager) GetInfo() (*Info, error) {
 }
 
 // GetDirectory returns the cache directory path.
-func (cm *CacheManager) GetDirectory() string {
+func (cm *DefaultManager) GetDirectory() string {
 	return cm.directory
 }
 
 // SetDirectory sets the cache directory path.
-func (cm *CacheManager) SetDirectory(dir string) error {
+func (cm *DefaultManager) SetDirectory(dir string) error {
 	if dir == "" {
 		return ErrCacheDirectory
 	}
@@ -112,13 +112,13 @@ func (cm *CacheManager) SetDirectory(dir string) error {
 }
 
 // cleanIndexCache removes all index cache files.
-func (cm *CacheManager) cleanIndexCache() (int64, error) {
+func (cm *DefaultManager) cleanIndexCache() (int64, error) {
 	indexDir := filepath.Join(cm.directory, "indexes")
 	return cleanDirectory(indexDir)
 }
 
 // cleanArtifactCache removes all artifact cache files.
-func (cm *CacheManager) cleanArtifactCache() (int64, error) {
+func (cm *DefaultManager) cleanArtifactCache() (int64, error) {
 	packageDir := filepath.Join(cm.directory, "packages")
 	return cleanDirectory(packageDir)
 }
@@ -131,7 +131,7 @@ func cleanDirectory(dir string) (int64, error) {
 		return 0, nil
 	}
 
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -167,7 +167,7 @@ func getDirSizeAndFiles(dir string) (size int64, count int, err error) {
 		return 0, 0, nil
 	}
 
-	err = filepath.Walk(dir, func(path string, info os.FileInfo, walkErr error) error {
+	err = filepath.Walk(dir, func(_ string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}

@@ -10,7 +10,8 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-// in the artifact meta directory.
+// Metadata represents the metadata of an artifact, including name, version, OS, architecture,
+// maintainer, description, dependencies, hooks, and file hashes.
 type Metadata struct {
 	Name         string             `json:"name"`
 	Version      string             `json:"version"`
@@ -23,6 +24,7 @@ type Metadata struct {
 	Hooks        map[string]string  `json:"hooks,omitempty"`
 }
 
+// GetVersion returns the parsed version of this artifact.
 func (m *Metadata) GetVersion() *version.Version {
 	v, err := version.NewVersion(m.Version)
 	if err != nil {
@@ -31,6 +33,7 @@ func (m *Metadata) GetVersion() *version.Version {
 	return v
 }
 
+// GetOS returns the operating system this artifact targets, or AnyOS if not specified.
 func (m *Metadata) GetOS() string {
 	if m.OS == "" {
 		return platform.AnyOS
@@ -38,6 +41,7 @@ func (m *Metadata) GetOS() string {
 	return m.OS
 }
 
+// GetArch returns the architecture this artifact targets, or AnyArch if not specified.
 func (m *Metadata) GetArch() string {
 	if m.Arch == "" {
 		return platform.AnyArch
@@ -45,6 +49,7 @@ func (m *Metadata) GetArch() string {
 	return m.Arch
 }
 
+// ParseMetadataFromPath parses metadata from a file path.
 func ParseMetadataFromPath(path string) (*Metadata, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -55,6 +60,7 @@ func ParseMetadataFromPath(path string) (*Metadata, error) {
 	return ParseMetadataFromStream(file)
 }
 
+// ParseMetadataFromStream parses metadata from an io.Reader stream.
 func ParseMetadataFromStream(stream io.Reader) (*Metadata, error) {
 	var metadata Metadata
 	decoder := json.NewDecoder(stream)
