@@ -42,15 +42,6 @@ func NewManager(operatingSystem, arch, artifactCacheDir, artifactInstallDir, art
 	}
 }
 
-// loadInstalledDB loads or initializes the installed artifacts database.
-func (m ManagerImpl) loadInstalledDB() (*database.InstalledManagerImpl, error) {
-	db := database.NewInstalledDatabase()
-	if err := db.LoadDatabase(m.installedDBPath); err != nil {
-		return nil, fmt.Errorf("failed to load installed database: %w", err)
-	}
-	return db, nil
-}
-
 // InstallArtifact installs (verifies/stages) an artifact from a local file path, replacing the previous network-based install.
 func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) (err error) {
 	// Input validation
@@ -318,6 +309,15 @@ func (m ManagerImpl) GetInstalledArtifacts() ([]*model.InstalledArtifact, error)
 	}
 
 	return installed, nil
+}
+
+// loadInstalledDB loads or initializes the installed artifacts database.
+func (m ManagerImpl) loadInstalledDB() (*database.InstalledManagerImpl, error) {
+	db := database.NewInstalledDatabase()
+	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+		return nil, fmt.Errorf("failed to load installed database: %w", err)
+	}
+	return db, nil
 }
 
 func (m ManagerImpl) getArtifactDataInstallPath(artifactName string) string {
