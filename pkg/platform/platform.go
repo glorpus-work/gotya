@@ -1,3 +1,5 @@
+// Package platform provides utilities for detecting and working with target platforms,
+// including OS and architecture information for cross-platform artifact management.
 package platform
 
 import (
