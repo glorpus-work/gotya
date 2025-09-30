@@ -19,11 +19,6 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
-var allowedTopLevelFiles = []string{
-	artifactMetaDir,
-	artifactDataDir,
-}
-
 // Packer creates .gotya artifacts from input directories.
 type Packer struct {
 	name         string
@@ -39,6 +34,11 @@ type Packer struct {
 	outputDir string
 	tempDir   string
 	metadata  *Metadata
+}
+
+var allowedTopLevelFiles = []string{
+	artifactMetaDir,
+	artifactDataDir,
 }
 
 // NewPacker creates a new Packer instance with the specified configuration.

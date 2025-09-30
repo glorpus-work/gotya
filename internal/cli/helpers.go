@@ -13,6 +13,11 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
+// ManagerFactory encapsulates the creation of various managers from configuration.
+type ManagerFactory struct {
+	config *config.Config
+}
+
 // These variables will be set by the main artifact.
 var (
 	ConfigPath   *string
@@ -20,11 +25,6 @@ var (
 	NoColor      *bool
 	OutputFormat *string
 )
-
-// ManagerFactory encapsulates the creation of various managers from configuration.
-type ManagerFactory struct {
-	config *config.Config
-}
 
 // NewManagerFactory creates a new manager factory with the given configuration.
 func NewManagerFactory(cfg *config.Config) *ManagerFactory {

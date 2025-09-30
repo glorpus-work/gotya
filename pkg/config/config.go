@@ -20,21 +20,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Default configuration values.
-const (
-	// DefaultCacheTTL is the default time-to-live for cached data.
-	DefaultCacheTTL = 24 * time.Hour
-
-	// DefaultHTTPTimeout is the default timeout for HTTP requests.
-	DefaultHTTPTimeout = 30 * time.Second
-
-	// DefaultMaxConcurrent is the default maximum number of concurrent operations.
-	DefaultMaxConcurrent = 5
-
-	// YAMLIndent is the number of spaces to use for YAML indentation.
-	YAMLIndent = 2
-)
-
 // Config represents the application configuration.
 type Config struct {
 	// Repository configuration
@@ -66,6 +51,21 @@ type PlatformConfig struct {
 	// If true, native packages will be preferred over platform-agnostic packages
 	PreferNative bool `yaml:"prefer_native,omitempty"`
 }
+
+// Default configuration values.
+const (
+	// DefaultCacheTTL is the default time-to-live for cached data.
+	DefaultCacheTTL = 24 * time.Hour
+
+	// DefaultHTTPTimeout is the default timeout for HTTP requests.
+	DefaultHTTPTimeout = 30 * time.Second
+
+	// DefaultMaxConcurrent is the default maximum number of concurrent operations.
+	DefaultMaxConcurrent = 5
+
+	// YAMLIndent is the number of spaces to use for YAML indentation.
+	YAMLIndent = 2
+)
 
 // Settings represents general application settings.
 type Settings struct {

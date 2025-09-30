@@ -15,6 +15,20 @@ import (
 	"github.com/cperrin88/gotya/pkg/errors"
 )
 
+// createOptions holds flags for the create command.
+type createOptions struct {
+	sourceDir    string
+	outputDir    string
+	pkgName      string
+	pkgVer       string
+	pkgOS        string
+	pkgArch      string
+	maintainer   string
+	description  string
+	dependencies []string
+	hooks        map[string]string
+}
+
 // NewArtifactCmd creates a new artifact command.
 func NewArtifactCmd() *cobra.Command {
 	pkgCmd := &cobra.Command{
@@ -101,20 +115,6 @@ including file hashes and metadata structure.`,
 	cmd.Args = cobra.MaximumNArgs(1)
 
 	return cmd
-}
-
-// createOptions holds flags for the create command.
-type createOptions struct {
-	sourceDir    string
-	outputDir    string
-	pkgName      string
-	pkgVer       string
-	pkgOS        string
-	pkgArch      string
-	maintainer   string
-	description  string
-	dependencies []string
-	hooks        map[string]string
 }
 
 func addCreateFlags(cmd *cobra.Command, o *createOptions) {

@@ -14,16 +14,16 @@ import (
 // UintSlice is a slice of uint values that implements sort.Interface for sorting by value.
 type UintSlice []uint
 
-func (x UintSlice) Len() int           { return len(x) }
-func (x UintSlice) Less(i, j int) bool { return x[i] < x[j] }
-func (x UintSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
-
 // ManagerImpl provides artifact management functionality for repositories and indexes.
 type ManagerImpl struct {
 	repositories []*Repository
 	indexPath    string
 	indexes      map[string]*Index
 }
+
+func (x UintSlice) Len() int           { return len(x) }
+func (x UintSlice) Less(i, j int) bool { return x[i] < x[j] }
+func (x UintSlice) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 
 // NewManager creates a new ManagerImpl instance with the given repositories and index path.
 func NewManager(

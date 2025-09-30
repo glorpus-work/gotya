@@ -217,6 +217,36 @@ var (
 
 	// ErrRepositoryURLInvalid is returned when a index URL is invalid.
 	ErrRepositoryURLInvalid = fmt.Errorf("index URL is invalid")
+
+	// ErrRepositoryNotFound is returned when a repository with the given name is not found.
+	ErrRepositoryNotFound = fmt.Errorf("repository not found")
+
+	// ErrFileOperationFailed is returned when a file operation fails.
+	ErrFileOperationFailed = fmt.Errorf("file operation failed")
+
+	// ErrJSONOperationFailed is returned when a JSON operation fails.
+	ErrJSONOperationFailed = fmt.Errorf("JSON operation failed")
+
+	// ErrFileHashMismatch is returned when a file's hash doesn't match the expected value.
+	ErrFileHashMismatch = fmt.Errorf("file hash mismatch")
+
+	// ErrFileSizeMismatch is returned when a file's size doesn't match the expected value.
+	ErrFileSizeMismatch = fmt.Errorf("file size mismatch")
+
+	// ErrFilePermissionMismatch is returned when a file's permissions don't match the expected value.
+	ErrFilePermissionMismatch = fmt.Errorf("file permission mismatch")
+
+	// ErrFileModeMismatch is returned when a file's mode doesn't match the expected value.
+	ErrFileModeMismatch = fmt.Errorf("file mode mismatch")
+
+	// ErrUnexpectedFile is returned when an unexpected file is found.
+	ErrUnexpectedFile = fmt.Errorf("unexpected file")
+
+	// ErrMissingFile is returned when an expected file is missing.
+	ErrMissingFile = fmt.Errorf("missing file")
+
+	// ErrDownloadFailed is returned when a download operation fails.
+	ErrDownloadFailed = fmt.Errorf("download failed")
 )
 
 // Wrap wraps an error with additional context.
@@ -306,9 +336,6 @@ func ErrInvalidBoolValueWithDetails(key, value string) error {
 	return fmt.Errorf("%w for %s: %s", ErrInvalidBoolValue, key, value)
 }
 
-// ErrRepositoryNotFound is returned when a repository with the given name is not found.
-var ErrRepositoryNotFound = fmt.Errorf("repository not found")
-
 // ErrRepositoryNotFoundWithName creates an error for when a repository with the given name is not found.
 func ErrRepositoryNotFoundWithName(name string) error {
 	return fmt.Errorf("%w: %s", ErrRepositoryNotFound, name)
@@ -318,33 +345,6 @@ func ErrRepositoryNotFoundWithName(name string) error {
 func ErrUnknownConfigKeyWithName(key string) error {
 	return fmt.Errorf("%w: %s", ErrUnknownConfigKey, key)
 }
-
-// ErrFileOperationFailed is returned when a file operation fails.
-var ErrFileOperationFailed = fmt.Errorf("file operation failed")
-
-// ErrJSONOperationFailed is returned when a JSON operation fails.
-var ErrJSONOperationFailed = fmt.Errorf("JSON operation failed")
-
-// ErrFileHashMismatch is returned when a file's hash doesn't match the expected value.
-var ErrFileHashMismatch = fmt.Errorf("file hash mismatch")
-
-// ErrFileSizeMismatch is returned when a file's size doesn't match the expected value.
-var ErrFileSizeMismatch = fmt.Errorf("file size mismatch")
-
-// ErrFilePermissionMismatch is returned when a file's permissions don't match the expected value.
-var ErrFilePermissionMismatch = fmt.Errorf("file permission mismatch")
-
-// ErrFileModeMismatch is returned when a file's mode doesn't match the expected value.
-var ErrFileModeMismatch = fmt.Errorf("file mode mismatch")
-
-// ErrUnexpectedFile is returned when an unexpected file is found.
-var ErrUnexpectedFile = fmt.Errorf("unexpected file")
-
-// ErrMissingFile is returned when an expected file is missing.
-var ErrMissingFile = fmt.Errorf("missing file")
-
-// ErrDownloadFailed is returned when a download operation fails.
-var ErrDownloadFailed = fmt.Errorf("download failed")
 
 // Helper functions for artifact errors
 

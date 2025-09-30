@@ -12,6 +12,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Number of arguments expected by the set command.
+const setCommandArgs = 2
+
 // NewConfigCmd creates the config command with subcommands.
 func NewConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -40,9 +43,6 @@ func newConfigShowCmd() *cobra.Command {
 
 	return cmd
 }
-
-// Number of arguments expected by the set command.
-const setCommandArgs = 2
 
 func newConfigSetCmd() *cobra.Command {
 	cmd := &cobra.Command{

@@ -4,6 +4,35 @@ import (
 	"fmt"
 )
 
+// Error types for specific error conditions.
+type (
+	// HashCalculationError represents an error that occurs during hash calculation.
+	HashCalculationError struct {
+		Path string
+		Err  error
+	}
+
+	// PathTraversalError is returned when a path traversal attempt is detected.
+	PathTraversalError struct {
+		Path string
+	}
+
+	// VerificationError is returned when artifact verification fails.
+	VerificationError struct {
+		ExpectedName    string
+		ExpectedVersion string
+		ActualName      string
+		ActualVersion   string
+	}
+
+	// FileOperationError is returned for file operation errors.
+	FileOperationError struct {
+		Path string
+		Op   string
+		Err  error
+	}
+)
+
 // Common artifact errors.
 var (
 	// Path and file related errors.
@@ -56,35 +85,6 @@ var (
 	//nolint:err113 // Function variable for creating contextual errors is appropriate here
 	ErrArtifactNotInstalled = func(pkgName string) error {
 		return fmt.Errorf("artifact %s is not installed", pkgName)
-	}
-)
-
-// Error types for specific error conditions.
-type (
-	// HashCalculationError represents an error that occurs during hash calculation.
-	HashCalculationError struct {
-		Path string
-		Err  error
-	}
-
-	// PathTraversalError is returned when a path traversal attempt is detected.
-	PathTraversalError struct {
-		Path string
-	}
-
-	// VerificationError is returned when artifact verification fails.
-	VerificationError struct {
-		ExpectedName    string
-		ExpectedVersion string
-		ActualName      string
-		ActualVersion   string
-	}
-
-	// FileOperationError is returned for file operation errors.
-	FileOperationError struct {
-		Path string
-		Op   string
-		Err  error
 	}
 )
 

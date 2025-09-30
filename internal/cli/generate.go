@@ -8,6 +8,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type generateOptions struct {
+	basePath string
+	baseline string
+	force    bool
+}
+
 // NewGenerateCmd creates a new command for generating repository indexes.
 func NewGenerateCmd() *cobra.Command {
 	opts := &generateOptions{}
@@ -39,12 +45,6 @@ and its subdirectories. The output will be written to the specified file.`,
   gotya index generate --baseline=./old-index.json ./artifacts ./repo/updated-index.json`
 
 	return cmd
-}
-
-type generateOptions struct {
-	basePath string
-	baseline string
-	force    bool
 }
 
 func addGenerateFlags(cmd *cobra.Command, o *generateOptions) {

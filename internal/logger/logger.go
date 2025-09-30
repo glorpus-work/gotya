@@ -10,6 +10,9 @@ import (
 	"sync"
 )
 
+// Fields is a type alias for log fields to make the API cleaner
+type Fields map[string]interface{}
+
 // OutputFormat defines the supported logging output formats
 type OutputFormat string
 
@@ -23,11 +26,8 @@ const (
 var (
 	// testOutput is used to capture log output during tests
 	testOutput   io.Writer
-	testOutputMu sync.Mutex
+	testOutputMu sync.RWMutex
 )
-
-// Fields is a type alias for log fields to make the API cleaner
-type Fields map[string]interface{}
 
 var logger *slog.Logger
 
