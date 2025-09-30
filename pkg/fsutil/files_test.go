@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -196,6 +197,9 @@ func TestCopy(t *testing.T) {
 
 // TestCreateFilePerm tests the CreateFilePerm function
 func TestCreateFilePerm(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping on Windows because of missing permission handling")
+	}
 	tempDir := t.TempDir()
 
 	testFile := filepath.Join(tempDir, "test.txt")
