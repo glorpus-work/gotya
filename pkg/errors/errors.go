@@ -103,6 +103,9 @@ var (
 	// ErrInvalidPath is returned when a file or directory path is invalid.
 	ErrInvalidPath = fmt.Errorf("invalid path")
 
+	// ErrEmptyPaths is returned when source or destination paths are empty in file operations.
+	ErrEmptyPaths = fmt.Errorf("source and destination paths cannot be empty")
+
 	// Artifact errors are related to artifact management operations.
 	// ErrArtifactInvalid is returned when a artifact is invalid or contains invalid data.
 	ErrArtifactInvalid = fmt.Errorf("invalid artifact")

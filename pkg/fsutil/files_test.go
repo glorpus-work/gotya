@@ -24,11 +24,11 @@ func TestMove_File_SameFilesystem(t *testing.T) {
 
 	// Move the file
 	err = Move(srcFile, dstFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify the file was moved correctly
 	movedContent, err := os.ReadFile(dstFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, content, string(movedContent))
 
 	// Verify source file no longer exists
@@ -60,15 +60,15 @@ func TestMove_Directory_SameFilesystem(t *testing.T) {
 
 	// Move the directory
 	err = Move(srcDir, dstDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify the directory was moved correctly
 	movedContent1, err := os.ReadFile(filepath.Join(dstDir, "file1.txt"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "content1", string(movedContent1))
 
 	movedContent2, err := os.ReadFile(filepath.Join(dstDir, "subdir", "file2.txt"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "content2", string(movedContent2))
 
 	// Verify source directory no longer exists
@@ -95,11 +95,11 @@ func TestMove_File_PreservePermissions(t *testing.T) {
 
 	// Move the file
 	err = Move(srcFile, dstFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Check that permissions are preserved
 	dstInfo, err := os.Stat(dstFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, originalMode, dstInfo.Mode())
 }
 
@@ -112,7 +112,7 @@ func TestMove_SourceDoesNotExist(t *testing.T) {
 
 	// Try to move a file that doesn't exist
 	err := Move(srcFile, dstFile)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to stat source")
 }
 
@@ -120,12 +120,12 @@ func TestMove_SourceDoesNotExist(t *testing.T) {
 func TestMove_InvalidPaths(t *testing.T) {
 	// Test empty source
 	err := Move("", "destination.txt")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "source and destination paths cannot be empty")
 
 	// Test empty destination
 	err = Move("source.txt", "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "source and destination paths cannot be empty")
 }
 
@@ -161,11 +161,11 @@ func TestMove_CrossFilesystemFallback(t *testing.T) {
 
 	// Move should succeed with same-filesystem move
 	err = Move(srcFile, dstFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify content
 	movedContent, err := os.ReadFile(dstFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, content, string(movedContent))
 }
 
@@ -182,16 +182,16 @@ func TestCopy(t *testing.T) {
 
 	// Copy the file
 	err = Copy(srcFile, dstFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify content was copied
 	copiedContent, err := os.ReadFile(dstFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, content, string(copiedContent))
 
 	// Verify source still exists (unlike Move)
 	_, err = os.Stat(srcFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 // TestCreateFilePerm tests the CreateFilePerm function
@@ -203,24 +203,24 @@ func TestCreateFilePerm(t *testing.T) {
 
 	// Create file with specific permissions
 	file, err := CreateFilePerm(testFile, permissions)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, file)
 
 	// Write some content
 	content := "test content"
 	_, err = file.WriteString(content)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	err = file.Close()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify file was created with correct permissions
 	info, err := os.Stat(testFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, permissions, info.Mode())
 
 	// Verify content
 	fileContent, err := os.ReadFile(testFile)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, content, string(fileContent))
 }

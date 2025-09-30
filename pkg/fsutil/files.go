@@ -2,11 +2,12 @@ package fsutil
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"syscall"
+
+	pkgerrors "github.com/cperrin88/gotya/pkg/errors"
 )
 
 // Move moves a file or directory from src to dst.
@@ -15,20 +16,20 @@ import (
 // Returns an error if the move operation fails.
 func Move(src, dst string) error {
 	if src == "" || dst == "" {
-		return fmt.Errorf("source and destination paths cannot be empty")
+		return pkgerrors.ErrEmptyPaths
 	}
 
 	// Get source info to determine if it's a file or directory
 	srcInfo, err := os.Stat(src)
 	if err != nil {
-		return fmt.Errorf("failed to stat source %s: %w", src, err)
+		return pkgerrors.Wrapf(err, "failed to stat source %s", src)
 	}
 
 	// Ensure destination directory exists for files
 	if !srcInfo.IsDir() {
 		dstDir := filepath.Dir(dst)
 		if err := os.MkdirAll(dstDir, 0755); err != nil {
-			return fmt.Errorf("failed to create destination directory %s: %w", dstDir, err)
+			return pkgerrors.Wrapf(err, "failed to create destination directory %s", dstDir)
 		}
 	}
 
@@ -41,7 +42,7 @@ func Move(src, dst string) error {
 	// Check if the error is due to cross-filesystem boundaries
 	if !isCrossFilesystemError(err) {
 		// Not a cross-filesystem error, return the original error
-		return fmt.Errorf("failed to rename %s to %s: %w", src, dst, err)
+		return pkgerrors.Wrapf(err, "failed to rename %s to %s", src, dst)
 	}
 
 	// Cross-filesystem move required - fallback to copy + delete
@@ -75,7 +76,7 @@ func isCrossFilesystemError(err error) bool {
 func moveFile(src, dst string) error {
 	// Copy file contents
 	if err := Copy(src, dst); err != nil {
-		return fmt.Errorf("failed to copy file %s to %s: %w", src, dst, err)
+		return pkgerrors.Wrapf(err, "failed to copy file %s to %s", src, dst)
 	}
 
 	// Get source file info to preserve metadata
@@ -83,23 +84,23 @@ func moveFile(src, dst string) error {
 	if err != nil {
 		// If we can't get source info, at least try to remove the source
 		_ = os.Remove(src)
-		return fmt.Errorf("failed to stat source file after copy: %w", err)
+		return pkgerrors.Wrap(err, "failed to stat source file after copy")
 	}
 
 	// Preserve file permissions and modification time
 	if err := os.Chmod(dst, srcInfo.Mode()); err != nil {
 		_ = os.Remove(src) // Clean up source even if chmod fails
-		return fmt.Errorf("failed to set permissions on %s: %w", dst, err)
+		return pkgerrors.Wrapf(err, "failed to set permissions on %s", dst)
 	}
 
 	if err := os.Chtimes(dst, srcInfo.ModTime(), srcInfo.ModTime()); err != nil {
 		_ = os.Remove(src) // Clean up source even if chtimes fails
-		return fmt.Errorf("failed to set modification time on %s: %w", dst, err)
+		return pkgerrors.Wrapf(err, "failed to set modification time on %s", dst)
 	}
 
 	// Remove source file
 	if err := os.Remove(src); err != nil {
-		return fmt.Errorf("failed to remove source file %s after copy: %w", src, err)
+		return pkgerrors.Wrapf(err, "failed to remove source file %s after copy", src)
 	}
 
 	return nil
@@ -110,11 +111,11 @@ func moveDirectory(src, dst string) error {
 	// Create destination directory with same permissions
 	srcInfo, err := os.Stat(src)
 	if err != nil {
-		return fmt.Errorf("failed to stat source directory %s: %w", src, err)
+		return pkgerrors.Wrapf(err, "failed to stat source directory %s", src)
 	}
 
 	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
-		return fmt.Errorf("failed to create destination directory %s: %w", dst, err)
+		return pkgerrors.Wrapf(err, "failed to create destination directory %s", dst)
 	}
 
 	// Walk through source directory and copy all contents
@@ -126,7 +127,7 @@ func moveDirectory(src, dst string) error {
 		// Calculate relative path from source directory
 		relPath, err := filepath.Rel(src, path)
 		if err != nil {
-			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
+			return pkgerrors.Wrapf(err, "failed to get relative path for %s", path)
 		}
 
 		// Construct destination path
@@ -135,26 +136,26 @@ func moveDirectory(src, dst string) error {
 		if d.IsDir() {
 			// Create directory with same permissions
 			if err := os.MkdirAll(dstPath, d.Type()); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", dstPath, err)
+				return pkgerrors.Wrapf(err, "failed to create directory %s", dstPath)
 			}
 		} else {
 			// Copy file
 			if err := Copy(path, dstPath); err != nil {
-				return fmt.Errorf("failed to copy file %s to %s: %w", path, dstPath, err)
+				return pkgerrors.Wrapf(err, "failed to copy file %s to %s", path, dstPath)
 			}
 
 			// Preserve file permissions and modification time
 			srcFileInfo, err := d.Info()
 			if err != nil {
-				return fmt.Errorf("failed to get file info for %s: %w", path, err)
+				return pkgerrors.Wrapf(err, "failed to get file info for %s", path)
 			}
 
 			if err := os.Chmod(dstPath, srcFileInfo.Mode()); err != nil {
-				return fmt.Errorf("failed to set permissions on %s: %w", dstPath, err)
+				return pkgerrors.Wrapf(err, "failed to set permissions on %s", dstPath)
 			}
 
 			if err := os.Chtimes(dstPath, srcFileInfo.ModTime(), srcFileInfo.ModTime()); err != nil {
-				return fmt.Errorf("failed to set modification time on %s: %w", dstPath, err)
+				return pkgerrors.Wrapf(err, "failed to set modification time on %s", dstPath)
 			}
 		}
 
@@ -169,7 +170,7 @@ func moveDirectory(src, dst string) error {
 	// Remove source directory after successful copy
 	// Note: We do this outside the WalkDir to avoid issues with directory removal during traversal
 	if err := os.RemoveAll(src); err != nil {
-		return fmt.Errorf("failed to remove source directory %s after copy: %w", src, err)
+		return pkgerrors.Wrapf(err, "failed to remove source directory %s after copy", src)
 	}
 
 	return nil
@@ -179,19 +180,29 @@ func moveDirectory(src, dst string) error {
 func Copy(srcFile, dstFile string) error {
 	src, err := os.Open(srcFile)
 	if err != nil {
-		return fmt.Errorf("failed to open source file %s: %w", srcFile, err)
+		return pkgerrors.Wrapf(err, "failed to open source file %s", srcFile)
 	}
-	defer src.Close()
+	defer func() {
+		if closeErr := src.Close(); closeErr != nil {
+			// Log error but don't override copy error
+			_ = closeErr
+		}
+	}()
 
 	dst, err := os.Create(dstFile)
 	if err != nil {
-		return fmt.Errorf("failed to create destination file %s: %w", dstFile, err)
+		return pkgerrors.Wrapf(err, "failed to create destination file %s", dstFile)
 	}
-	defer dst.Close()
+	defer func() {
+		if closeErr := dst.Close(); closeErr != nil {
+			// Log error but don't override copy error
+			_ = closeErr
+		}
+	}()
 
 	_, err = io.Copy(dst, src)
 	if err != nil {
-		return fmt.Errorf("failed to copy from %s to %s: %w", srcFile, dstFile, err)
+		return pkgerrors.Wrapf(err, "failed to copy from %s to %s", srcFile, dstFile)
 	}
 
 	return nil
