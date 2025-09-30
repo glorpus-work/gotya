@@ -235,7 +235,7 @@ func writeBodyToTemp(resp *http.Response, absPath string) (string, error) {
 }
 
 func finalizeFile(tmpPath, absPath string) error {
-	if err := os.Rename(tmpPath, absPath); err != nil {
+	if err := fsutil.Move(tmpPath, absPath); err != nil {
 		return pkgerrors.Wrap(err, "could not finalize file")
 	}
 	if err := os.Chmod(absPath, fsutil.FileModeSecure); err != nil {
