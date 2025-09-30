@@ -118,26 +118,10 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		return nil
 	}
 
-	// Filter to specific packages if requested
-	var packagesToUpdate []*model.InstalledArtifact
-	if len(opts.Packages) > 0 {
-		packageMap := make(map[string]*model.InstalledArtifact)
-		for _, pkg := range installed {
-			packageMap[pkg.Name] = pkg
-		}
-		for _, name := range opts.Packages {
-			if pkg, ok := packageMap[name]; ok {
-				packagesToUpdate = append(packagesToUpdate, pkg)
-			} else {
-				return fmt.Errorf("package %s is not installed", name)
-			}
-		}
-	} else {
-		packagesToUpdate = installed
-	}
-	if len(packagesToUpdate) == 0 {
-		emit(o.Hooks, Event{Phase: "done", Msg: "no packages to update"})
-		return nil
+	// Filter packages for update
+	packagesToUpdate, err := o.filterPackagesForUpdate(installed, opts)
+	if err != nil || packagesToUpdate == nil {
+		return err
 	}
 
 	if o.Index == nil {
@@ -152,25 +136,67 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 		return fmt.Errorf("failed to resolve update plan: %w", err)
 	}
 
-	// Dry run
+	// Handle dry run
 	if opts.DryRun {
-		for _, step := range plan.Artifacts {
-			var phase string
-			switch step.Action {
-			case model.ResolvedActionInstall, model.ResolvedActionUpdate:
-				phase = phaseUpdating
-			case model.ResolvedActionSkip:
-				phase = "skipping"
-			default:
-				phase = "processing"
-			}
-			emit(o.Hooks, Event{Phase: phase, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
-		}
-		emit(o.Hooks, Event{Phase: "done", Msg: "update dry-run completed"})
+		o.handleDryRunUpdate(plan)
 		return nil
 	}
 
-	// Any work?
+	// Check if updates are needed
+	if !checkForUpdates(plan) {
+		emit(o.Hooks, Event{Phase: "done", Msg: "all packages are already at the latest compatible versions"})
+		return nil
+	}
+
+	// Execute updates and report results
+	return o.executeUpdateWithResults(ctx, plan, opts)
+}
+
+// filterPackagesForUpdate filters installed artifacts to determine which packages should be updated.
+func (o *Orchestrator) filterPackagesForUpdate(installed []*model.InstalledArtifact, opts UpdateOptions) ([]*model.InstalledArtifact, error) {
+	// Filter to specific packages if requested
+	var packagesToUpdate []*model.InstalledArtifact
+	if len(opts.Packages) > 0 {
+		packageMap := make(map[string]*model.InstalledArtifact)
+		for _, pkg := range installed {
+			packageMap[pkg.Name] = pkg
+		}
+		for _, name := range opts.Packages {
+			if pkg, ok := packageMap[name]; ok {
+				packagesToUpdate = append(packagesToUpdate, pkg)
+			} else {
+				return nil, fmt.Errorf("package %s is not installed", name)
+			}
+		}
+	} else {
+		packagesToUpdate = installed
+	}
+	if len(packagesToUpdate) == 0 {
+		emit(o.Hooks, Event{Phase: "done", Msg: "no packages to update"})
+		return nil, nil
+	}
+	return packagesToUpdate, nil
+}
+
+// handleDryRunUpdate processes dry run for update operations.
+func (o *Orchestrator) handleDryRunUpdate(plan model.ResolvedArtifacts) {
+	for _, step := range plan.Artifacts {
+		var phase string
+		switch step.Action {
+		case model.ResolvedActionInstall, model.ResolvedActionUpdate:
+			phase = phaseUpdating
+		case model.ResolvedActionSkip:
+			phase = "skipping"
+		default:
+			phase = "processing"
+		}
+		emit(o.Hooks, Event{Phase: phase, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
+	}
+	emit(o.Hooks, Event{Phase: "done", Msg: "update dry-run completed"})
+}
+
+// checkForUpdates determines if there are actual updates to perform.
+func checkForUpdates(plan model.ResolvedArtifacts) bool {
 	hasUpdates := false
 	for _, step := range plan.Artifacts {
 		if step.Action == model.ResolvedActionInstall || step.Action == model.ResolvedActionUpdate {
@@ -178,11 +204,11 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 			break
 		}
 	}
-	if !hasUpdates {
-		emit(o.Hooks, Event{Phase: "done", Msg: "all packages are already at the latest compatible versions"})
-		return nil
-	}
+	return hasUpdates
+}
 
+// executeUpdateWithResults handles the update execution and result reporting.
+func (o *Orchestrator) executeUpdateWithResults(ctx context.Context, plan model.ResolvedArtifacts, opts UpdateOptions) error {
 	// Prefetch and execute
 	fetched, err := o.prefetchPlanArtifacts(ctx, plan, download.Options{Dir: opts.CacheDir, Concurrency: opts.Concurrency})
 	if err != nil {

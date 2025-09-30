@@ -219,7 +219,6 @@ func writeBodyToTemp(resp *http.Response, absPath string) (string, error) {
 		return "", pkgerrors.Wrap(err, "could not create temp file")
 	}
 	tmpPath := tmp.Name()
-	defer func() { _ = os.Remove(tmpPath) }()
 
 	if _, err := io.Copy(tmp, resp.Body); err != nil {
 		_ = tmp.Close()
