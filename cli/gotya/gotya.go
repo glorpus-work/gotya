@@ -15,7 +15,6 @@ import (
 var (
 	configPath   string
 	verbose      bool
-	noColor      bool
 	outputFormat string
 )
 
@@ -46,13 +45,11 @@ func newRootCmd() *cobra.Command {
 	// Global flags
 	cmd.PersistentFlags().StringVar(&configPath, "config", "", "config file path (default: auto-detect)")
 	cmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
-	cmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
 	cmd.PersistentFlags().StringVarP(&outputFormat, "output", "o", "", "output format (json, yaml, table)")
 
 	// Set up CLI artifact variables
 	cli.ConfigPath = &configPath
 	cli.Verbose = &verbose
-	cli.NoColor = &noColor
 	cli.OutputFormat = &outputFormat
 
 	// Add subcommands
