@@ -27,22 +27,8 @@ type ResolvedArtifact struct {
 	Reason    string
 }
 
-// GetID returns the unique identifier for this artifact (name@version)
-func (ra *ResolvedArtifact) GetID() string {
-	return ra.Name + "@" + ra.Version
-}
-
 // ResolvedAction represents the type of action to take for an artifact.
 type ResolvedAction string
-
-const (
-	// ResolvedActionInstall indicates the artifact should be newly installed.
-	ResolvedActionInstall ResolvedAction = "install"
-	// ResolvedActionUpdate indicates an existing artifact should be updated.
-	ResolvedActionUpdate ResolvedAction = "update"
-	// ResolvedActionSkip indicates the artifact is already at the correct version.
-	ResolvedActionSkip ResolvedAction = "skip"
-)
 
 // ResolvedArtifacts is an ordered list of steps, topologically sorted if dependencies are present.
 type ResolvedArtifacts struct {
@@ -57,13 +43,6 @@ type InstalledFile struct {
 
 // ArtifactStatus represents the status of an installed artifact.
 type ArtifactStatus string
-
-const (
-	// StatusInstalled indicates the artifact is fully installed.
-	StatusInstalled ArtifactStatus = "installed"
-	// StatusMissing indicates the artifact is not installed but referenced as a dependency.
-	StatusMissing ArtifactStatus = "missing"
-)
 
 // InstalledArtifact represents an installed artifact with its files and installation metadata.
 type InstalledArtifact struct {
@@ -82,4 +61,23 @@ type InstalledArtifact struct {
 	Status              ArtifactStatus // Status of the artifact
 	Checksum            string
 	InstallationReason  InstallationReason // Why this artifact was installed
+}
+
+const (
+	// ResolvedActionInstall indicates the artifact should be newly installed.
+	ResolvedActionInstall ResolvedAction = "install"
+	// ResolvedActionUpdate indicates an existing artifact should be updated.
+	ResolvedActionUpdate ResolvedAction = "update"
+	// ResolvedActionSkip indicates the artifact is already at the correct version.
+	ResolvedActionSkip ResolvedAction = "skip"
+
+	// StatusInstalled indicates the artifact is fully installed.
+	StatusInstalled ArtifactStatus = "installed"
+	// StatusMissing indicates the artifact is not installed but referenced as a dependency.
+	StatusMissing ArtifactStatus = "missing"
+)
+
+// GetID returns the unique identifier for this artifact (name@version)
+func (ra *ResolvedArtifact) GetID() string {
+	return ra.Name + "@" + ra.Version
 }

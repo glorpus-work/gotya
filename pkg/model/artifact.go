@@ -18,16 +18,6 @@ type Dependency struct {
 	VersionConstraint string `json:"version_constraint,omitempty"`
 }
 
-// InstallationReason tracks why an artifact was installed
-type InstallationReason string
-
-const (
-	// InstallationReasonManual indicates the artifact was installed explicitly by the user
-	InstallationReasonManual InstallationReason = "manual"
-	// InstallationReasonAutomatic indicates the artifact was installed automatically as a dependency
-	InstallationReasonAutomatic InstallationReason = "automatic"
-)
-
 // IndexArtifactDescriptor represents the metadata and properties of an indexed artifact in a repository or package.
 type IndexArtifactDescriptor struct {
 	Name         string       `json:"name"`
@@ -40,6 +30,16 @@ type IndexArtifactDescriptor struct {
 	Arch         string       `json:"arch,omitempty"`
 	Dependencies []Dependency `json:"dependencies,omitempty"`
 }
+
+// InstallationReason tracks why an artifact was installed
+type InstallationReason string
+
+const (
+	// InstallationReasonManual indicates the artifact was installed explicitly by the user
+	InstallationReasonManual InstallationReason = "manual"
+	// InstallationReasonAutomatic indicates the artifact was installed automatically as a dependency
+	InstallationReasonAutomatic InstallationReason = "automatic"
+)
 
 // MatchOs checks if this artifact matches the given operating system.
 func (a *IndexArtifactDescriptor) MatchOs(os string) bool {

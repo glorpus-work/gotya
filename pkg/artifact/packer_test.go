@@ -160,9 +160,9 @@ func TestPacker_Pack(t *testing.T) {
 
 			// Check the error
 			if tt.expectedErr != nil {
-				assert.ErrorIs(t, err, tt.expectedErr)
+				require.ErrorIs(t, err, tt.expectedErr)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotEmpty(t, outputFile)
 			}
 
@@ -268,21 +268,21 @@ func TestPackSymlinks(t *testing.T) {
 			outputFile, err := p.Pack()
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Empty(t, outputFile)
 				// New error semantics: ensure it wraps ErrInvalidPath
-				assert.ErrorIs(t, err, errors.ErrInvalidPath)
+				require.ErrorIs(t, err, errors.ErrInvalidPath)
 				// Keep a minimal message check to ensure context is present when provided
 				if tt.errMessage != "" {
 					assert.Contains(t, err.Error(), tt.errMessage)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				// Verify the output file was created (underscored naming)
 				outputFile := filepath.Join(outputDir, p.name+"_"+p.version+"_"+p.os+"_"+p.arch+".gotya")
 				_, err := os.Stat(outputFile)
-				assert.NoError(t, err, "output file should exist")
+				require.NoError(t, err, "output file should exist")
 			}
 		})
 	}

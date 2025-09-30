@@ -19,6 +19,24 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
+// Generator creates package indexes by scanning directories for artifact files.
+// It supports incremental index generation using baseline indexes and conflict detection.
+type Generator struct {
+	// Dir is the root directory containing artifact files (.gotya). It can
+	// contain subdirectories; all .gotya files will be discovered recursively.
+	Dir string
+	// OutputPath is the full path of the index file to write (e.g., "/repo/index.json").
+	OutputPath string
+	// BasePath is an optional prefix to apply to artifact URLs in the index.
+	// The resulting URL is path.Join(BasePath, relPathFromIndexDirToArtifact).
+	BasePath string
+	// ForceOverwrite controls whether to overwrite an existing output file.
+	ForceOverwrite bool
+	// BaselineIndexPath is the path to an existing index file to use as a baseline.
+	// If provided, only new/changed artifacts will be included in the output.
+	BaselineIndexPath string
+}
+
 // Generator builds an index.json from a directory of .gotya artifact files.
 // It inspects each artifact's embedded metadata and populates an Index.
 // URLs in the produced index are recorded relative to the index file location.
@@ -35,24 +53,6 @@ const (
 	// CurrentFormatVersion is the current version of the index format.
 	CurrentFormatVersion = "1"
 )
-
-// Generator creates package indexes by scanning directories for artifact files.
-// It supports incremental index generation using baseline indexes and conflict detection.
-type Generator struct {
-	// Dir is the root directory containing artifact files (.gotya). It can
-	// contain subdirectories; all .gotya files will be discovered recursively.
-	Dir string
-	// OutputPath is the full path of the index file to write (e.g., "/repo/index.json").
-	OutputPath string
-	// BasePath is an optional prefix to apply to artifact URLs in the index.
-	// The resulting URL is path.Join(BasePath, relPathFromIndexDirToArtifact).
-	BasePath string
-	// ForceOverwrite controls whether to overwrite an existing output file.
-	ForceOverwrite bool
-	// BaselineIndexPath is an optional path to an existing index file to use as a baseline.
-	// The new index will include all artifacts from the baseline that don't conflict with new artifacts.
-	BaselineIndexPath string
-}
 
 // NewGenerator creates a new Generator with default values.
 func NewGenerator(dir, outputPath string) *Generator {

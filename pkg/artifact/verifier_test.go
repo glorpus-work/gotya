@@ -55,7 +55,7 @@ func TestVerifier_extractArtifact_NonExistentFile(t *testing.T) {
 
 	// Try to extract a non-existent artifact
 	err := archiveManager.ExtractAll(context.Background(), "/nonexistent/path.gotya", tempDir)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to open archive file")
 }
 
@@ -65,7 +65,7 @@ func TestVerifier_extractArtifact_InvalidArchive(t *testing.T) {
 
 	// Try to extract a non-existent artifact file
 	err := archiveManager.ExtractAll(context.Background(), "/nonexistent/path.gotya", tempDir)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to open archive file")
 }
 
@@ -156,7 +156,7 @@ func TestVerifier_extractArtifact_Permissions(t *testing.T) {
 
 	// Try to extract to read-only directory
 	err := archiveManager.ExtractAll(context.Background(), testArtifact, destDir)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "permission denied")
 }
 
@@ -274,12 +274,12 @@ func TestVerifier_Verify(t *testing.T) {
 			}
 
 			if tt.expectError {
-				assert.Error(t, err, tt.doc)
+				require.Error(t, err, tt.doc)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg, "%s: error message mismatch", tt.doc)
 				}
 			} else {
-				assert.NoError(t, err, tt.doc)
+				require.NoError(t, err, tt.doc)
 			}
 		})
 	}

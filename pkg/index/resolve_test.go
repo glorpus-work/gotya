@@ -139,7 +139,7 @@ func TestResolve_CyclicDependency(t *testing.T) {
 		},
 	})
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "dependency cycle detected")
 }
 
@@ -277,7 +277,7 @@ func TestResolve_NonExistentPackage(t *testing.T) {
 		},
 	})
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "nonexistent")
 	assert.Contains(t, err.Error(), "linux/amd64")
 }
@@ -629,6 +629,6 @@ func TestResolve_EmptyRequestsList(t *testing.T) {
 	mgr := setupTestManager(t, `[{"name":"test","version":"1.0.0","url":"https://ex/test","checksum":"test1"}]`)
 
 	_, err := mgr.Resolve(context.Background(), []model.ResolveRequest{})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no resolve requests provided")
 }

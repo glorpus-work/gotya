@@ -344,7 +344,7 @@ func TestInstallArtifact_EmptyDescriptor(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
 
 	err := mgr.InstallArtifact(context.Background(), nil, "/nonexistent/path.gotya", model.InstallationReasonManual)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "artifact descriptor cannot be nil")
 }
 
@@ -450,7 +450,7 @@ func TestUninstallArtifact_NonExistent(t *testing.T) {
 
 	// Try to uninstall a non-existent artifact
 	err := mgr.UninstallArtifact(context.Background(), "non-existent-artifact", false)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not installed")
 }
 
@@ -841,7 +841,7 @@ func testUpdateToSameVersion(t *testing.T, testName, description string) {
 	}
 
 	err = mgr.UpdateArtifact(context.Background(), originalArtifact, sameDesc)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already at the latest version")
 }
 
@@ -886,7 +886,7 @@ func TestUpdateArtifact_InvalidNewArtifact(t *testing.T) {
 	}
 
 	err = mgr.UpdateArtifact(context.Background(), "/nonexistent/path.gotya", invalidDesc)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to verify new artifact")
 }
 
@@ -923,7 +923,7 @@ func TestUpdateArtifact_EmptyNewArtifactPath(t *testing.T) {
 	}
 
 	err := mgr.UpdateArtifact(context.Background(), "", desc)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "new artifact path cannot be empty")
 }
 
@@ -933,7 +933,7 @@ func TestUpdateArtifact_EmptyDescriptor(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
 
 	err := mgr.UpdateArtifact(context.Background(), "/path/to/artifact.gotya", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "new artifact descriptor cannot be nil")
 }
 
@@ -1178,7 +1178,7 @@ func TestVerifyArtifact_NonExistentFile(t *testing.T) {
 
 	// Try to verify a non-existent artifact
 	err := mgr.VerifyArtifact(context.Background(), desc)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, errors.ErrArtifactNotFound, err)
 }
 
@@ -1430,7 +1430,7 @@ func TestReverseResolve_DatabaseLoadError(t *testing.T) {
 	}
 
 	_, err := mgr.ReverseResolve(context.Background(), req)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load installed database")
 }
 

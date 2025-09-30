@@ -10,6 +10,23 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
+// multiResolver handles dependency resolution for multiple resolve requests.
+type multiResolver struct {
+	manager     *ManagerImpl
+	requests    []model.ResolveRequest
+	constraints map[string][]string                       // name -> constraints (AND)
+	selected    map[string]*model.IndexArtifactDescriptor // name -> chosen descriptor
+	deps        map[string][]string                       // name -> dep names
+	visiting    map[string]struct{}                       // for cycle detection
+	preferences map[string]versionPreference              // name -> version preferences
+}
+
+// versionPreference represents version preference settings for an artifact.
+type versionPreference struct {
+	oldVersion  string
+	keepVersion bool
+}
+
 const defaultConstraint = ">= 0.0.0"
 
 // Resolve computes resolved artifacts with dependency resolution for multiple requests.
@@ -45,21 +62,6 @@ func (rm *ManagerImpl) Resolve(ctx context.Context, requests []model.ResolveRequ
 }
 
 // --- Internal planning helpers ---
-
-type multiResolver struct {
-	manager     *ManagerImpl
-	requests    []model.ResolveRequest
-	constraints map[string][]string                       // name -> constraints (AND)
-	selected    map[string]*model.IndexArtifactDescriptor // name -> chosen descriptor
-	deps        map[string][]string                       // name -> dep names
-	visiting    map[string]struct{}                       // for cycle detection
-	preferences map[string]versionPreference              // name -> version preferences
-}
-
-type versionPreference struct {
-	oldVersion  string
-	keepVersion bool
-}
 
 func newMultiResolver(mgr *ManagerImpl, requests []model.ResolveRequest) *multiResolver {
 	// Build preferences map from requests
