@@ -24,7 +24,7 @@ func main() {
 
 	rootCmd := newRootCmd()
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		cancel()
 		os.Exit(1)
 	}

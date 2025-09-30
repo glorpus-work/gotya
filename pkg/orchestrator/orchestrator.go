@@ -24,6 +24,7 @@ func (o *Orchestrator) SyncAll(ctx context.Context, repos []*index.Repository, i
 	if o.DL == nil {
 		return fmt.Errorf("download manager is not configured")
 	}
+
 	items := make([]download.Item, 0, len(repos))
 	for _, r := range repos {
 		if r == nil || r.URL == nil {
@@ -63,6 +64,144 @@ func (o *Orchestrator) SyncAll(ctx context.Context, repos []*index.Repository, i
 		}
 	}
 
+	return nil
+}
+
+// Cleanup removes orphaned automatic artifacts that have no reverse dependencies.
+// Returns the list of artifacts that were successfully cleaned up.
+func (o *Orchestrator) Cleanup(ctx context.Context) ([]string, error) {
+	if o.ArtifactManager == nil {
+		return nil, fmt.Errorf("artifact manager is not configured")
+	}
+
+	// Get orphaned automatic artifacts
+	orphaned, err := o.ArtifactManager.GetOrphanedAutomaticArtifacts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get orphaned artifacts: %w", err)
+	}
+
+	if len(orphaned) == 0 {
+		return nil, nil
+	}
+
+	var cleaned []string
+	for _, artifactName := range orphaned {
+		emit(o.Hooks, Event{Phase: "cleanup", ID: artifactName, Msg: fmt.Sprintf("removing orphaned automatic artifact %s", artifactName)})
+		if err := o.ArtifactManager.UninstallArtifact(ctx, artifactName, true); err != nil {
+			emit(o.Hooks, Event{Phase: "error", ID: artifactName, Msg: fmt.Sprintf("failed to cleanup %s: %v", artifactName, err)})
+			continue
+		}
+		cleaned = append(cleaned, artifactName)
+	}
+
+	if len(cleaned) > 0 {
+		emit(o.Hooks, Event{Phase: "done", Msg: fmt.Sprintf("cleaned up %d orphaned artifacts", len(cleaned))})
+	}
+	return cleaned, nil
+}
+
+// Update resolves and updates packages to their latest compatible versions.
+func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
+	if o.ArtifactManager == nil {
+		return fmt.Errorf("artifact manager is not configured")
+	}
+
+	emit(o.Hooks, Event{Phase: "planning", Msg: "analyzing installed packages"})
+
+	// Get all installed artifacts
+	installed, err := o.ArtifactManager.GetInstalledArtifacts()
+	if err != nil {
+		return fmt.Errorf("failed to get installed artifacts: %w", err)
+	}
+	if len(installed) == 0 {
+		emit(o.Hooks, Event{Phase: "done", Msg: "no packages installed to update"})
+		return nil
+	}
+
+	// Filter to specific packages if requested
+	var packagesToUpdate []*model.InstalledArtifact
+	if len(opts.Packages) > 0 {
+		packageMap := make(map[string]*model.InstalledArtifact)
+		for _, pkg := range installed {
+			packageMap[pkg.Name] = pkg
+		}
+		for _, name := range opts.Packages {
+			if pkg, ok := packageMap[name]; ok {
+				packagesToUpdate = append(packagesToUpdate, pkg)
+			} else {
+				return fmt.Errorf("package %s is not installed", name)
+			}
+		}
+	} else {
+		packagesToUpdate = installed
+	}
+	if len(packagesToUpdate) == 0 {
+		emit(o.Hooks, Event{Phase: "done", Msg: "no packages to update"})
+		return nil
+	}
+
+	if o.Index == nil {
+		return fmt.Errorf("index resolver is not configured")
+	}
+
+	// Resolve the update plan
+	updateRequests := buildUpdateRequests(installed, packagesToUpdate)
+	emit(o.Hooks, Event{Phase: "planning", Msg: fmt.Sprintf("resolving updates for %d packages", len(updateRequests))})
+	plan, err := o.Index.Resolve(ctx, updateRequests)
+	if err != nil {
+		return fmt.Errorf("failed to resolve update plan: %w", err)
+	}
+
+	// Dry run
+	if opts.DryRun {
+		for _, step := range plan.Artifacts {
+			var phase string
+			switch step.Action {
+			case model.ResolvedActionInstall, model.ResolvedActionUpdate:
+				phase = phaseUpdating
+			case model.ResolvedActionSkip:
+				phase = "skipping"
+			default:
+				phase = "processing"
+			}
+			emit(o.Hooks, Event{Phase: phase, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
+		}
+		emit(o.Hooks, Event{Phase: "done", Msg: "update dry-run completed"})
+		return nil
+	}
+
+	// Any work?
+	hasUpdates := false
+	for _, step := range plan.Artifacts {
+		if step.Action == model.ResolvedActionInstall || step.Action == model.ResolvedActionUpdate {
+			hasUpdates = true
+			break
+		}
+	}
+	if !hasUpdates {
+		emit(o.Hooks, Event{Phase: "done", Msg: "all packages are already at the latest compatible versions"})
+		return nil
+	}
+
+	// Prefetch and execute
+	fetched, err := o.prefetchPlanArtifacts(ctx, plan, download.Options{Dir: opts.CacheDir, Concurrency: opts.Concurrency})
+	if err != nil {
+		return fmt.Errorf("failed to prefetch updates: %w", err)
+	}
+	updatedCount, newlyInstalledCount, err := o.executeUpdatePlan(ctx, plan, fetched)
+	if err != nil {
+		return err
+	}
+
+	if updatedCount > 0 || newlyInstalledCount > 0 {
+		msg := fmt.Sprintf("successfully updated %d packages", updatedCount)
+		if newlyInstalledCount > 0 {
+			msg += fmt.Sprintf(" and installed %d new dependencies", newlyInstalledCount)
+		}
+		emit(o.Hooks, Event{Phase: "done", Msg: msg})
+	} else {
+		emit(o.Hooks, Event{Phase: "done", Msg: "no updates were performed"})
+	}
 	return nil
 }
 
@@ -116,38 +255,9 @@ func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequ
 	}
 
 	emit(o.Hooks, Event{Phase: "planning", Msg: fmt.Sprintf("installing %d packages", len(requests))})
-
-	// Load currently installed artifacts for compatibility checking
-	var installedArtifacts []*model.InstalledArtifact
-	if o.ArtifactManager != nil {
-		var err error
-		installedArtifacts, err = o.ArtifactManager.GetInstalledArtifacts()
-		if err != nil {
-			return fmt.Errorf("failed to load installed artifacts: %w", err)
-		}
-	}
-
-	// Build resolve requests: combine input requests with keep preferences for installed artifacts
-	allRequests := make([]model.ResolveRequest, len(requests))
-	copy(allRequests, requests)
-
-	// Add keep preferences for all installed artifacts that aren't already in our requests
-	installedMap := make(map[string]bool)
-	for _, req := range requests {
-		installedMap[req.Name] = true
-	}
-
-	for _, installed := range installedArtifacts {
-		if !installedMap[installed.Name] {
-			allRequests = append(allRequests, model.ResolveRequest{
-				Name:              installed.Name,
-				VersionConstraint: "", // No hard constraint, just preference
-				OS:                installed.OS,
-				Arch:              installed.Arch,
-				OldVersion:        installed.Version,
-				KeepVersion:       true, // Prefer to keep current version
-			})
-		}
+	allRequests, err := o.buildInstallRequests(requests)
+	if err != nil {
+		return err
 	}
 
 	plan, err := o.Index.Resolve(ctx, allRequests)
@@ -165,31 +275,86 @@ func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequ
 	}
 
 	// Prefetch via Download Manager and capture paths (required for local-only installs)
-	var fetched map[string]string
-	if o.DL != nil && filepath.IsAbs(opts.CacheDir) {
-		items := make([]download.Item, 0, len(plan.Artifacts))
-		for _, s := range plan.Artifacts {
-			if s.SourceURL == nil { // nothing to prefetch
-				continue
-			}
-			items = append(items, download.Item{ID: s.GetID(), URL: s.SourceURL, Checksum: s.Checksum})
-		}
-		if len(items) > 0 {
-			emit(o.Hooks, Event{Phase: "downloading", Msg: "prefetching artifacts"})
-			var err error
-			fetched, err = o.DL.FetchAll(ctx, items, download.Options{Dir: opts.CacheDir, Concurrency: opts.Concurrency})
-			if err != nil {
-				return err
-			}
-		}
+	fetched, err := o.prefetchPlanArtifacts(ctx, plan, download.Options{Dir: opts.CacheDir, Concurrency: opts.Concurrency})
+	if err != nil {
+		return err
 	}
 
 	if o.ArtifactManager == nil {
 		return fmt.Errorf("artifact installer is not configured")
 	}
 
+	if err := o.executeInstallPlan(ctx, plan, requests, fetched); err != nil {
+		return err
+	}
+	emit(o.Hooks, Event{Phase: "done"})
+	return nil
+}
+
+// buildInstallRequests loads installed artifacts and combines them with incoming requests
+// adding keep preferences for installed packages not explicitly requested.
+func (o *Orchestrator) buildInstallRequests(requests []model.ResolveRequest) ([]model.ResolveRequest, error) {
+	// Load currently installed artifacts for compatibility checking
+	var installedArtifacts []*model.InstalledArtifact
+	if o.ArtifactManager != nil {
+		var err error
+		installedArtifacts, err = o.ArtifactManager.GetInstalledArtifacts()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load installed artifacts: %w", err)
+		}
+	}
+
+	allRequests := make([]model.ResolveRequest, len(requests))
+	copy(allRequests, requests)
+
+	installedMap := make(map[string]bool)
+	for _, req := range requests {
+		installedMap[req.Name] = true
+	}
+	for _, installed := range installedArtifacts {
+		if !installedMap[installed.Name] {
+			allRequests = append(allRequests, model.ResolveRequest{
+				Name:              installed.Name,
+				VersionConstraint: "",
+				OS:                installed.OS,
+				Arch:              installed.Arch,
+				OldVersion:        installed.Version,
+				KeepVersion:       true,
+			})
+		}
+	}
+	return allRequests, nil
+}
+
+// prefetchPlanArtifacts downloads artifacts for a plan when a downloader is configured.
+func (o *Orchestrator) prefetchPlanArtifacts(ctx context.Context, plan model.ResolvedArtifacts, dlOpts download.Options) (map[string]string, error) {
+	if o.DL == nil || !filepath.IsAbs(dlOpts.Dir) {
+		return nil, nil
+	}
+	items := make([]download.Item, 0, len(plan.Artifacts))
+	for _, s := range plan.Artifacts {
+		if s.SourceURL == nil {
+			continue
+		}
+		items = append(items, download.Item{ID: s.GetID(), URL: s.SourceURL, Checksum: s.Checksum})
+	}
+	if len(items) == 0 {
+		return nil, nil
+	}
+	emit(o.Hooks, Event{Phase: "downloading", Msg: "prefetching artifacts"})
+	fetched, err := o.DL.FetchAll(ctx, items, dlOpts)
+	if err != nil {
+		return nil, err
+	}
+	return fetched, nil
+}
+
+// executeInstallPlan installs/updates artifacts as instructed by the plan.
+func (o *Orchestrator) executeInstallPlan(ctx context.Context, plan model.ResolvedArtifacts, requests []model.ResolveRequest, fetched map[string]string) error {
+	if o.ArtifactManager == nil {
+		return fmt.Errorf("artifact installer is not configured")
+	}
 	for _, step := range plan.Artifacts {
-		// Backward compatibility: if resolver didn't set an action, default to install
 		action := step.Action
 		if action == "" {
 			action = model.ResolvedActionInstall
@@ -206,8 +371,8 @@ func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequ
 		default:
 			actionMsg = "processing"
 		}
-
 		emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version + " (" + step.Reason + ")"})
+
 		path := ""
 		if fetched != nil {
 			path = fetched[step.GetID()]
@@ -226,8 +391,7 @@ func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequ
 		if step.SourceURL != nil {
 			desc.URL = step.SourceURL.String()
 		}
-
-		// Determine installation reason: requested packages are manual, others are automatic
+		// Determine installation reason: requested packages are manual, others automatic
 		reason := model.InstallationReasonAutomatic
 		for _, req := range requests {
 			if step.Name == req.Name {
@@ -235,7 +399,6 @@ func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequ
 				break
 			}
 		}
-
 		switch action {
 		case model.ResolvedActionInstall:
 			if err := o.ArtifactManager.InstallArtifact(ctx, desc, path, reason); err != nil {
@@ -247,7 +410,6 @@ func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequ
 			}
 		}
 	}
-	emit(o.Hooks, Event{Phase: "done"})
 	return nil
 }
 
@@ -301,7 +463,6 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 	}
 
 	// Process artifacts in reverse order to handle dependencies properly
-	// Reverse the slice to uninstall dependencies first
 	for _, artifact := range slices.Backward(artifacts.Artifacts) {
 		emit(o.Hooks, Event{Phase: "uninstalling", ID: artifact.GetID(), Msg: artifact.Name + "@" + artifact.Version})
 		if err := o.ArtifactManager.UninstallArtifact(ctx, artifact.Name, false); err != nil {
@@ -309,264 +470,6 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 		}
 	}
 	emit(o.Hooks, Event{Phase: "done"})
-	return nil
-}
-
-// Cleanup removes orphaned automatic artifacts that have no reverse dependencies.
-// Returns the list of artifacts that were successfully cleaned up.
-func (o *Orchestrator) Cleanup(ctx context.Context) ([]string, error) {
-	if o.ArtifactManager == nil {
-		return nil, fmt.Errorf("artifact manager is not configured")
-	}
-
-	// Get orphaned automatic artifacts
-	orphaned, err := o.ArtifactManager.GetOrphanedAutomaticArtifacts()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get orphaned artifacts: %w", err)
-	}
-
-	if len(orphaned) == 0 {
-		return nil, nil // Nothing to clean up
-	}
-
-	var cleaned []string
-
-	// Uninstall each orphaned artifact
-	for _, artifactName := range orphaned {
-		emit(o.Hooks, Event{Phase: "cleanup", ID: artifactName, Msg: fmt.Sprintf("removing orphaned automatic artifact %s", artifactName)})
-
-		if err := o.ArtifactManager.UninstallArtifact(ctx, artifactName, true); err != nil {
-			// Log error but continue with other artifacts
-			emit(o.Hooks, Event{Phase: "error", ID: artifactName, Msg: fmt.Sprintf("failed to cleanup %s: %v", artifactName, err)})
-			continue
-		}
-
-		cleaned = append(cleaned, artifactName)
-	}
-
-	if len(cleaned) > 0 {
-		emit(o.Hooks, Event{Phase: "done", Msg: fmt.Sprintf("cleaned up %d orphaned artifacts", len(cleaned))})
-	}
-
-	return cleaned, nil
-}
-
-// Update resolves and updates packages to their latest compatible versions.
-func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
-	if o.ArtifactManager == nil {
-		return fmt.Errorf("artifact manager is not configured")
-	}
-
-	emit(o.Hooks, Event{Phase: "planning", Msg: "analyzing installed packages"})
-
-	// Get all installed artifacts
-	installed, err := o.ArtifactManager.GetInstalledArtifacts()
-	if err != nil {
-		return fmt.Errorf("failed to get installed artifacts: %w", err)
-	}
-
-	if len(installed) == 0 {
-		emit(o.Hooks, Event{Phase: "done", Msg: "no packages installed to update"})
-		return nil
-	}
-
-	// Filter to specific packages if requested
-	var packagesToUpdate []*model.InstalledArtifact
-	if len(opts.Packages) > 0 {
-		packageMap := make(map[string]*model.InstalledArtifact)
-		for _, pkg := range installed {
-			packageMap[pkg.Name] = pkg
-		}
-
-		for _, pkgName := range opts.Packages {
-			if pkg, exists := packageMap[pkgName]; exists {
-				packagesToUpdate = append(packagesToUpdate, pkg)
-			} else {
-				return fmt.Errorf("package %s is not installed", pkgName)
-			}
-		}
-	} else {
-		packagesToUpdate = installed
-	}
-
-	if len(packagesToUpdate) == 0 {
-		emit(o.Hooks, Event{Phase: "done", Msg: "no packages to update"})
-		return nil
-	}
-
-	// Index resolver is required for updates
-	if o.Index == nil {
-		return fmt.Errorf("index resolver is not configured")
-	}
-
-	// Resolve the update plan
-	updateRequests := make([]model.ResolveRequest, 0, len(packagesToUpdate))
-	requested := make(map[string]struct{}, len(packagesToUpdate))
-	for _, pkg := range packagesToUpdate {
-		updateRequests = append(updateRequests, model.ResolveRequest{
-			Name:              pkg.Name,
-			VersionConstraint: ">= " + pkg.Version, // Update to current version or higher
-			OS:                pkg.OS,
-			Arch:              pkg.Arch,
-			OldVersion:        pkg.Version,
-			KeepVersion:       false, // Always update to latest compatible
-		})
-		requested[pkg.Name] = struct{}{}
-	}
-
-	// Also include all installed artifacts with their current versions so the resolver
-	// can properly classify them (update/skip) rather than defaulting to install.
-	for _, inst := range installed {
-		if _, already := requested[inst.Name]; already {
-			continue
-		}
-		updateRequests = append(updateRequests, model.ResolveRequest{
-			Name:              inst.Name,
-			VersionConstraint: ">= 0.0.0", // no hard constraint; allow latest
-			OS:                inst.OS,
-			Arch:              inst.Arch,
-			OldVersion:        inst.Version,
-			KeepVersion:       false, // in update flow, do not keep old versions
-		})
-	}
-
-	emit(o.Hooks, Event{Phase: "planning", Msg: fmt.Sprintf("resolving updates for %d packages", len(updateRequests))})
-
-	// Resolve the update plan
-	plan, err := o.Index.Resolve(ctx, updateRequests)
-	if err != nil {
-		return fmt.Errorf("failed to resolve update plan: %w", err)
-	}
-
-	// Dry run: just emit steps and return
-	if opts.DryRun {
-		for _, step := range plan.Artifacts {
-			var actionMsg string
-			switch step.Action {
-			case model.ResolvedActionInstall:
-				actionMsg = phaseUpdating
-			case model.ResolvedActionUpdate:
-				actionMsg = phaseUpdating
-			case model.ResolvedActionSkip:
-				actionMsg = "skipping"
-			default:
-				actionMsg = "processing"
-			}
-			emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
-		}
-		emit(o.Hooks, Event{Phase: "done", Msg: "update dry-run completed"})
-		return nil
-	}
-
-	// Check if there are any actual updates to perform
-	hasUpdates := false
-	for _, step := range plan.Artifacts {
-		if step.Action == model.ResolvedActionInstall || step.Action == model.ResolvedActionUpdate {
-			hasUpdates = true
-			break
-		}
-	}
-
-	if !hasUpdates {
-		emit(o.Hooks, Event{Phase: "done", Msg: "all packages are already at the latest compatible versions"})
-		return nil
-	}
-
-	// Prefetch artifacts if download manager is available
-	var fetched map[string]string
-	if o.DL != nil {
-		items := make([]download.Item, 0, len(plan.Artifacts))
-		for _, step := range plan.Artifacts {
-			if step.SourceURL == nil {
-				continue
-			}
-			items = append(items, download.Item{
-				ID:       step.GetID(),
-				URL:      step.SourceURL,
-				Checksum: step.Checksum,
-			})
-		}
-
-		if len(items) > 0 {
-			emit(o.Hooks, Event{Phase: "downloading", Msg: "prefetching updates"})
-			fetched, err = o.DL.FetchAll(ctx, items, download.Options{
-				Dir:         opts.CacheDir,
-				Concurrency: opts.Concurrency,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to prefetch updates: %w", err)
-			}
-		}
-	}
-
-	// Execute the updates
-	updatedCount := 0
-	newlyInstalledCount := 0
-	for _, step := range plan.Artifacts {
-		if step.Action == model.ResolvedActionSkip {
-			emit(o.Hooks, Event{Phase: "skipping", ID: step.GetID(), Msg: step.Reason})
-			continue
-		}
-
-		if step.Action != model.ResolvedActionInstall && step.Action != model.ResolvedActionUpdate {
-			continue
-		}
-
-		path := ""
-		if fetched != nil {
-			path = fetched[step.GetID()]
-		}
-		if path == "" {
-			return fmt.Errorf("no local file available for update step %s", step.GetID())
-		}
-
-		desc := &model.IndexArtifactDescriptor{
-			Name:     step.Name,
-			Version:  step.Version,
-			OS:       step.OS,
-			Arch:     step.Arch,
-			Checksum: step.Checksum,
-			URL:      "",
-		}
-		if step.SourceURL != nil {
-			desc.URL = step.SourceURL.String()
-		}
-
-		// Handle different actions appropriately
-		switch step.Action {
-		case model.ResolvedActionUpdate:
-			// Use UpdateArtifact for existing packages being updated
-			actionMsg := "updating"
-			emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
-
-			// UpdateArtifact method signature changed - it takes newArtifactPath and newDescriptor directly
-			if err := o.ArtifactManager.UpdateArtifact(ctx, path, desc); err != nil {
-				return fmt.Errorf("failed to update %s: %w", step.Name, err)
-			}
-			updatedCount++
-		case model.ResolvedActionInstall:
-			// Use InstallArtifact for new packages (dependencies)
-			actionMsg := "installing"
-			emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
-
-			// Install as automatic since it's a new dependency
-			if err := o.ArtifactManager.InstallArtifact(ctx, desc, path, model.InstallationReasonAutomatic); err != nil {
-				return fmt.Errorf("failed to install dependency %s: %w", step.Name, err)
-			}
-			newlyInstalledCount++
-		}
-	}
-
-	if updatedCount > 0 || newlyInstalledCount > 0 {
-		msg := fmt.Sprintf("successfully updated %d packages", updatedCount)
-		if newlyInstalledCount > 0 {
-			msg += fmt.Sprintf(" and installed %d new dependencies", newlyInstalledCount)
-		}
-		emit(o.Hooks, Event{Phase: "done", Msg: msg})
-	} else {
-		emit(o.Hooks, Event{Phase: "done", Msg: "no updates were performed"})
-	}
-
 	return nil
 }
 
@@ -580,4 +483,81 @@ func New(idx ArtifactResolver, reverseIdx ArtifactReverseResolver, dl Downloader
 		ArtifactManager: am,
 		Hooks:           hooks,
 	}
+}
+
+// buildUpdateRequests composes resolver requests for an update flow.
+func buildUpdateRequests(installed, packagesToUpdate []*model.InstalledArtifact) []model.ResolveRequest {
+	reqs := make([]model.ResolveRequest, 0, len(installed))
+	requested := make(map[string]struct{}, len(packagesToUpdate))
+	for _, pkg := range packagesToUpdate {
+		reqs = append(reqs, model.ResolveRequest{
+			Name:              pkg.Name,
+			VersionConstraint: ">= " + pkg.Version,
+			OS:                pkg.OS,
+			Arch:              pkg.Arch,
+			OldVersion:        pkg.Version,
+			KeepVersion:       false,
+		})
+		requested[pkg.Name] = struct{}{}
+	}
+	for _, inst := range installed {
+		if _, already := requested[inst.Name]; already {
+			continue
+		}
+		reqs = append(reqs, model.ResolveRequest{
+			Name:              inst.Name,
+			VersionConstraint: ">= 0.0.0",
+			OS:                inst.OS,
+			Arch:              inst.Arch,
+			OldVersion:        inst.Version,
+			KeepVersion:       false,
+		})
+	}
+	return reqs
+}
+
+// executeUpdatePlan runs the resolved update and install steps during update flow.
+func (o *Orchestrator) executeUpdatePlan(ctx context.Context, plan model.ResolvedArtifacts, fetched map[string]string) (updatedCount, newlyInstalledCount int, err error) {
+	for _, step := range plan.Artifacts {
+		if step.Action == model.ResolvedActionSkip {
+			emit(o.Hooks, Event{Phase: "skipping", ID: step.GetID(), Msg: step.Reason})
+			continue
+		}
+		if step.Action != model.ResolvedActionInstall && step.Action != model.ResolvedActionUpdate {
+			continue
+		}
+		path := ""
+		if fetched != nil {
+			path = fetched[step.GetID()]
+		}
+		if path == "" {
+			return 0, 0, fmt.Errorf("no local file available for update step %s", step.GetID())
+		}
+		desc := &model.IndexArtifactDescriptor{
+			Name:     step.Name,
+			Version:  step.Version,
+			OS:       step.OS,
+			Arch:     step.Arch,
+			Checksum: step.Checksum,
+			URL:      "",
+		}
+		if step.SourceURL != nil {
+			desc.URL = step.SourceURL.String()
+		}
+		switch step.Action {
+		case model.ResolvedActionUpdate:
+			emit(o.Hooks, Event{Phase: "updating", ID: step.GetID(), Msg: step.Name + "@" + step.Version})
+			if err := o.ArtifactManager.UpdateArtifact(ctx, path, desc); err != nil {
+				return 0, 0, fmt.Errorf("failed to update %s: %w", step.Name, err)
+			}
+			updatedCount++
+		case model.ResolvedActionInstall:
+			emit(o.Hooks, Event{Phase: "installing", ID: step.GetID(), Msg: step.Name + "@" + step.Version})
+			if err := o.ArtifactManager.InstallArtifact(ctx, desc, path, model.InstallationReasonAutomatic); err != nil {
+				return 0, 0, fmt.Errorf("failed to install dependency %s: %w", step.Name, err)
+			}
+			newlyInstalledCount++
+		}
+	}
+	return updatedCount, newlyInstalledCount, nil
 }
