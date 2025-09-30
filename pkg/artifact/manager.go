@@ -36,26 +36,6 @@ func (m ManagerImpl) loadInstalledDB() (*database.InstalledManagerImpl, error) {
 	return db, nil
 }
 
-// extractAndInstall extracts the artifact to a temp dir and installs files into final locations.
-func (m ManagerImpl) extractAndInstall(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) (bool, error) {
-	extractDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s", desc.Name))
-	if err != nil {
-		return false, fmt.Errorf("failed to create temp directory: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(extractDir) }()
-
-	if err := m.archiveManager.ExtractAll(ctx, localPath, extractDir); err != nil {
-		return false, fmt.Errorf("failed to extract artifact: %w", err)
-	}
-
-	// TODO: pre-install hooks
-
-	if err := m.installArtifactFiles(desc.Name, extractDir); err != nil {
-		return false, fmt.Errorf("failed to install artifact files: %w", err)
-	}
-	return true, nil
-}
-
 // NewManager creates a new artifact manager instance with the specified configuration.
 // It initializes the manager with OS/arch info, cache directories, install directories, and database path.
 func NewManager(operatingSystem, arch, artifactCacheDir, artifactInstallDir, artifactMetaInstallDir, installedDBPath string) *ManagerImpl {
@@ -293,31 +273,7 @@ func (m ManagerImpl) collectReverseDependencies(db *database.InstalledManagerImp
 
 	// Find all artifacts that depend on the target artifact
 	m.findArtifactsDependingOn(db, targetArtifact, result)
-
 	return result
-}
-
-// findArtifactsDependingOn finds all artifacts that depend on the given artifact
-func (m ManagerImpl) findArtifactsDependingOn(db *database.InstalledManagerImpl, targetArtifact string, result map[string]*model.InstalledArtifact) {
-	// Iterate through all installed artifacts to find those that depend on the target
-	for _, artifact := range db.GetInstalledArtifacts() {
-		if artifact.Status != model.StatusInstalled {
-			continue
-		}
-
-		// Check if this artifact depends on the target
-		for _, depName := range artifact.ReverseDependencies {
-			if depName == targetArtifact {
-				// This artifact depends on the target, add it to results
-				if _, exists := result[artifact.Name]; !exists {
-					result[artifact.Name] = artifact
-					// Recursively find artifacts that depend on this one
-					m.findArtifactsDependingOn(db, artifact.Name, result)
-				}
-				break
-			}
-		}
-	}
 }
 
 // GetOrphanedAutomaticArtifacts returns all installed artifacts that are automatic and have no reverse dependencies
@@ -372,6 +328,26 @@ func (m ManagerImpl) GetInstalledArtifacts() ([]*model.InstalledArtifact, error)
 	return installed, nil
 }
 
+// extractAndInstall extracts the artifact to a temp dir and installs files into final locations.
+func (m ManagerImpl) extractAndInstall(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) (bool, error) {
+	extractDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s", desc.Name))
+	if err != nil {
+		return false, fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer func() { _ = os.RemoveAll(extractDir) }()
+
+	if err := m.archiveManager.ExtractAll(ctx, localPath, extractDir); err != nil {
+		return false, fmt.Errorf("failed to extract artifact: %w", err)
+	}
+
+	// TODO: pre-install hooks
+
+	if err := m.installArtifactFiles(desc.Name, extractDir); err != nil {
+		return false, fmt.Errorf("failed to install artifact files: %w", err)
+	}
+	return true, nil
+}
+
 // convertToResolvedArtifacts converts database artifacts to the expected ResolvedArtifacts format
 func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*model.InstalledArtifact) model.ResolvedArtifacts {
 	resolved := make([]model.ResolvedArtifact, 0, len(artifacts))
@@ -389,6 +365,29 @@ func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*model.Inst
 	}
 
 	return model.ResolvedArtifacts{Artifacts: resolved}
+}
+
+// findArtifactsDependingOn finds all artifacts that depend on the given artifact
+func (m ManagerImpl) findArtifactsDependingOn(db *database.InstalledManagerImpl, targetArtifact string, result map[string]*model.InstalledArtifact) {
+	// Iterate through all installed artifacts to find those that depend on the target
+	for _, artifact := range db.GetInstalledArtifacts() {
+		if artifact.Status != model.StatusInstalled {
+			continue
+		}
+
+		// Check if this artifact depends on the target
+		for _, depName := range artifact.ReverseDependencies {
+			if depName == targetArtifact {
+				// This artifact depends on the target, add it to results
+				if _, exists := result[artifact.Name]; !exists {
+					result[artifact.Name] = artifact
+					// Recursively find artifacts that depend on this one
+					m.findArtifactsDependingOn(db, artifact.Name, result)
+				}
+				break
+			}
+		}
+	}
 }
 
 func (m ManagerImpl) getArtifactMetaInstallPath(artifactName string) string {

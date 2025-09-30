@@ -120,27 +120,6 @@ func (rm *ManagerImpl) ResolveArtifact(name, version, os, arch string) (*model.I
 	return desc, nil
 }
 
-// filterAndGroupByPriority filters artifacts by constraints and groups them by repository priority.
-func (rm *ManagerImpl) filterAndGroupByPriority(repoArtifacts map[string][]*model.IndexArtifactDescriptor, version, os, arch string) (map[uint][]*model.IndexArtifactDescriptor, error) {
-	repoPrioArtifacts := make(map[uint][]*model.IndexArtifactDescriptor)
-	for idxName, pkgs := range repoArtifacts {
-		for _, pkg := range pkgs {
-			if !pkg.MatchVersion(version) || !pkg.MatchOs(os) || !pkg.MatchArch(arch) {
-				continue
-			}
-			repo, err := rm.getRepository(idxName)
-			if err != nil {
-				return nil, errors.ErrRepositoryNotFoundWithName(idxName)
-			}
-			if repoPrioArtifacts[repo.Priority] == nil {
-				repoPrioArtifacts[repo.Priority] = make([]*model.IndexArtifactDescriptor, 0, 5)
-			}
-			repoPrioArtifacts[repo.Priority] = append(repoPrioArtifacts[repo.Priority], pkg)
-		}
-	}
-	return repoPrioArtifacts, nil
-}
-
 // availableVersionsForPlatform lists versions that match OS/arch regardless of version constraint.
 func availableVersionsForPlatform(repoArtifacts map[string][]*model.IndexArtifactDescriptor, os, arch string) []string {
 	versions := make([]string, 0)
@@ -187,6 +166,27 @@ func (rm *ManagerImpl) Reload() error {
 // ListRepositories returns a list of all configured repositories.
 func (rm *ManagerImpl) ListRepositories() []*Repository {
 	return rm.repositories
+}
+
+// filterAndGroupByPriority filters artifacts by constraints and groups them by repository priority.
+func (rm *ManagerImpl) filterAndGroupByPriority(repoArtifacts map[string][]*model.IndexArtifactDescriptor, version, os, arch string) (map[uint][]*model.IndexArtifactDescriptor, error) {
+	repoPrioArtifacts := make(map[uint][]*model.IndexArtifactDescriptor)
+	for idxName, pkgs := range repoArtifacts {
+		for _, pkg := range pkgs {
+			if !pkg.MatchVersion(version) || !pkg.MatchOs(os) || !pkg.MatchArch(arch) {
+				continue
+			}
+			repo, err := rm.getRepository(idxName)
+			if err != nil {
+				return nil, errors.ErrRepositoryNotFoundWithName(idxName)
+			}
+			if repoPrioArtifacts[repo.Priority] == nil {
+				repoPrioArtifacts[repo.Priority] = make([]*model.IndexArtifactDescriptor, 0, 5)
+			}
+			repoPrioArtifacts[repo.Priority] = append(repoPrioArtifacts[repo.Priority], pkg)
+		}
+	}
+	return repoPrioArtifacts, nil
 }
 
 func (rm *ManagerImpl) getIndexes() (map[string]*Index, error) {
