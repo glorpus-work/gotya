@@ -15,6 +15,8 @@ linters:
     - unused
     - dupl
     - decorder
+    - staticcheck
+    - err113
   settings:
     gocritic:
       enabled-checks:

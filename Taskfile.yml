@@ -84,6 +84,11 @@ tasks:
     desc: Run linters
     cmds:
       - golangci-lint run  ./...
+      -
+  lint-fix:
+    desc: Run linters
+    cmds:
+      - golangci-lint run  ./... --fix
 
   fmt:
     desc: Format Go code
