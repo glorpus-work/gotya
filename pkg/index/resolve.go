@@ -9,6 +9,8 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
+const defaultConstraint = ">= 0.0.0"
+
 // Resolve computes resolved artifacts with dependency resolution for multiple requests.
 // Rules:
 // - Resolve transitive dependencies for all requests.
@@ -26,7 +28,7 @@ func (rm *ManagerImpl) Resolve(ctx context.Context, requests []model.ResolveRequ
 	// Normalize version constraints
 	for i := range requests {
 		if requests[i].VersionConstraint == "" {
-			requests[i].VersionConstraint = ">= 0.0.0"
+			requests[i].VersionConstraint = defaultConstraint
 		}
 	}
 
@@ -81,7 +83,7 @@ func newMultiResolver(mgr *ManagerImpl, requests []model.ResolveRequest) *multiR
 
 func (r *multiResolver) addConstraint(name, c string) {
 	if c == "" {
-		c = ">= 0.0.0"
+		c = defaultConstraint
 	}
 	r.constraints[name] = append(r.constraints[name], c)
 }
@@ -101,7 +103,7 @@ func (r *multiResolver) combineConstraints(list []string) string {
 		out = append(out, s)
 	}
 	if len(out) == 0 {
-		return ">= 0.0.0"
+		return defaultConstraint
 	}
 	// Hashicorp's constraint lib supports comma as AND
 	return strings.Join(out, ", ")

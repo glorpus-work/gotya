@@ -16,6 +16,8 @@ import (
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
+const phaseUpdating = "updating"
+
 // SyncAll downloads index files for the provided repositories into indexDir.
 // The caller decides which repositories to pass (e.g., enabled-only). No TTL/autosync logic here.
 func (o *Orchestrator) SyncAll(ctx context.Context, repos []*index.Repository, indexDir string, opts Options) error {
@@ -197,7 +199,7 @@ func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequ
 		case model.ResolvedActionInstall:
 			actionMsg = "installing"
 		case model.ResolvedActionUpdate:
-			actionMsg = "updating"
+			actionMsg = phaseUpdating
 		case model.ResolvedActionSkip:
 			emit(o.Hooks, Event{Phase: "skipping", ID: step.GetID(), Msg: step.Reason})
 			continue
@@ -442,9 +444,9 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 			var actionMsg string
 			switch step.Action {
 			case model.ResolvedActionInstall:
-				actionMsg = "updating"
+				actionMsg = phaseUpdating
 			case model.ResolvedActionUpdate:
-				actionMsg = "updating"
+				actionMsg = phaseUpdating
 			case model.ResolvedActionSkip:
 				actionMsg = "skipping"
 			default:

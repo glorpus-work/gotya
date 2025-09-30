@@ -1,3 +1,4 @@
+// Package cli contains the gotya CLI commands and subcommands.
 package cli
 
 import (

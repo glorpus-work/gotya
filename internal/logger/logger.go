@@ -1,3 +1,4 @@
+// Package logger provides a simple structured logging facade used across the project.
 package logger
 
 import (
@@ -30,15 +31,14 @@ type Fields map[string]interface{}
 
 var logger *slog.Logger
 
-// InitLogger initializes the global logger for CLI operations.
-// SetTestOutput sets the output writer for testing purposes
+// SetTestOutput sets the output writer for testing purposes.
 func SetTestOutput(w io.Writer) {
 	testOutputMu.Lock()
 	defer testOutputMu.Unlock()
 	testOutput = w
 }
 
-// UnsetTestOutput resets the test output to nil
+// UnsetTestOutput resets the test output to nil.
 func UnsetTestOutput() {
 	testOutputMu.Lock()
 	defer testOutputMu.Unlock()

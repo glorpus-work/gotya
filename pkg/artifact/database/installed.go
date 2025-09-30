@@ -1,3 +1,4 @@
+// Package database provides a simple JSON-backed store for installed artifacts.
 package database
 
 import (
@@ -36,6 +37,7 @@ type InstalledManagerImpl struct {
 }
 
 const (
+	// InitialArtifactCapacity defines the initial slice capacity for installed artifacts.
 	InitialArtifactCapacity = 100
 )
 
@@ -214,7 +216,7 @@ func (installedDB *InstalledManagerImpl) GetInstalledArtifacts() []*model.Instal
 	return artifacts
 }
 
-// GetInstalledArtifactsByName returns installed packages filtered by name (partial match, case-insensitive).
+// FilteredArtifacts returns installed packages filtered by name (partial match, case-insensitive).
 func (installedDB *InstalledManagerImpl) FilteredArtifacts(nameFilter string) []*model.InstalledArtifact {
 	installedDB.rwMutex.RLock()
 	defer installedDB.rwMutex.RUnlock()

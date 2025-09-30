@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const unknownValue = "unknown"
+
 // NewVersionCmd creates the version command.
 func NewVersionCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -61,7 +63,7 @@ func getVersionFromVCS(settings []debug.BuildSetting) string {
 			return commit
 		}
 	}
-	return "unknown"
+	return unknownValue
 }
 
 func getBuildDate(settings []debug.BuildSetting) string {
@@ -70,7 +72,7 @@ func getBuildDate(settings []debug.BuildSetting) string {
 			return setting.Value
 		}
 	}
-	return "unknown"
+	return unknownValue
 }
 
 func getGitCommit(settings []debug.BuildSetting) string {
@@ -79,5 +81,5 @@ func getGitCommit(settings []debug.BuildSetting) string {
 			return setting.Value
 		}
 	}
-	return "unknown"
+	return unknownValue
 }

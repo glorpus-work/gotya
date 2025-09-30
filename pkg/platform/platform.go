@@ -41,8 +41,8 @@ func Detect() (os, arch string) {
 
 // Matches checks if this platform matches the target platform, considering "any" as a wildcard.
 func (p Platform) Matches(target Platform) bool {
-	return (p.OS == "any" || target.OS == "any" || p.OS == target.OS) &&
-		(p.Arch == "any" || target.Arch == "any" || p.Arch == target.Arch)
+	return (p.OS == AnyOS || target.OS == AnyOS || p.OS == target.OS) &&
+		(p.Arch == AnyArch || target.Arch == AnyArch || p.Arch == target.Arch)
 }
 
 // String returns a string representation of the platform.
@@ -89,8 +89,8 @@ func IsCompatible(targetOS, targetArch string) bool {
 	targetArch = NormalizeArch(targetArch)
 
 	// Handle "any" wildcards
-	osMatch := targetOS == "any" || current.OS == targetOS
-	archMatch := targetArch == "any" || current.Arch == targetArch
+	osMatch := targetOS == AnyOS || current.OS == targetOS
+	archMatch := targetArch == AnyArch || current.Arch == targetArch
 
 	return osMatch && archMatch
 }

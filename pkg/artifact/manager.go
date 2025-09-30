@@ -115,7 +115,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 		return fmt.Errorf("failed to extract artifact: %w", err)
 	}
 
-	//TODO pre-install hooks
+	// TODO: pre-install hooks
 
 	// Install the artifact files
 	if err = m.installArtifactFiles(desc.Name, extractDir); err != nil {
@@ -129,7 +129,7 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 		return fmt.Errorf("failed to update artifact database: %w", err)
 	}
 
-	//TODO post-install hooks
+	// TODO: post-install hooks
 
 	return nil
 }

@@ -20,7 +20,7 @@ func NewListCmd() *cobra.Command {
 
 By default, shows all installed packages with name and version.
 Use --name to filter packages by name.`,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return runList(nameFilter)
 		},
 	}
