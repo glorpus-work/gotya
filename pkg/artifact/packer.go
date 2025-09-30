@@ -42,11 +42,11 @@ type Packer struct {
 }
 
 // NewPacker creates a new Packer instance with the specified configuration.
-func NewPacker(name, version, os, arch, maintainer, description string, dependencies []model.Dependency, hooks map[string]string, inputDir, outputDir string) *Packer {
+func NewPacker(name, version, operatingSystem, arch, maintainer, description string, dependencies []model.Dependency, hooks map[string]string, inputDir, outputDir string) *Packer {
 	return &Packer{
 		name:         name,
 		version:      version,
-		os:           os,
+		os:           operatingSystem,
 		arch:         arch,
 		maintainer:   maintainer,
 		description:  description,

@@ -57,9 +57,9 @@ func (m ManagerImpl) extractAndInstall(ctx context.Context, desc *model.IndexArt
 
 // NewManager creates a new artifact manager instance with the specified configuration.
 // It initializes the manager with OS/arch info, cache directories, install directories, and database path.
-func NewManager(os, arch, artifactCacheDir, artifactInstallDir, artifactMetaInstallDir, installedDBPath string) *ManagerImpl {
+func NewManager(operatingSystem, arch, artifactCacheDir, artifactInstallDir, artifactMetaInstallDir, installedDBPath string) *ManagerImpl {
 	return &ManagerImpl{
-		os:                     os,
+		os:                     operatingSystem,
 		arch:                   arch,
 		artifactCacheDir:       artifactCacheDir,
 		artifactDataInstallDir: artifactInstallDir,

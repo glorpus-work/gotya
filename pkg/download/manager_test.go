@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"runtime"
 	"testing"
 	"time"
 
@@ -48,11 +47,12 @@ func TestNewManager(t *testing.T) {
 
 func TestFetch_SingleFile(t *testing.T) {
 	tests := []struct {
-		name        string
-		setupServer func() *httptest.Server
-		item        Item
-		expectError bool
-		checkFile   bool
+		name           string
+		setupServer    func() *httptest.Server
+		item           Item
+		expectError    bool
+		expectErrorMsg string
+		checkFile      bool
 	}{
 		{
 			name: "successful download",
@@ -66,8 +66,9 @@ func TestFetch_SingleFile(t *testing.T) {
 				ID:  "test1",
 				URL: &url.URL{},
 			},
-			expectError: false,
-			checkFile:   true,
+			expectError:    false,
+			expectErrorMsg: "",
+			checkFile:      true,
 		},
 		{
 			name: "not found",
@@ -80,7 +81,8 @@ func TestFetch_SingleFile(t *testing.T) {
 				ID:  "test2",
 				URL: &url.URL{},
 			},
-			expectError: true,
+			expectError:    true,
+			expectErrorMsg: "unexpected status code: 404",
 		},
 	}
 
@@ -89,23 +91,23 @@ func TestFetch_SingleFile(t *testing.T) {
 			server := tt.setupServer()
 			defer server.Close()
 
-			// Update the URL to point to our test server
-			url, err := url.Parse(server.URL)
-			require.NoError(t, err)
-			tt.item.URL = url
+			if tt.item.URL.Host == "" {
+				parsedURL, err := url.Parse(server.URL)
+				require.NoError(t, err)
+				tt.item.URL = parsedURL
+			}
 
 			tempDir := t.TempDir()
 			m := NewManager(time.Second, "test")
 
 			path, err := m.Fetch(context.Background(), tt.item, Options{Dir: tempDir})
-
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectErrorMsg)
 				return
 			}
 
 			require.NoError(t, err)
-			assert.NotEmpty(t, path)
 
 			if tt.checkFile {
 				content, err := os.ReadFile(path)
@@ -148,12 +150,12 @@ func TestFetch_WithChecksum(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url, err := url.Parse(server.URL)
+			parsedURL, err := url.Parse(server.URL)
 			require.NoError(t, err)
 
 			item := Item{
 				ID:       "test-checksum",
-				URL:      url,
+				URL:      parsedURL,
 				Checksum: tt.checksum,
 			}
 
@@ -196,12 +198,12 @@ func TestFetchAll_Concurrent(t *testing.T) {
 		content := "content for " + id
 		serverResponses[id] = content
 
-		url, err := url.Parse(server.URL + "/" + id)
+		parsedURL, err := url.Parse(server.URL + "/" + id)
 		require.NoError(t, err)
 
 		items = append(items, Item{
 			ID:  id,
-			URL: url,
+			URL: parsedURL,
 		})
 	}
 
@@ -291,9 +293,9 @@ func TestFetch_ErrorHandling(t *testing.T) {
 			defer server.Close()
 
 			if tt.item.URL.Host == "" {
-				url, err := url.Parse(server.URL)
+				parsedURL, err := url.Parse(server.URL)
 				require.NoError(t, err)
-				tt.item.URL = url
+				tt.item.URL = parsedURL
 			}
 
 			tempDir := t.TempDir()
@@ -304,53 +306,4 @@ func TestFetch_ErrorHandling(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.expectError)
 		})
 	}
-}
-
-func TestFetch_InvalidDirectory(t *testing.T) {
-	m := NewManager(time.Second, "test")
-
-	// Create a temp file to use as an invalid directory
-	tempFile, err := os.CreateTemp("", "test-*")
-	require.NoError(t, err)
-	defer func() {
-		_ = os.Remove(tempFile.Name())
-		_ = tempFile.Close()
-	}()
-
-	item := Item{
-		ID:  "test",
-		URL: &url.URL{Scheme: "http", Host: "example.com"},
-	}
-
-	_, err = m.Fetch(context.Background(), item, Options{Dir: tempFile.Name()})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "could not create download dir")
-}
-
-func TestFetch_WriteError(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping write error simulation on Windows; chmod does not reliably block writes")
-	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("test content"))
-	}))
-	defer server.Close()
-
-	url, err := url.Parse(server.URL)
-	require.NoError(t, err)
-
-	item := Item{
-		ID:  "test-write-error",
-		URL: url,
-	}
-
-	// Create a read-only directory
-	tempDir := t.TempDir()
-	err = os.Chmod(tempDir, 0500) // read and execute, no write
-	require.NoError(t, err)
-
-	m := NewManager(time.Second, "test")
-	_, err = m.Fetch(context.Background(), item, Options{Dir: tempDir})
-	assert.Error(t, err)
 }

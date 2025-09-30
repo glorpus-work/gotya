@@ -100,20 +100,20 @@ func loadConfig() (*config.Config, error) {
 }
 
 // loadIndexManager creates an index manager from the configuration.
-func loadIndexManager(config *config.Config) index.Manager {
-	factory := NewManagerFactory(config)
+func loadIndexManager(cfg *config.Config) index.Manager {
+	factory := NewManagerFactory(cfg)
 	return factory.CreateIndexManager()
 }
 
 // loadArtifactManager creates an artifact manager from the configuration.
-func loadArtifactManager(config *config.Config) artifact.Manager {
-	factory := NewManagerFactory(config)
+func loadArtifactManager(cfg *config.Config) artifact.Manager {
+	factory := NewManagerFactory(cfg)
 	return factory.CreateArtifactManager()
 }
 
 // loadDownloadManager creates a download manager from the configuration.
-func loadDownloadManager(config *config.Config) download.Manager {
-	factory := NewManagerFactory(config)
+func loadDownloadManager(cfg *config.Config) download.Manager {
+	factory := NewManagerFactory(cfg)
 	return factory.CreateDownloadManager()
 }
 

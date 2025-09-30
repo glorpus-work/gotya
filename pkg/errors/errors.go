@@ -292,8 +292,8 @@ func ErrInvalidLogLevelWithDetails(level string) error {
 }
 
 // ErrInvalidOSWithDetails is a helper to create a wrapped error with the invalid OS and valid options.
-func ErrInvalidOSWithDetails(os string) error {
-	return fmt.Errorf("%w: %s, must be one of: windows, linux, darwin, freebsd, openbsd, netbsd", ErrInvalidOS, os)
+func ErrInvalidOSWithDetails(operatingSystem string) error {
+	return fmt.Errorf("%w: %s, must be one of: windows, linux, darwin, freebsd, openbsd, netbsd", ErrInvalidOS, operatingSystem)
 }
 
 // ErrInvalidArchWithDetails is a helper to create a wrapped error with the invalid architecture and valid options.

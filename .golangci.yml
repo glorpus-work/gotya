@@ -14,7 +14,13 @@ linters:
     - goconst
     - unused
     - dupl
+    - decorder
   settings:
+    gocritic:
+      enabled-checks:
+        - importShadow
+        - builtinShadow
+        - builtinShadowDecl
     gosec:
       excludes:
         - G301  # Expect directory permissions to be 0750 or less
