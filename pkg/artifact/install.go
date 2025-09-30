@@ -9,6 +9,7 @@ import (
 
 	"github.com/cperrin88/gotya/pkg/artifact/database"
 	"github.com/cperrin88/gotya/pkg/errors"
+	"github.com/cperrin88/gotya/pkg/fsutil"
 	"github.com/cperrin88/gotya/pkg/model"
 )
 
@@ -30,7 +31,7 @@ func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) error
 
 	// Install the metadata directory
 	metaPath := m.getArtifactMetaInstallPath(artifactName)
-	if err := os.Rename(metaSrcDir, metaPath); err != nil {
+	if err := fsutil.Move(metaSrcDir, metaPath); err != nil {
 		return fmt.Errorf("failed to install metadata: %w", err)
 	}
 
@@ -41,7 +42,7 @@ func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) error
 			return err
 		}
 		dataPath := m.getArtifactDataInstallPath(artifactName)
-		if err := os.Rename(dataSrcDir, dataPath); err != nil {
+		if err := fsutil.Move(dataSrcDir, dataPath); err != nil {
 			// Clean up the metadata directory if data installation fails
 			_ = os.RemoveAll(metaPath)
 			return fmt.Errorf("failed to install data: %w", err)
