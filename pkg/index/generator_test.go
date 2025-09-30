@@ -156,7 +156,7 @@ func TestGenerator_Generate(t *testing.T) {
 
 			// Verify the index file was created
 			_, err = os.Stat(outputPath)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Load and verify the index
 			index, err := LoadIndex(outputPath)

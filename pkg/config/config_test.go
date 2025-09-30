@@ -210,7 +210,7 @@ func TestGetUserDataDir(t *testing.T) {
 			if testCase.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.True(t, strings.HasSuffix(path, testCase.wantPath) ||
 					filepath.Base(path) == filepath.Base(testCase.wantPath),
 					"path %s should end with %s", path, testCase.wantPath)
@@ -267,7 +267,7 @@ func TestRepositoryManagement(t *testing.T) {
 
 	// Test duplicate index
 	err = cfg.AddRepository("test-repo", "https://example.com/another", true)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Test GetRepository
 	repo := cfg.GetRepository("test-repo")

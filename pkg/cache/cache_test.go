@@ -129,7 +129,7 @@ func TestCleanIndexesOnly(t *testing.T) {
 	assert.True(t, os.IsNotExist(err), "index file should be deleted")
 
 	_, err = os.Stat(filepath.Join(tempDir, "packages", "test.artifact"))
-	assert.NoError(t, err, "artifact file should still exist")
+	require.NoError(t, err, "artifact file should still exist")
 
 	// Verify the result
 	assert.Positive(t, result.IndexFreed, "should have freed some index data")

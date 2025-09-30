@@ -29,18 +29,14 @@ func TestEnsureDirs(t *testing.T) {
 	})
 
 	err := EnsureDirs()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify directories were created
 	cacheDir, err := GetCacheDir()
-	if !assert.NoError(t, err, "should get cache directory") {
-		t.FailNow()
-	}
+	require.NoError(t, err, "should get cache directory")
 
 	dataDir, err := GetDataDir()
-	if !assert.NoError(t, err, "should get data directory") {
-		t.FailNow()
-	}
+	require.NoError(t, err, "should get data directory")
 
 	assert.DirExists(t, filepath.Join(cacheDir, "packages"))
 	assert.DirExists(t, filepath.Join(dataDir, "installed"))
@@ -89,9 +85,9 @@ func TestEnsureDir(t *testing.T) {
 			err := EnsureDir(path)
 
 			if testCase.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.DirExists(t, path)
 
 				// Verify permissions (only check on Unix-like systems)
@@ -147,9 +143,9 @@ func TestEnsureFileDir(t *testing.T) {
 			err := EnsureFileDir(filePath)
 
 			if testCase.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.DirExists(t, dir)
 
 				// Verify permissions (only check on Unix-like systems)
@@ -179,7 +175,7 @@ func TestEnsureDir_PermissionDenied(t *testing.T) {
 	err = EnsureDir(targetDir)
 
 	// Verify we got a permission error
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.False(t, os.IsExist(err), "Should not be an 'already exists' error")
 }
 

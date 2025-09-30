@@ -334,7 +334,7 @@ func TestInstallArtifact_EmptyArtifactName(t *testing.T) {
 	}
 
 	err := mgr.InstallArtifact(context.Background(), desc, "/nonexistent/path.gotya", model.InstallationReasonManual)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "artifact name cannot be empty")
 }
 
@@ -791,7 +791,7 @@ func TestUpdateArtifact_NotInstalled(t *testing.T) {
 	}
 
 	err := mgr.UpdateArtifact(context.Background(), testArtifact, desc)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not installed")
 }
 
@@ -905,7 +905,7 @@ func TestUpdateArtifact_EmptyArtifactName(t *testing.T) {
 	}
 
 	err := mgr.UpdateArtifact(context.Background(), "/nonexistent/path.gotya", desc)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "artifact name cannot be empty")
 }
 
@@ -1214,7 +1214,7 @@ func TestVerifyArtifact_InvalidMetadata(t *testing.T) {
 	}
 
 	err := mgr.VerifyArtifact(context.Background(), desc)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.ErrorContains(t, err, "metadata mismatch")
 }
 

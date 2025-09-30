@@ -118,7 +118,7 @@ func TestResolve_VersionConflictResolution(t *testing.T) {
 	})
 
 	// This should fail due to version conflict: common-lib is required as both 1.0.0 and 2.0.0
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "common-lib")
 	assert.Contains(t, err.Error(), "= 1.0.0, = 2.0.0")
 }
