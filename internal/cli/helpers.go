@@ -22,7 +22,6 @@ type ManagerFactory struct {
 var (
 	ConfigPath   *string
 	Verbose      *bool
-	NoColor      *bool
 	OutputFormat *string
 )
 

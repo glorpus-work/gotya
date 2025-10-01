@@ -272,8 +272,8 @@ func (g *Generator) processArtifacts(ctx context.Context, baseline *Index) ([]*m
 
 	// Convert the map to a slice
 	artifactList := make([]*model.IndexArtifactDescriptor, 0, len(artifacts))
-	for _, artifact := range artifacts {
-		artifactList = append(artifactList, artifact)
+	for _, art := range artifacts {
+		artifactList = append(artifactList, art)
 	}
 
 	return artifactList, nil

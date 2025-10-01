@@ -30,15 +30,6 @@ const (
 	InitialArtifactCapacity = 100
 )
 
-// NewIndex creates a new index with the current timestamp.
-func NewIndex(formatVersion string) *Index {
-	return &Index{
-		FormatVersion: formatVersion,
-		LastUpdate:    time.Now(),
-		Artifacts:     make([]*model.IndexArtifactDescriptor, 0, InitialArtifactCapacity),
-	}
-}
-
 // GetFormatVersion returns the format version.
 func (idx *Index) GetFormatVersion() string {
 	return idx.FormatVersion

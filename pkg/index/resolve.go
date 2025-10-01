@@ -281,8 +281,3 @@ func (r *multiResolver) resolveArtifacts(order []string) []model.ResolvedArtifac
 	}
 	return steps
 }
-
-// ToGraph returns a trivially resolved graph for the descriptor (placeholder for future deps).
-func ToGraph(desc *model.IndexArtifactDescriptor) []*model.IndexArtifactDescriptor {
-	return []*model.IndexArtifactDescriptor{desc}
-}
