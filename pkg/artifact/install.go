@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/glorpus-work/gotya/pkg/artifact/database"
 	"github.com/glorpus-work/gotya/pkg/errors"
 	"github.com/glorpus-work/gotya/pkg/fsutil"
 	"github.com/glorpus-work/gotya/pkg/model"
@@ -15,7 +14,7 @@ import (
 
 // installArtifactFiles handles the actual file operations for installing an artifact
 // Returns an error if the installation fails
-func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) error {
+func (m *ManagerImpl) installArtifactFiles(artifactName, extractDir string) error {
 	metaSrcDir := filepath.Join(extractDir, artifactMetaDir)
 	dataSrcDir := filepath.Join(extractDir, artifactDataDir)
 
@@ -54,7 +53,7 @@ func (m ManagerImpl) installArtifactFiles(artifactName, extractDir string) error
 
 // addArtifactToDatabase adds an installed artifact to the database
 // Returns the list of installed files if successful, or an error
-func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor, existingReverseDeps []string, reason model.InstallationReason) error {
+func (m *ManagerImpl) addArtifactToDatabase(desc *model.IndexArtifactDescriptor, existingReverseDeps []string, reason model.InstallationReason) error {
 	metaPath := m.getArtifactMetaInstallPath(desc.Name)
 
 	// Read and parse the metadata file
@@ -88,11 +87,12 @@ func (m ManagerImpl) addArtifactToDatabase(db *database.InstalledManagerImpl, de
 		InstallationReason:  reason,
 	}
 
-	recordReverseDependencies(db, desc)
-	db.AddArtifact(installedArtifact)
+	m.recordReverseDependencies(desc)
+
+	m.installDB.AddArtifact(installedArtifact)
 
 	// Save the database
-	if err := db.SaveDatabase(m.installedDBPath); err != nil {
+	if err := m.installDB.SaveDatabase(); err != nil {
 		return fmt.Errorf("failed to save installed database: %w", err)
 	}
 	return nil
@@ -122,43 +122,55 @@ func buildInstalledFileEntries(metadata *Metadata, metadataFilePath string) ([]m
 }
 
 // recordReverseDependencies updates reverse dependency links (and dummy entries) in the DB.
-func recordReverseDependencies(db *database.InstalledManagerImpl, desc *model.IndexArtifactDescriptor) {
+func (m *ManagerImpl) recordReverseDependencies(desc *model.IndexArtifactDescriptor) {
 	for _, dep := range desc.Dependencies {
-		existingArtifact := db.FindArtifact(dep.Name)
-		if existingArtifact != nil {
-			if existingArtifact.Status == model.StatusMissing {
-				existingArtifact.Status = model.StatusInstalled
-			} else {
-				existingArtifact.ReverseDependencies = append(existingArtifact.ReverseDependencies, desc.Name)
+		artifact := m.installDB.FindArtifact(dep.Name)
+		if artifact == nil {
+			// Create a dummy entry for missing dependency
+			artifact = &model.InstalledArtifact{
+				Name:                dep.Name,
+				Version:             "invalid",
+				Description:         "invalid",
+				OS:                  "",
+				Arch:                "",
+				InstalledAt:         time.Time{},
+				InstalledFrom:       "invalid",
+				ArtifactMetaDir:     "invalid",
+				ArtifactDataDir:     "invalid",
+				MetaFiles:           make([]model.InstalledFile, 0),
+				DataFiles:           make([]model.InstalledFile, 0),
+				ReverseDependencies: []string{},
+				Status:              model.StatusMissing,
+				Checksum:            "invalid",
+				InstallationReason:  model.InstallationReasonAutomatic,
 			}
-			continue
+
+			m.installDB.AddArtifact(artifact)
 		}
-		// Create a dummy entry for missing dependency
-		db.AddArtifact(&model.InstalledArtifact{
-			Name:                dep.Name,
-			Version:             "invalid",
-			Description:         "invalid",
-			OS:                  "",
-			Arch:                "",
-			InstalledAt:         time.Time{},
-			InstalledFrom:       "invalid",
-			ArtifactMetaDir:     "invalid",
-			ArtifactDataDir:     "invalid",
-			MetaFiles:           make([]model.InstalledFile, 0),
-			DataFiles:           make([]model.InstalledFile, 0),
-			ReverseDependencies: []string{desc.Name},
-			Status:              model.StatusMissing,
-			Checksum:            "invalid",
-			InstallationReason:  model.InstallationReasonAutomatic,
-		})
+		artifact.ReverseDependencies = append(artifact.ReverseDependencies, desc.Name)
 	}
 }
 
 // installRollback cleans up any partially installed files in case of an error
-func (m ManagerImpl) installRollback(artifactName string) {
+func (m *ManagerImpl) installRollback(artifactName string) {
 	metaPath := m.getArtifactMetaInstallPath(artifactName)
 	_ = os.RemoveAll(metaPath)
 
 	dataPath := m.getArtifactDataInstallPath(artifactName)
 	_ = os.RemoveAll(dataPath)
+}
+
+// performInstallation contains the core installation logic
+func (m *ManagerImpl) performInstallation(extractDir string, desc *model.IndexArtifactDescriptor, reason model.InstallationReason, existingReverseDeps []string) error {
+	if err := m.installArtifactFiles(desc.Name, extractDir); err != nil {
+		return fmt.Errorf("failed to install artifact files: %w", err)
+	}
+
+	// Add the installed artifact to the database
+	err := m.addArtifactToDatabase(desc, existingReverseDeps, reason)
+	if err != nil {
+		return fmt.Errorf("failed to update artifact database: %w", err)
+	}
+
+	return nil
 }

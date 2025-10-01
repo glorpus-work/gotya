@@ -38,7 +38,7 @@ func runList(nameFilter string) error {
 
 	// Load the installed database
 	db := &database.InstalledManagerImpl{}
-	if err := db.LoadDatabase(cfg.GetDatabasePath()); err != nil {
+	if err := db.LoadDatabaseFrom(cfg.GetDatabasePath()); err != nil {
 		return fmt.Errorf("failed to load installed database: %w", err)
 	}
 

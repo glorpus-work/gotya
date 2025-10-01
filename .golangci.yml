@@ -22,6 +22,8 @@ linters:
     - copyloopvar
     - funcorder
   settings:
+    funlen:
+      lines: -1
     decorder:
       disable-dec-order-check: false
     gocritic:

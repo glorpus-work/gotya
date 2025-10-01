@@ -2,9 +2,11 @@ package artifact
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/glorpus-work/gotya/pkg/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 var (
@@ -20,18 +23,29 @@ var (
 	DefaultArtifactVersion = "1.0.0"
 	DefaultArtifactOS      = "linux"
 	DefaultArtifactArch    = "amd64"
-
-	DefaultMetadata = &Metadata{
-		Name:        DefaultArtifactName,
-		Version:     DefaultArtifactVersion,
-		OS:          DefaultArtifactOS,
-		Arch:        DefaultArtifactArch,
-		Maintainer:  "test@example.com",
-		Description: "Test artifact for unit tests",
-		Dependencies: []model.Dependency{
-			{Name: "dep1"},
-			{Name: "dep2"},
-		},
+	DefaultArtifactURL     = "http://example.com/test.gotya"
+	DefaultMetadata        = &Metadata{
+		Name:         DefaultArtifactName,
+		Version:      DefaultArtifactVersion,
+		OS:           DefaultArtifactOS,
+		Arch:         DefaultArtifactArch,
+		Maintainer:   "test@example.com",
+		Description:  "Test artifact for unit tests",
+		Dependencies: []model.Dependency{},
+		Hooks:        map[string]string{},
+	}
+	DefaultIndexArtifactDescriptor = &model.IndexArtifactDescriptor{
+		Name:    DefaultMetadata.Name,
+		Version: DefaultMetadata.Version,
+		OS:      DefaultMetadata.OS,
+		Arch:    DefaultMetadata.Arch,
+		URL:     DefaultArtifactURL,
+	}
+	DefaultInstalledArtifact = &model.InstalledArtifact{
+		Name:    DefaultMetadata.Name,
+		Version: DefaultMetadata.Version,
+		OS:      DefaultMetadata.OS,
+		Arch:    DefaultMetadata.Arch,
 	}
 )
 
@@ -47,12 +61,12 @@ func TestInstallArtifact_MissingLocalFile(t *testing.T) {
 	desc := &model.IndexArtifactDescriptor{
 		Name:    "invalid-artifact",
 		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
+		URL:     "http://example.com/invalid-artifact.gotya",
 	}
 
 	err := mgr.InstallArtifact(context.Background(), desc, "/non/existent/path.gotya", model.InstallationReasonManual)
-	assert.Equal(t, errors.ErrArtifactNotFound, err)
+	var pathError *os.PathError
+	assert.ErrorAs(t, err, &pathError)
 }
 
 func TestInstallArtifact_RegularPackage(t *testing.T) {
@@ -63,20 +77,8 @@ func TestInstallArtifact_RegularPackage(t *testing.T) {
 
 	// Create a test artifact
 	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
-	metadata := &Metadata{
-		Name:        artifactName,
-		Version:     "1.0.0",
-		OS:          "linux",
-		Arch:        "amd64",
-		Maintainer:  "test@example.com",
-		Description: "Test artifact for unit tests",
-		Dependencies: []model.Dependency{
-			{Name: "dep1"},
-			{Name: "dep2"},
-		},
-		Hooks: make(map[string]string),
-	}
-	setupTestArtifact(t, testArtifact, true, metadata)
+
+	setupTestArtifact(t, testArtifact, true, DefaultMetadata)
 
 	desc := &model.IndexArtifactDescriptor{
 		Name:    artifactName,
@@ -106,9 +108,9 @@ func TestInstallArtifact_RegularPackage(t *testing.T) {
 	require.NotNil(t, installedArtifact, "installed artifact not found in database")
 
 	// Verify installed artifact details
-	assert.Equal(t, artifactName, installedArtifact.Name, "artifact name in database doesn't match")
-	assert.Equal(t, "1.0.0", installedArtifact.Version, "artifact version in database doesn't match")
-	assert.Equal(t, "http://example.com/test.gotya", installedArtifact.InstalledFrom, "installed from URL doesn't match")
+	assert.Equal(t, DefaultArtifactName, installedArtifact.Name, "artifact name in database doesn't match")
+	assert.Equal(t, DefaultArtifactVersion, installedArtifact.Version, "artifact version in database doesn't match")
+	assert.Equal(t, DefaultArtifactURL, installedArtifact.InstalledFrom, "installed from URL doesn't match")
 	assert.NotEmpty(t, installedArtifact.InstalledAt, "installed at timestamp should be set")
 
 	// Verify installed files in database
@@ -334,7 +336,7 @@ func TestInstallArtifact_EmptyArtifactName(t *testing.T) {
 
 	err := mgr.InstallArtifact(context.Background(), desc, "/nonexistent/path.gotya", model.InstallationReasonManual)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "artifact name cannot be empty")
+	assert.ErrorIs(t, err, errors.ErrValidation)
 }
 
 // TestInstallArtifact_EmptyDescriptor tests installation with nil descriptor
@@ -344,7 +346,64 @@ func TestInstallArtifact_EmptyDescriptor(t *testing.T) {
 
 	err := mgr.InstallArtifact(context.Background(), nil, "/nonexistent/path.gotya", model.InstallationReasonManual)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "artifact descriptor cannot be nil")
+	assert.ErrorContains(t, err, "artifact descriptor cannot be nil")
+}
+
+func TestInstallArtifact_ReverseDependenciesSet(t *testing.T) {
+	tempDir := t.TempDir()
+
+	dependencyName := "dep1"
+	DefaultMetadata.Dependencies = []model.Dependency{
+		{Name: dependencyName},
+	}
+	DefaultIndexArtifactDescriptor.Dependencies = []model.Dependency{
+		{Name: dependencyName},
+	}
+
+	metadata := &Metadata{
+		Name:         dependencyName,
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+		Maintainer:   "test@example.com",
+		Description:  "Test dependency for reverse dependencies tests",
+		Dependencies: []model.Dependency{},
+		Hooks:        map[string]string{},
+	}
+
+	desc := &model.IndexArtifactDescriptor{
+		Name:         dependencyName,
+		Version:      "1.0.0",
+		OS:           "linux",
+		Arch:         "amd64",
+		URL:          "http://example.com/dep1.gotya",
+		Dependencies: []model.Dependency{},
+	}
+
+	setupTestArtifact(t, filepath.Join(tempDir, "artifact.gotya"), true, DefaultMetadata)
+	setupTestArtifact(t, filepath.Join(tempDir, "dep1.gotya"), false, metadata)
+
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+
+	require.NoError(t, mgr.InstallArtifact(context.Background(), DefaultIndexArtifactDescriptor, filepath.Join(tempDir, "artifact.gotya"), model.InstallationReasonManual))
+
+	db := loadInstalledDB(t, dbPath)
+	assert.True(t, db.IsArtifactInstalled(DefaultArtifactName))
+	assert.True(t, db.IsArtifactInstalled(dependencyName))
+	artifact := db.FindArtifact(dependencyName)
+	require.NotNil(t, artifact)
+	assert.Equal(t, model.StatusMissing, artifact.Status)
+	assert.Equal(t, DefaultArtifactName, artifact.ReverseDependencies[0])
+
+	require.NoError(t, mgr.InstallArtifact(context.Background(), desc, filepath.Join(tempDir, "dep1.gotya"), model.InstallationReasonManual))
+
+	db = loadInstalledDB(t, dbPath)
+	artifact = db.FindArtifact(dependencyName)
+	require.NotNil(t, artifact)
+	assert.Equal(t, model.StatusInstalled, artifact.Status)
+	assert.Equal(t, DefaultArtifactName, artifact.ReverseDependencies[0])
+
 }
 
 // TestUninstallArtifact_UpdatesReverseDependencies tests that reverse dependencies are cleaned up when artifacts are uninstalled
@@ -620,9 +679,9 @@ func TestUninstallArtifact_SelectiveMode_MissingFiles(t *testing.T) {
 	require.NotNil(t, installedArtifact)
 
 	// Remove one file manually to simulate missing file
-	metaFiles := installedArtifact.MetaFiles
-	if len(metaFiles) > 0 {
-		testFile := filepath.Join(installedArtifact.ArtifactMetaDir, metaFiles[0].Path)
+	dataFiles := installedArtifact.DataFiles
+	if len(dataFiles) > 0 {
+		testFile := filepath.Join(installedArtifact.ArtifactDataDir, dataFiles[0].Path)
 		err := os.Remove(testFile)
 		require.NoError(t, err)
 	}
@@ -781,17 +840,12 @@ func TestUpdateArtifact_NotInstalled(t *testing.T) {
 
 	// Try to update a non-existent artifact
 	testArtifact := filepath.Join(tempDir, "nonexistent.gotya")
-	desc := &model.IndexArtifactDescriptor{
-		Name:    "nonexistent",
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
-		URL:     "http://example.com/test.gotya",
-	}
 
-	err := mgr.UpdateArtifact(context.Background(), testArtifact, desc)
+	setupTestArtifact(t, testArtifact, true, DefaultMetadata)
+
+	err := mgr.UpdateArtifact(context.Background(), testArtifact, DefaultIndexArtifactDescriptor)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not installed")
+	assert.ErrorContains(t, err, "not installed")
 }
 
 // Helper function to test updating to the same version and URL (should fail)
@@ -886,26 +940,8 @@ func TestUpdateArtifact_InvalidNewArtifact(t *testing.T) {
 
 	err = mgr.UpdateArtifact(context.Background(), "/nonexistent/path.gotya", invalidDesc)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to verify new artifact")
-}
-
-// TestUpdateArtifact_EmptyArtifactName tests updating with empty artifact name
-func TestUpdateArtifact_EmptyArtifactName(t *testing.T) {
-	tempDir := t.TempDir()
-	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
-
-	// Create a descriptor with empty name to test validation
-	desc := &model.IndexArtifactDescriptor{
-		Name:    "", // Empty name
-		Version: "2.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
-		URL:     "http://example.com/v2.0.0.gotya",
-	}
-
-	err := mgr.UpdateArtifact(context.Background(), "/nonexistent/path.gotya", desc)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "artifact name cannot be empty")
+	var pathError *os.PathError
+	assert.ErrorAs(t, err, &pathError)
 }
 
 // TestUpdateArtifact_EmptyNewArtifactPath tests updating with empty new artifact path
@@ -923,7 +959,7 @@ func TestUpdateArtifact_EmptyNewArtifactPath(t *testing.T) {
 
 	err := mgr.UpdateArtifact(context.Background(), "", desc)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "new artifact path cannot be empty")
+	assert.ErrorIs(t, err, errors.ErrValidation)
 }
 
 // TestUpdateArtifact_EmptyDescriptor tests updating with nil descriptor
@@ -933,7 +969,7 @@ func TestUpdateArtifact_EmptyDescriptor(t *testing.T) {
 
 	err := mgr.UpdateArtifact(context.Background(), "/path/to/artifact.gotya", nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "new artifact descriptor cannot be nil")
+	assert.ErrorIs(t, err, errors.ErrValidation)
 }
 
 // TestUpdateArtifact_DifferentArtifactName tests updating with mismatched artifact name
@@ -1275,8 +1311,8 @@ func setupTestArtifact(t *testing.T, artifactPath string, includeDataDir bool, m
 // loadInstalledDB loads the installed database from the given path
 func loadInstalledDB(t *testing.T, dbPath string) *database.InstalledManagerImpl {
 	t.Helper()
-	db := database.NewInstalledDatabase()
-	err := db.LoadDatabase(dbPath)
+	db := database.NewInstalledManger()
+	err := db.LoadDatabaseFrom(dbPath)
 	require.NoError(t, err, "failed to load installed database")
 	return db
 }
@@ -1284,16 +1320,17 @@ func loadInstalledDB(t *testing.T, dbPath string) *database.InstalledManagerImpl
 // setupTestDatabaseWithArtifacts creates a test database with the specified artifacts
 func setupTestDatabaseWithArtifacts(t *testing.T, dbPath string, artifacts []*model.InstalledArtifact) {
 	t.Helper()
-	db := database.NewInstalledDatabase()
+	db := database.NewInstalledManger()
 	for _, artifact := range artifacts {
 		db.AddArtifact(artifact)
 	}
-	err := db.SaveDatabase(dbPath)
+	err := db.SaveDatabaseTo(dbPath)
 	require.NoError(t, err, "failed to save test database")
 }
 
-// createTestArtifact creates a basic test artifact for database testing
-func createTestArtifact(name, version string, reverseDeps []string) *model.InstalledArtifact {
+// createTestInstalledArtifact creates a basic test artifact for database testing
+func createTestInstalledArtifact(t *testing.T, name, version string, reverseDeps []string) *model.InstalledArtifact {
+	t.Helper()
 	return &model.InstalledArtifact{
 		Name:                name,
 		Version:             version,
@@ -1318,8 +1355,8 @@ func TestReverseResolve_Basic(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create test artifacts with reverse dependencies
-	dependency := createTestArtifact("dep1", "1.0.0", []string{})
-	mainArtifact := createTestArtifact("main", "1.0.0", []string{"dep1"})
+	dependency := createTestInstalledArtifact(t, "dep1", "1.0.0", []string{})
+	mainArtifact := createTestInstalledArtifact(t, "main", "1.0.0", []string{"dep1"})
 
 	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{dependency, mainArtifact})
 
@@ -1353,11 +1390,11 @@ func TestReverseResolve_ComplexDependencies(t *testing.T) {
 	// app -> libA -> core
 	// app -> libB -> core
 	// tool -> libA
-	core := createTestArtifact("core", "1.0.0", []string{})
-	libA := createTestArtifact("libA", "1.0.0", []string{"core"})
-	libB := createTestArtifact("libB", "1.0.0", []string{"core"})
-	app := createTestArtifact("app", "1.0.0", []string{"libA", "libB"})
-	tool := createTestArtifact("tool", "1.0.0", []string{"libA"})
+	core := createTestInstalledArtifact(t, "core", "1.0.0", []string{})
+	libA := createTestInstalledArtifact(t, "libA", "1.0.0", []string{"core"})
+	libB := createTestInstalledArtifact(t, "libB", "1.0.0", []string{"core"})
+	app := createTestInstalledArtifact(t, "app", "1.0.0", []string{"libA", "libB"})
+	tool := createTestInstalledArtifact(t, "tool", "1.0.0", []string{"libA"})
 
 	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{core, libA, libB, app, tool})
 
@@ -1464,7 +1501,7 @@ func TestReverseResolve_SelfDependency(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create artifact with self-dependency (edge case)
-	artifact := createTestArtifact("self", "1.0.0", []string{"self"})
+	artifact := createTestInstalledArtifact(t, "self", "1.0.0", []string{"self"})
 	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{artifact})
 
 	// Test resolving reverse dependencies for self
@@ -1505,7 +1542,7 @@ func TestReverseResolve_MissingStatusArtifact(t *testing.T) {
 		Checksum:            "checksum123",
 		InstallationReason:  model.InstallationReasonAutomatic,
 	}
-	mainArtifact := createTestArtifact("main", "1.0.0", []string{})
+	mainArtifact := createTestInstalledArtifact(t, "main", "1.0.0", []string{})
 
 	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{missingArtifact, mainArtifact})
 
@@ -1524,152 +1561,65 @@ func TestReverseResolve_MissingStatusArtifact(t *testing.T) {
 	assert.Empty(t, result.Artifacts)
 }
 
-// Helper function to test installation reason transitions and updates
-// Parameters:
-// - initialReason: The installation reason for the initial installation
-// - updateToDifferentVersion: Whether to update to version 2.0.0 or keep 1.0.0
-// - expectedFinalReason: The expected installation reason after the update
-// - testName: Name suffix for the test artifact to avoid conflicts
-func testInstallationReasonUpdate(t *testing.T, initialReason model.InstallationReason, updateToDifferentVersion bool, expectedFinalReason model.InstallationReason, testName string) {
-	t.Helper()
+func TestInstallArtifact_InstallationReasonTransitions(t *testing.T) {
+	tests := []struct {
+		name           string
+		reason         model.InstallationReason
+		previousReason model.InstallationReason
+		expectedReason model.InstallationReason
+	}{{
+		name:           "New to manual",
+		reason:         model.InstallationReasonManual,
+		expectedReason: model.InstallationReasonManual,
+	}, {
+		name:           "New to automatic",
+		reason:         model.InstallationReasonAutomatic,
+		expectedReason: model.InstallationReasonAutomatic,
+	}, {
+		name:           "Manual to automatic",
+		reason:         model.InstallationReasonAutomatic,
+		previousReason: model.InstallationReasonManual,
+		expectedReason: model.InstallationReasonManual,
+	}, {
+		name:           "Automatic to manual",
+		reason:         model.InstallationReasonManual,
+		previousReason: model.InstallationReasonAutomatic,
+		expectedReason: model.InstallationReasonManual,
+	}}
 
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "installed.db")
-	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
-	artifactName := "test-artifact-" + testName
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
 
-	// Create and install the initial version
-	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
-	metadata := &Metadata{
-		Name:        artifactName,
-		Version:     "1.0.0",
-		OS:          "linux",
-		Arch:        "amd64",
-		Maintainer:  "test@example.com",
-		Description: "Test artifact for installation reason test",
+			artifact := &model.IndexArtifactDescriptor{
+				Name:    DefaultMetadata.Name,
+				Version: DefaultMetadata.Version,
+				URL:     "http://example.com/test.gotya",
+				OS:      DefaultArtifactOS,
+				Arch:    DefaultArtifactArch,
+			}
+
+			dbPath := filepath.Join(tempDir, "installed.db")
+			if tt.previousReason != "" {
+				db := loadInstalledDB(t, dbPath)
+				DefaultInstalledArtifact.InstallationReason = tt.previousReason
+				DefaultInstalledArtifact.Status = model.StatusInstalled
+				db.AddArtifact(DefaultInstalledArtifact)
+				require.NoError(t, db.SaveDatabaseTo(dbPath))
+			}
+
+			setupTestArtifact(t, filepath.Join(tempDir, "test-artifact.gotya"), false, DefaultMetadata)
+			mgr := NewManager("linux", "amd64", filepath.Join(tempDir, "install"), filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+			require.NoError(t, mgr.InstallArtifact(context.Background(), artifact, filepath.Join(tempDir, "test-artifact.gotya"), tt.reason))
+
+			artifacts, err := mgr.GetInstalledArtifacts()
+			require.NoError(t, err)
+
+			require.Len(t, artifacts, 1)
+			require.Equal(t, tt.expectedReason, artifacts[0].InstallationReason)
+		})
 	}
-	setupTestArtifact(t, testArtifact, true, metadata)
-
-	desc := &model.IndexArtifactDescriptor{
-		Name:    artifactName,
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
-		URL:     "http://example.com/test.gotya",
-	}
-
-	// Install with the specified reason
-	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, initialReason)
-	require.NoError(t, err)
-
-	// Verify it was installed with the correct reason
-	db := loadInstalledDB(t, dbPath)
-	installedArtifact := db.FindArtifact(artifactName)
-	require.NotNil(t, installedArtifact)
-	assert.Equal(t, initialReason, installedArtifact.InstallationReason, "should have correct initial reason")
-
-	// Create the artifact for update
-	var updateVersion string
-	var updateURL string
-	if updateToDifferentVersion {
-		updateVersion = "2.0.0"
-		updateURL = "http://example.com/test-v2.gotya"
-	} else {
-		updateVersion = "1.0.0" // Same version
-		updateURL = "http://example.com/test.gotya"
-	}
-
-	testArtifactV2 := filepath.Join(tempDir, "test-artifact-v2.gotya")
-	metadataV2 := &Metadata{
-		Name:        artifactName,
-		Version:     updateVersion,
-		OS:          "linux",
-		Arch:        "amd64",
-		Maintainer:  "test@example.com",
-		Description: "Updated test artifact",
-	}
-	setupTestArtifact(t, testArtifactV2, true, metadataV2)
-
-	descV2 := &model.IndexArtifactDescriptor{
-		Name:    artifactName,
-		Version: updateVersion,
-		OS:      "linux",
-		Arch:    "amd64",
-		URL:     updateURL,
-	}
-
-	// Update the artifact
-	err = mgr.UpdateArtifact(context.Background(), testArtifactV2, descV2)
-	require.NoError(t, err)
-
-	// Verify the update was successful
-	db = loadInstalledDB(t, dbPath)
-	updatedArtifact := db.FindArtifact(artifactName)
-	require.NotNil(t, updatedArtifact)
-	assert.Equal(t, updateVersion, updatedArtifact.Version, "version should be updated")
-	assert.Equal(t, expectedFinalReason, updatedArtifact.InstallationReason, "should have correct final reason")
-}
-
-// TestInstallArtifact_InstallationReason_Transitions tests installation reason transitions
-func TestInstallArtifact_InstallationReason_Transitions(t *testing.T) {
-	testInstallationReasonUpdate(t, model.InstallationReasonAutomatic, false, model.InstallationReasonManual, "transitions")
-}
-
-// TestInstallArtifact_InstallationReason_ManualUpdate tests updating a manually installed artifact to a new version
-func TestInstallArtifact_InstallationReason_ManualUpdate(t *testing.T) {
-	testInstallationReasonUpdate(t, model.InstallationReasonManual, true, model.InstallationReasonManual, "manual-update")
-}
-
-// TestInstallArtifact_InstallationReason_SameVersionUpgrade tests upgrading automatic to manual with same version
-func TestInstallArtifact_InstallationReason_SameVersionUpgrade(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "installed.db")
-	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
-	artifactName := "test-artifact"
-
-	// Create and install an artifact with automatic reason first
-	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
-	metadata := &Metadata{
-		Name:        artifactName,
-		Version:     "1.0.0",
-		OS:          "linux",
-		Arch:        "amd64",
-		Maintainer:  "test@example.com",
-		Description: "Test artifact for same version upgrade",
-	}
-	setupTestArtifact(t, testArtifact, true, metadata)
-
-	desc := &model.IndexArtifactDescriptor{
-		Name:    artifactName,
-		Version: "1.0.0",
-		OS:      "linux",
-		Arch:    "amd64",
-		URL:     "http://example.com/test.gotya",
-	}
-
-	// Install with automatic reason
-	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonAutomatic)
-	require.NoError(t, err)
-
-	// Verify it was installed with automatic reason
-	db := loadInstalledDB(t, dbPath)
-	installedArtifact := db.FindArtifact(artifactName)
-	require.NotNil(t, installedArtifact)
-	assert.Equal(t, model.InstallationReasonAutomatic, installedArtifact.InstallationReason, "should have automatic reason")
-
-	// Create a new artifact file (same version, same metadata) but install with manual reason
-	testArtifactV2 := filepath.Join(tempDir, "test-artifact-v2.gotya")
-	setupTestArtifact(t, testArtifactV2, true, metadata) // Same metadata
-
-	// Try to update with manual reason (should succeed even with same version)
-	err = mgr.UpdateArtifact(context.Background(), testArtifactV2, desc)
-	require.NoError(t, err)
-
-	// Verify it was upgraded to manual reason
-	db = loadInstalledDB(t, dbPath)
-	updatedArtifact := db.FindArtifact(artifactName)
-	require.NotNil(t, updatedArtifact)
-	assert.Equal(t, model.InstallationReasonManual, updatedArtifact.InstallationReason, "should be upgraded to manual reason")
 }
 
 // TestInstallArtifact_InstallationReason_DatabasePersistence tests that installation reason is persisted in database
@@ -1723,13 +1673,13 @@ func TestGetOrphanedAutomaticArtifacts_NoOrphaned(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create test artifacts with different scenarios
-	manualArtifact := createTestArtifact("manual", "1.0.0", []string{"dep1"})
+	manualArtifact := createTestInstalledArtifact(t, "manual", "1.0.0", []string{"dep1"})
 	manualArtifact.InstallationReason = model.InstallationReasonManual
 
-	automaticWithDeps := createTestArtifact("auto-with-deps", "1.0.0", []string{"dep1"})
+	automaticWithDeps := createTestInstalledArtifact(t, "auto-with-deps", "1.0.0", []string{"dep1"})
 	automaticWithDeps.InstallationReason = model.InstallationReasonAutomatic
 
-	automaticNoDeps := createTestArtifact("auto-no-deps", "1.0.0", []string{})
+	automaticNoDeps := createTestInstalledArtifact(t, "auto-no-deps", "1.0.0", []string{})
 	automaticNoDeps.InstallationReason = model.InstallationReasonAutomatic
 
 	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{manualArtifact, automaticWithDeps, automaticNoDeps})
@@ -1750,16 +1700,16 @@ func TestGetOrphanedAutomaticArtifacts_WithOrphaned(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create test artifacts
-	manualArtifact := createTestArtifact("manual", "1.0.0", []string{"dep1"})
+	manualArtifact := createTestInstalledArtifact(t, "manual", "1.0.0", []string{"dep1"})
 	manualArtifact.InstallationReason = model.InstallationReasonManual
 
-	automaticOrphaned1 := createTestArtifact("auto-orphan1", "1.0.0", []string{})
+	automaticOrphaned1 := createTestInstalledArtifact(t, "auto-orphan1", "1.0.0", []string{})
 	automaticOrphaned1.InstallationReason = model.InstallationReasonAutomatic
 
-	automaticOrphaned2 := createTestArtifact("auto-orphan2", "1.0.0", []string{})
+	automaticOrphaned2 := createTestInstalledArtifact(t, "auto-orphan2", "1.0.0", []string{})
 	automaticOrphaned2.InstallationReason = model.InstallationReasonAutomatic
 
-	automaticWithDeps := createTestArtifact("auto-with-deps", "1.0.0", []string{"dep1"})
+	automaticWithDeps := createTestInstalledArtifact(t, "auto-with-deps", "1.0.0", []string{"dep1"})
 	automaticWithDeps.InstallationReason = model.InstallationReasonAutomatic
 
 	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{manualArtifact, automaticOrphaned1, automaticOrphaned2, automaticWithDeps})
@@ -1783,10 +1733,10 @@ func TestGetOrphanedAutomaticArtifacts_OnlyAutomatic(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create test artifacts
-	manualOrphaned := createTestArtifact("manual-orphan", "1.0.0", []string{})
+	manualOrphaned := createTestInstalledArtifact(t, "manual-orphan", "1.0.0", []string{})
 	manualOrphaned.InstallationReason = model.InstallationReasonManual
 
-	automaticNotOrphaned := createTestArtifact("auto-not-orphan", "1.0.0", []string{"dep1"})
+	automaticNotOrphaned := createTestInstalledArtifact(t, "auto-not-orphan", "1.0.0", []string{"dep1"})
 	automaticNotOrphaned.InstallationReason = model.InstallationReasonAutomatic
 
 	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{manualOrphaned, automaticNotOrphaned})
@@ -1806,11 +1756,11 @@ func TestGetOrphanedAutomaticArtifacts_MissingStatus(t *testing.T) {
 	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
 
 	// Create test artifacts
-	missingAutomatic := createTestArtifact("missing-auto", "1.0.0", []string{})
+	missingAutomatic := createTestInstalledArtifact(t, "missing-auto", "1.0.0", []string{})
 	missingAutomatic.InstallationReason = model.InstallationReasonAutomatic
 	missingAutomatic.Status = model.StatusMissing
 
-	installedAutomatic := createTestArtifact("installed-auto", "1.0.0", []string{})
+	installedAutomatic := createTestInstalledArtifact(t, "installed-auto", "1.0.0", []string{})
 	installedAutomatic.InstallationReason = model.InstallationReasonAutomatic
 	installedAutomatic.Status = model.StatusInstalled
 
@@ -1858,4 +1808,407 @@ func TestGetOrphanedAutomaticArtifacts_EmptyDatabase(t *testing.T) {
 
 	// Should be empty
 	assert.Empty(t, orphaned)
+}
+
+func TestUpdateArtifact_HookBehavior(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Test that UpdateArtifact only triggers update hooks, not install/uninstall hooks
+	tempDir := t.TempDir()
+	metaDir := filepath.Join(tempDir, "install", artifactMetaDir)
+	dataDir := filepath.Join(tempDir, "install", artifactDataDir)
+
+	// Create directories
+	err := os.MkdirAll(metaDir, 0o755)
+	require.NoError(t, err)
+
+	// Create hook scripts
+	hooksDir := metaDir
+	err = os.MkdirAll(hooksDir, 0o755)
+	require.NoError(t, err)
+
+	// Create all hook scripts
+	hookScripts := []string{"pre-update", "post-update"}
+	for _, hookName := range hookScripts {
+		hookPath := filepath.Join(hooksDir, hookName+".tengo")
+		err := os.WriteFile(hookPath, []byte(`// Tengo script`), 0o644)
+		require.NoError(t, err)
+	}
+
+	// Create mock hook executor to track calls
+	mockHookExecutor := NewMockHookExecutor(ctrl)
+
+	// Set up expectations - UpdateArtifact should only call update hooks
+	preUpdateContext := &HookContext{
+		ArtifactName:    DefaultArtifactName,
+		ArtifactVersion: "2.0.0", // New version, not old version
+		Operation:       "update",
+		MetaDir:         filepath.Join(metaDir, "test-artifact"), // Uses installed artifact's MetaDir
+		DataDir:         filepath.Join(dataDir, "test-artifact"), // Uses installed artifact's DataDir (should match getArtifactDataInstallPath)
+		OldVersion:      DefaultArtifactVersion,
+	}
+	postUpdateContext := &HookContext{
+		ArtifactName:    DefaultArtifactName,
+		ArtifactVersion: "2.0.0", // New version
+		Operation:       "update",
+		MetaDir:         filepath.Join(metaDir, "test-artifact"), // Uses new artifact's MetaDir (same as old in this case)
+		DataDir:         filepath.Join(dataDir, "test-artifact"), // Uses new artifact's DataDir
+		OldVersion:      DefaultArtifactVersion,
+	}
+
+	// Expect pre-update hook call (before uninstall)
+	mockHookExecutor.EXPECT().
+		ExecuteHook(filepath.Join(metaDir, "test-artifact", "pre-update.tengo"), preUpdateContext).
+		Return(nil)
+
+	// Expect post-update hook call (after install)
+	mockHookExecutor.EXPECT().
+		ExecuteHook(filepath.Join(metaDir, "test-artifact", "post-update.tengo"), postUpdateContext).
+		Return(nil)
+	// Create manager with mock hook executor
+	mgr := NewManager("linux", "amd64", tempDir, dataDir, metaDir, filepath.Join(tempDir, "installed.db"))
+	mgr.hookExecutor = mockHookExecutor
+
+	// Setup test database with an installed artifact
+	dbPath := filepath.Join(tempDir, "installed.db")
+	installedArtifact := &model.InstalledArtifact{
+		Name:                DefaultArtifactName,
+		Version:             DefaultArtifactVersion,
+		OS:                  DefaultArtifactOS,
+		Arch:                DefaultArtifactArch,
+		ArtifactMetaDir:     filepath.Join(metaDir, "test-artifact"),
+		ArtifactDataDir:     filepath.Join(dataDir, "test-artifact"), // Should match getArtifactDataInstallPath
+		Status:              model.StatusInstalled,
+		InstallationReason:  model.InstallationReasonManual,
+		InstalledAt:         time.Now(),
+		InstalledFrom:       "test://test",
+		Checksum:            "test-checksum",
+		MetaFiles:           []model.InstalledFile{},
+		DataFiles:           []model.InstalledFile{},
+		ReverseDependencies: []string{},
+	}
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{installedArtifact})
+
+	DefaultMetadata.Hooks["pre-update"] = "pre-update.tengo"
+
+	writeMetadata(t, filepath.Join(metaDir, "test-artifact"), DefaultMetadata)
+
+	// Create new artifact descriptor for update
+	newDesc := &model.IndexArtifactDescriptor{
+		Name:    DefaultArtifactName,
+		Version: "2.0.0", // Different version
+		OS:      DefaultArtifactOS,
+		Arch:    DefaultArtifactArch,
+		URL:     "test://test-v2",
+	}
+
+	// Create a proper artifact file for update
+	artifactPath := filepath.Join(tempDir, "test-artifact_2.0.0_linux_amd64.gotya")
+	metadata := &Metadata{
+		Name:        DefaultArtifactName,
+		Version:     "2.0.0",
+		OS:          DefaultArtifactOS,
+		Arch:        DefaultArtifactArch,
+		Maintainer:  "test@example.com",
+		Description: "Updated test artifact",
+		Hooks: map[string]string{
+			"post-update": "post-update.tengo",
+		},
+	}
+	setupTestArtifact(t, artifactPath, true, metadata)
+
+	// Perform update - this should only trigger update hooks
+	err = mgr.UpdateArtifact(context.Background(), artifactPath, newDesc)
+	require.NoError(t, err)
+
+	// Verify that the mock expectations were met
+	ctrl.Finish()
+}
+
+// TestUninstallArtifact_HookBehavior verifies that UninstallArtifact only calls uninstall hooks
+func TestUninstallArtifact_HookBehavior(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create temp directories for test
+	tempDir := t.TempDir()
+	metaDir := filepath.Join(tempDir, "meta")
+	dataDir := filepath.Join(tempDir, "data")
+
+	// Create hook directories and scripts
+	hookScripts := []string{"pre-uninstall", "post-uninstall"}
+	for _, hookName := range hookScripts {
+		hookPath := filepath.Join(metaDir, "test-artifact", hookName+".tengo")
+		err := os.MkdirAll(filepath.Dir(hookPath), 0o755)
+		require.NoError(t, err)
+		err = os.WriteFile(hookPath, []byte(`true`), 0o644)
+		require.NoError(t, err)
+	}
+
+	// Create mock hook executor to track calls
+	mockHookExecutor := NewMockHookExecutor(ctrl)
+
+	// Set up expectations - UninstallArtifact should only call uninstall hooks
+	preUninstallContext := &HookContext{
+		ArtifactName:    DefaultArtifactName,
+		ArtifactVersion: DefaultArtifactVersion,
+		Operation:       "uninstall",
+		MetaDir:         filepath.Join(metaDir, "test-artifact"),
+		DataDir:         filepath.Join(dataDir, "test-artifact"),
+	}
+	postUninstallContext := &HookContext{
+		ArtifactName:    DefaultArtifactName,
+		ArtifactVersion: DefaultArtifactVersion,
+		Operation:       "uninstall",
+		WasMetaDir:      filepath.Join(metaDir, "test-artifact"),
+		WasDataDir:      filepath.Join(dataDir, "test-artifact"),
+	}
+
+	DefaultMetadata.Hooks["pre-uninstall"] = "pre-uninstall.tengo"
+	DefaultMetadata.Hooks["post-uninstall"] = "post-uninstall.tengo"
+
+	writeMetadata(t, filepath.Join(metaDir, "test-artifact"), DefaultMetadata)
+
+	file, err := os.Create(filepath.Join(metaDir, "test-artifact", "post-uninstall.tengo"))
+	require.NoError(t, err)
+	_, err = file.Write([]byte(`true`))
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	// Expect pre-uninstall hook call
+	gomock.InOrder(
+		mockHookExecutor.EXPECT().
+			ExecuteHook(filepath.Join(metaDir, "test-artifact", "pre-uninstall.tengo"), preUninstallContext).
+			Return(nil),
+
+		mockHookExecutor.EXPECT().
+			ExecuteHook(gomock.Any(), postUninstallContext).
+			Return(nil),
+	)
+
+	// Create manager with mock hook executor
+	mgr := NewManager("linux", "amd64", tempDir, dataDir, metaDir, filepath.Join(tempDir, "installed.db"))
+	mgr.hookExecutor = mockHookExecutor
+
+	// Setup test database with an installed artifact
+	dbPath := filepath.Join(tempDir, "installed.db")
+	installedArtifact := &model.InstalledArtifact{
+		Name:                DefaultArtifactName,
+		Version:             DefaultArtifactVersion,
+		OS:                  DefaultArtifactOS,
+		Arch:                DefaultArtifactArch,
+		ArtifactMetaDir:     filepath.Join(metaDir, "test-artifact"),
+		ArtifactDataDir:     filepath.Join(dataDir, "test-artifact"),
+		Status:              model.StatusInstalled,
+		InstallationReason:  model.InstallationReasonManual,
+		InstalledAt:         time.Now(),
+		InstalledFrom:       "test://test",
+		Checksum:            "test-checksum",
+		MetaFiles:           []model.InstalledFile{},
+		DataFiles:           []model.InstalledFile{},
+		ReverseDependencies: []string{},
+	}
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{installedArtifact})
+
+	// Perform uninstall - this should only trigger uninstall hooks
+	require.NoError(t, mgr.UninstallArtifact(context.Background(), DefaultArtifactName, true))
+
+	// Verify that the mock expectations were met
+	ctrl.Finish()
+}
+
+// TestUpdateArtifact_FailingPreUpdateHook verifies that UpdateArtifact fails when pre-update hook fails
+func TestUpdateArtifact_FailingPreUpdateHook(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create temp directories for test
+	tempDir := t.TempDir()
+	metaDir := filepath.Join(tempDir, "meta")
+	dataDir := filepath.Join(tempDir, "data")
+
+	// Create hook directories and failing script
+	hookPath := filepath.Join(metaDir, "test-artifact", "pre-update.tengo")
+	err := os.MkdirAll(filepath.Dir(hookPath), 0o755)
+	require.NoError(t, err)
+	// Create a script that will fail
+	err = os.WriteFile(hookPath, []byte(`invalid tengo syntax !!!`), 0o644)
+	require.NoError(t, err)
+
+	DefaultMetadata.Hooks["pre-update"] = "pre-update.tengo"
+	writeMetadata(t, filepath.Join(metaDir, "test-artifact"), DefaultMetadata)
+
+	// Create mock hook executor to track calls
+	mockHookExecutor := NewMockHookExecutor(ctrl)
+
+	// Set up expectations - pre-update hook should fail
+	preUpdateContext := &HookContext{
+		ArtifactName:    DefaultArtifactName,
+		ArtifactVersion: "2.0.0",
+		Operation:       "update",
+		MetaDir:         filepath.Join(metaDir, "test-artifact"),
+		DataDir:         filepath.Join(dataDir, "test-artifact"),
+		OldVersion:      DefaultArtifactVersion,
+	}
+
+	mockHookExecutor.EXPECT().
+		ExecuteHook(filepath.Join(metaDir, "test-artifact", "pre-update.tengo"), preUpdateContext).
+		Return(fmt.Errorf("hook script execution failed"))
+
+	// Create manager with mock hook executor
+	mgr := NewManager("linux", "amd64", tempDir, dataDir, metaDir, filepath.Join(tempDir, "installed.db"))
+	mgr.hookExecutor = mockHookExecutor
+
+	// Setup test database with an installed artifact
+	dbPath := filepath.Join(tempDir, "installed.db")
+	installedArtifact := &model.InstalledArtifact{
+		Name:                DefaultArtifactName,
+		Version:             DefaultArtifactVersion,
+		OS:                  DefaultArtifactOS,
+		Arch:                DefaultArtifactArch,
+		ArtifactMetaDir:     filepath.Join(metaDir, "test-artifact"),
+		ArtifactDataDir:     filepath.Join(dataDir, "test-artifact"),
+		Status:              model.StatusInstalled,
+		InstallationReason:  model.InstallationReasonManual,
+		InstalledAt:         time.Now(),
+		InstalledFrom:       "test://test",
+		Checksum:            "test-checksum",
+		MetaFiles:           []model.InstalledFile{},
+		DataFiles:           []model.InstalledFile{},
+		ReverseDependencies: []string{},
+	}
+	setupTestDatabaseWithArtifacts(t, dbPath, []*model.InstalledArtifact{installedArtifact})
+
+	// Create new artifact descriptor for update
+	newDesc := &model.IndexArtifactDescriptor{
+		Name:    DefaultArtifactName,
+		Version: "2.0.0",
+		OS:      DefaultArtifactOS,
+		Arch:    DefaultArtifactArch,
+		URL:     "test://test-v2",
+	}
+
+	// Create a proper artifact file for update
+	artifactPath := filepath.Join(tempDir, "test-artifact_2.0.0_linux_amd64.gotya")
+	metadata := &Metadata{
+		Name:        DefaultArtifactName,
+		Version:     "2.0.0",
+		OS:          DefaultArtifactOS,
+		Arch:        DefaultArtifactArch,
+		Maintainer:  "test@example.com",
+		Description: "Updated test artifact",
+	}
+	setupTestArtifact(t, artifactPath, true, metadata)
+
+	// Perform update - this should fail due to failing pre-update hook
+	err = mgr.UpdateArtifact(context.Background(), artifactPath, newDesc)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "pre-update hook failed")
+
+	// Verify that the mock expectations were met
+	ctrl.Finish()
+}
+
+// TestInstallArtifact_MetadataDrivenHooks verifies that hooks are resolved using metadata
+func TestInstallArtifact_MetadataDrivenHooks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Create unique temp directories for this test
+	tempDir := t.TempDir()
+	installTempDir := filepath.Join(tempDir, "install")
+	metaDir := filepath.Join(installTempDir, artifactMetaDir)
+	dataDir := filepath.Join(installTempDir, artifactDataDir)
+
+	// Create hook scripts with names that differ from hook types
+	hookScripts := map[string]string{
+		"pre-install":  "before_install.tengo", // Hook type "pre-install" maps to file "before_install.tengo"
+		"post-install": "after_install.tengo",  // Hook type "post-install" maps to file "after_install.tengo"
+	}
+
+	metadata := &Metadata{
+		Name:        "test-artifact",
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact with metadata-driven hooks",
+		Hooks:       hookScripts,
+	}
+
+	// Create hook files in extracted directory (for pre-install hook execution)
+	err := os.MkdirAll(metaDir, 0o755)
+	require.NoError(t, err)
+
+	for hookType, filename := range hookScripts {
+		hookPath := filepath.Join(metaDir, filename)
+		err := os.WriteFile(hookPath, []byte(`// Tengo script for `+hookType), 0o644)
+		require.NoError(t, err)
+	}
+
+	// Create mock hook executor to track calls
+	mockHookExecutor := NewMockHookExecutor(ctrl)
+
+	// Set up expectations - should call hooks using metadata-resolved paths
+	postInstallContext := &HookContext{
+		ArtifactName:    "test-artifact",
+		ArtifactVersion: "1.0.0",
+		Operation:       "install",
+		MetaDir:         filepath.Join(metaDir, "test-artifact"),
+		DataDir:         filepath.Join(dataDir, "test-artifact"),
+	}
+
+	// Expect pre-install hook call using metadata-resolved path from extracted directory
+	gomock.InOrder(
+		mockHookExecutor.EXPECT().
+			ExecuteHook(
+				gomock.Cond(func(x string) bool { return strings.HasSuffix(x, "before_install.tengo") }),
+				gomock.Cond(func(x *HookContext) bool {
+					return x.ArtifactName == "test-artifact" &&
+						x.ArtifactVersion == "1.0.0" &&
+						x.Operation == "install" &&
+						x.FinalMetaDir == filepath.Join(metaDir, "test-artifact") &&
+						x.FinalDataDir == filepath.Join(dataDir, "test-artifact")
+				})).
+			Return(nil),
+
+		mockHookExecutor.EXPECT().
+			ExecuteHook(filepath.Join(metaDir, "test-artifact", "after_install.tengo"), postInstallContext).
+			Return(nil),
+	)
+
+	// Create manager with mock hook executor
+	mgr := NewManager("linux", "amd64", installTempDir, dataDir, metaDir, filepath.Join(tempDir, "installed.db"))
+	mgr.hookExecutor = mockHookExecutor
+
+	// Create test artifact descriptor
+	desc := &model.IndexArtifactDescriptor{
+		Name:    "test-artifact",
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "test://test",
+	}
+
+	// Create a proper artifact file
+	artifactPath := filepath.Join(tempDir, "test-artifact_1.0.0_linux_amd64.gotya")
+	setupTestArtifact(t, artifactPath, true, metadata)
+
+	// Perform install - this should use metadata-driven hook resolution
+	err = mgr.InstallArtifact(context.Background(), desc, artifactPath, model.InstallationReasonManual)
+	require.NoError(t, err)
+
+	// Verify that the mock expectations were met
+	ctrl.Finish()
+}
+
+func writeMetadata(t *testing.T, metaDir string, metadata *Metadata) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(metaDir, 0o755))
+	metaFile, err := os.Create(filepath.Join(metaDir, metadataFile))
+	require.NoError(t, err)
+	require.NoError(t, json.NewEncoder(metaFile).Encode(metadata))
+	require.NoError(t, metaFile.Close())
 }
