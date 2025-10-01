@@ -98,7 +98,7 @@ jobs:
           fi
 
       - name: Download all assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: ./assets
 
