@@ -45,9 +45,76 @@ Common commands (run `gotya <cmd> --help` for full flags):
 
 - `gotya sync` — synchronize repository indexes
 - `gotya search <query>` — search packages
-- `gotya list` — list available packages; `gotya list --installed` lists installed
+- `gotya list` — list installed packages
 - `gotya install <package> [<package> ...]` — install one or more packages
+- `gotya update` — update installed packages to latest versions
 - `gotya uninstall <package> [<package> ...]` — uninstall packages
-- `gotya cache [clean|info|dir]` — manage the cache
-- `gotya config [show|get|set|init]` — view and modify configuration
+- `gotya cleanup` — remove orphaned packages and clean up
+- `gotya cache clean|info|dir` — manage the cache
+- `gotya config show|get|set|init` — view and modify configuration
 - `gotya version` — print version info
+
+## Configuration
+
+### Configuration File Format
+
+```yaml
+# Repository configurations
+repositories:
+  - name: "main"
+    url: "https://example.com/repo/index.json"
+    enabled: true
+    priority: 0
+
+# General settings
+settings:
+  # Cache settings
+  cache_dir: "~/.cache/gotya"
+  cache_ttl: "24h0m0s"
+
+  # State settings
+  state_dir: "~/.local/share/gotya"
+
+  # Installation settings
+  install_dir: "~/.local/share/gotya/bin"
+  meta_dir: "~/.local/share/gotya/meta"
+
+  # Network settings
+  http_timeout: "30s"
+  max_concurrent_syncs: 5
+
+  # Platform settings
+  platform:
+    os: "linux"        # Override target OS (auto-detected if empty)
+    arch: "amd64"      # Override target architecture (auto-detected if empty)
+    prefer_native: true # Prefer native packages when available
+
+  # Output settings
+  output_format: "text"  # text, json, yaml
+  log_level: "info"      # debug, info, warn, error
+```
+
+### Repository Configuration
+
+- **name**: Unique identifier for the repository
+- **url**: URL to the repository index file
+- **enabled**: Whether the repository is active (default: true)
+- **priority**: Repository priority for conflict resolution (lower numbers = higher priority)
+
+### Settings Overview
+
+- **Cache settings**: Control where and how long cached data is stored
+- **State settings**: Directory for storing application state
+- **Installation settings**: Directories for installed binaries and metadata
+- **Network settings**: HTTP timeouts and concurrent operation limits
+- **Platform settings**: Target OS/architecture and native package preferences
+- **Output settings**: Output format and logging verbosity
+
+### Configuration Commands
+
+- `gotya config init` — Create a default configuration file
+- `gotya config show` — Display current configuration
+- `gotya config get <key>` — Get a specific configuration value
+- `gotya config set <key> <value>` — Set a configuration value
+
+The configuration file is automatically created with sensible defaults when gotya is first run.
