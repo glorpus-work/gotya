@@ -173,7 +173,7 @@ func (r *multiResolver) resolveNode(name string) error {
 		r.selected[name] = desc
 		// refresh deps list
 		if desc == nil {
-			return fmt.Errorf("failed to resolve artifact %s: no descriptor returned", name)
+			return errors.Wrapf(errors.ErrArtifactNotFound, "failed to resolve artifact %s: no descriptor returned", name)
 		}
 		r.deps[name] = nil
 		for _, d := range desc.Dependencies {
