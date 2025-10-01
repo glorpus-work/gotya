@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # Linux AMD64
+          - goos: linux
+            goarch: amd64
+            ext: ""
+            target: gotya-linux-amd64
+
+          # Linux ARM64
+          - goos: linux
+            goarch: arm64
+            ext: ""
+            target: gotya-linux-arm64
+
+          # Windows AMD64
+          - goos: windows
+            goarch: amd64
+            ext: ".exe"
+            target: gotya-windows-amd64
+
+          # Windows ARM64
+          - goos: windows
+            goarch: arm64
+            ext: ".exe"
+            target: gotya-windows-arm64
+
+          # macOS AMD64 (Intel)
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+            target: gotya-darwin-amd64
+
+          # macOS ARM64 (Apple Silicon)
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+            target: gotya-darwin-arm64
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          check-latest: true
+
+      - name: Build binary
+        run: |
+          mkdir -p dist
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o "dist/${{ matrix.target }}${{ matrix.ext }}" ./cli/gotya
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${{ matrix.target }}${{ matrix.ext }}" > "${{ matrix.target }}-sha256.txt"
+          else
+            shasum -a 256 "${{ matrix.target }}${{ matrix.ext }}" > "${{ matrix.target }}-sha256.txt"
+          fi
+
+      - name: Upload assets to workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-assets
+          path: |
+            dist/${{ matrix.target }}${{ matrix.ext }}
+            dist/${{ matrix.target }}-sha256.txt
+          retention-days: 1
+
+  create-release:
+    name: Create Release with Assets
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Get tag information
+        id: tag_info
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          # Check if this is a pre-release (has suffix like -alpha, -beta, -rc, etc.)
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-.*$ ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download all assets
+        uses: actions/download-artifact@v4
+        with:
+          path: ./assets
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag_info.outputs.tag }}
+          name: Release ${{ steps.tag_info.outputs.tag }}
+          body: |
+            ## Changes
+
+            See the changelog for details on this release.
+
+            ## Downloads
+
+            Binary downloads are available below.
+          draft: false
+          prerelease: ${{ steps.tag_info.outputs.prerelease }}
+          files: |
+            assets/gotya-linux-amd64-assets/*
+            assets/gotya-linux-arm64-assets/*
+            assets/gotya-windows-amd64-assets/*
+            assets/gotya-windows-arm64-assets/*
+            assets/gotya-darwin-amd64-assets/*
+            assets/gotya-darwin-arm64-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
