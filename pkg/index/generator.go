@@ -231,9 +231,9 @@ func (g *Generator) processArtifacts(ctx context.Context, baseline *Index) ([]*m
 
 	// If we have a baseline, add its artifacts to our map
 	if baseline != nil {
-		for _, artifact := range baseline.Artifacts {
-			key := fmt.Sprintf("%s@%s", artifact.Name, artifact.Version)
-			artifacts[key] = artifact
+		for _, art := range baseline.Artifacts {
+			key := fmt.Sprintf("%s@%s", art.Name, art.Version)
+			artifacts[key] = art
 		}
 	}
 

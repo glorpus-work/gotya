@@ -25,11 +25,6 @@ type ScoredArtifact struct {
 	Score    float64
 }
 
-const (
-	// InitialArtifactCapacity is the initial capacity for the packages slice.
-	InitialArtifactCapacity = 100
-)
-
 // GetFormatVersion returns the format version.
 func (idx *Index) GetFormatVersion() string {
 	return idx.FormatVersion
