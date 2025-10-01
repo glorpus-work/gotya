@@ -26,8 +26,14 @@ jobs:
           check-latest: true
           cache: true
 
-      - name: Run tests
-        run: go test -tags=integration ./... -v
+      - name: Run tests with coverage
+        run: go test -tags=integration -coverprofile=coverage.out -covermode=atomic ./... -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.out
+          flags: unittests
 
   lint:
     name: Lint
