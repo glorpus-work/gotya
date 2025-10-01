@@ -87,7 +87,6 @@ settings:
   platform:
     os: "linux"        # Override target OS (auto-detected if empty)
     arch: "amd64"      # Override target architecture (auto-detected if empty)
-    prefer_native: true # Prefer native packages when available
 
   # Output settings
   output_format: "text"  # text, json, yaml

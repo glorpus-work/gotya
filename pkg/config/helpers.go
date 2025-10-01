@@ -16,7 +16,6 @@ import (
 //   - log_level: string - Logging level (debug, info, warn, error, fatal)
 //   - platform.os: string - Target operating system
 //   - platform.arch: string - Target architecture
-//   - platform.prefer_native: bool - Whether to prefer native packages
 func (c *Config) SetValue(key, value string) error {
 	switch key {
 	case "cache_dir":
@@ -33,12 +32,6 @@ func (c *Config) SetValue(key, value string) error {
 		if value != "" {
 			c.Settings.Platform.Arch = value
 		}
-	case "platform.prefer_native":
-		preferNative, err := strconv.ParseBool(value)
-		if err != nil {
-			return fmt.Errorf("invalid boolean value for platform.prefer_native: %s: %w", value, errors.ErrInvalidBoolValue)
-		}
-		c.Settings.Platform.PreferNative = preferNative
 	default:
 		return fmt.Errorf("unknown configuration key: %s: %w", key, errors.ErrUnknownConfigKey)
 	}
@@ -58,8 +51,6 @@ func (c *Config) GetValue(key string) (string, error) {
 		return c.Settings.Platform.OS, nil
 	case "platform.arch":
 		return c.Settings.Platform.Arch, nil
-	case "platform.prefer_native":
-		return strconv.FormatBool(c.Settings.Platform.PreferNative), nil
 	default:
 		return "", fmt.Errorf("unknown configuration key: %s: %w", key, errors.ErrUnknownConfigKey)
 	}

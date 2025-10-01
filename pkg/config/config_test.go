@@ -35,8 +35,7 @@ settings:
   log_level: debug
   platform:
     os: linux
-    arch: amd64
-    prefer_native: true`
+    arch: amd64`
 
 	err := os.WriteFile(configPath, []byte(configContent), fsutil.FileModeDefault)
 	require.NoError(t, err)
@@ -52,7 +51,6 @@ settings:
 	assert.Equal(t, "debug", cfg.Settings.LogLevel)
 	assert.Equal(t, "linux", cfg.Settings.Platform.OS)
 	assert.Equal(t, "amd64", cfg.Settings.Platform.Arch)
-	assert.True(t, cfg.Settings.Platform.PreferNative)
 }
 
 func TestSaveConfig(t *testing.T) {

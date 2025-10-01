@@ -45,10 +45,6 @@ type PlatformConfig struct {
 	// Arch overrides the target architecture (e.g., "amd64", "arm64", "386")
 	// If empty, the system will auto-detect the current architecture
 	Arch string `yaml:"arch,omitempty"`
-
-	// PreferNative controls whether to prefer native packages when available
-	// If true, native packages will be preferred over platform-agnostic packages
-	PreferNative bool `yaml:"prefer_native,omitempty"`
 }
 
 // Settings represents general application settings.
@@ -118,9 +114,8 @@ func DefaultConfig() *Config {
 			MetaDir:       filepath.Join(userConfigDir, "meta"),
 			StateDir:      defaultStateDir,
 			Platform: PlatformConfig{
-				OS:           runtime.GOOS,
-				Arch:         runtime.GOARCH,
-				PreferNative: true,
+				OS:   runtime.GOOS,
+				Arch: runtime.GOARCH,
 			},
 		},
 	}
