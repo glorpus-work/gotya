@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
-	"github.com/glorpus-work/gotya/internal/logger"
 	"github.com/glorpus-work/gotya/pkg/archive"
 	"github.com/glorpus-work/gotya/pkg/artifact/database"
 	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/fsutil"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
 
@@ -22,9 +21,10 @@ type ManagerImpl struct {
 	artifactCacheDir       string
 	artifactDataInstallDir string
 	artifactMetaInstallDir string
-	installedDBPath        string
 	verifier               *Verifier
 	archiveManager         *archive.Manager
+	hookExecutor           HookExecutor
+	installDB              database.InstalledManager
 }
 
 // NewManager creates a new artifact manager instance with the specified configuration.
@@ -36,27 +36,28 @@ func NewManager(operatingSystem, arch, artifactCacheDir, artifactInstallDir, art
 		artifactCacheDir:       artifactCacheDir,
 		artifactDataInstallDir: artifactInstallDir,
 		artifactMetaInstallDir: artifactMetaInstallDir,
-		installedDBPath:        installedDBPath,
 		verifier:               NewVerifier(),
 		archiveManager:         archive.NewManager(),
+		hookExecutor:           NewHookExecutor(),
+		installDB:              database.NewInstalledMangerWithPath(installedDBPath),
 	}
 }
 
-// InstallArtifact installs (verifies/stages) an artifact from a local file path, replacing the previous network-based install.
-func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) (err error) {
+// InstallArtifact installs an artifact from a local file path.
+func (m *ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) error {
 	// Input validation
 	if desc == nil {
-		return fmt.Errorf("artifact descriptor cannot be nil: %w", errors.ErrValidation)
+		return errors.Wrap(errors.ErrValidation, "artifact descriptor cannot be nil")
 	}
-	if desc.Name == "" {
-		return fmt.Errorf("artifact name cannot be empty: %w", errors.ErrValidation)
+	if err := desc.Verify(); err != nil {
+		return errors.Wrap(err, "invalid artifact descriptor")
 	}
 	if localPath == "" {
-		return fmt.Errorf("local path cannot be empty: %w", errors.ErrValidation)
+		return errors.Wrap(errors.ErrValidation, "local path cannot be empty")
 	}
 
-	// Set up rollback in case of failure
 	var installed bool
+	var err error
 	defer func() {
 		if err != nil && installed {
 			// If we installed files but then failed, clean them up
@@ -64,212 +65,218 @@ func (m ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtif
 		}
 	}()
 
-	if err = m.verifier.VerifyArtifact(ctx, desc, localPath); err != nil {
+	extractDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s-%s", desc.Name, desc.Version))
+	defer func() { _ = os.RemoveAll(extractDir) }()
+
+	err = m.extractAndVerify(ctx, desc, localPath, extractDir)
+	if err != nil {
 		return err
 	}
 
 	// Load or create the installed database
-	db, err := m.loadInstalledDB()
+	err = m.loadInstalledDB()
 	if err != nil {
 		return err
 	}
 
-	// Check if the artifact is already installed
-	existingArtifact := db.FindArtifact(desc.Name)
+	done, artifact, err := m.handleExistingArtifact(desc.Name, reason)
+	if err != nil {
+		return err
+	}
+	if done {
+		return nil
+	}
 	var existingReverseDeps []string
-	if existingArtifact != nil {
-		switch existingArtifact.Status {
-		case model.StatusInstalled:
-			// Check if this is a transition from automatic to manual installation
-			if existingArtifact.InstallationReason == model.InstallationReasonAutomatic && reason == model.InstallationReasonManual {
-				// User is explicitly installing an artifact that was previously installed as dependency
-				// Update it to manual installation
-				existingArtifact.InstallationReason = model.InstallationReasonManual
-				existingArtifact.InstalledAt = time.Now() // Update installation time
-				db.AddArtifact(existingArtifact)
-				if err := db.SaveDatabase(m.installedDBPath); err != nil {
-					return fmt.Errorf("failed to save database after updating installation reason: %w", err)
-				}
-				return nil // Successfully updated installation reason
-			}
-			// Never downgrade from manual to automatic
-			if existingArtifact.InstallationReason == model.InstallationReasonManual {
-				reason = model.InstallationReasonManual
-			}
-		case model.StatusMissing:
-			// This is a dummy entry, we'll replace it with the real artifact
-			// Save the reverse dependencies before removing the dummy entry
-			existingReverseDeps = existingArtifact.ReverseDependencies
-			db.RemoveArtifact(desc.Name)
-		default:
-			return fmt.Errorf("artifact %s has unknown status: %s: %w", desc.Name, existingArtifact.Status, errors.ErrValidation)
-		}
+	if artifact != nil {
+		existingReverseDeps = artifact.ReverseDependencies
+		reason = artifact.InstallationReason
 	}
 
-	// Extract and install files
-	if installed, err = m.extractAndInstall(ctx, desc, localPath); err != nil {
+	err = m.excutePreInstallHook(desc, extractDir)
+	if err != nil {
 		return err
 	}
 
-	// Add the installed artifact to the database
-	err = m.addArtifactToDatabase(db, desc, existingReverseDeps, reason)
+	// Perform the actual installation (includes hook execution)
+	err = m.performInstallation(extractDir, desc, reason, existingReverseDeps)
 	if err != nil {
-		return fmt.Errorf("failed to update artifact database: %w", err)
+		return err
 	}
+	installed = true
 
-	// TODO: post-install hooks
+	err = m.executePostInstallHook(desc)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // UninstallArtifact removes an installed artifact from the system.
-func (m ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string, purge bool) error {
+func (m *ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string, purge bool) error {
 	// Input validation
 	if artifactName == "" {
 		return fmt.Errorf("artifact name cannot be empty: %w", errors.ErrValidation)
 	}
 
 	// Load the installed database
-	db := database.NewInstalledDatabase()
-	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+	if err := m.installDB.LoadDatabase(); err != nil {
 		return fmt.Errorf("failed to load installed database: %w", err)
 	}
 
 	// Check if the artifact is installed
-	if !db.IsArtifactInstalled(artifactName) {
+	if !m.installDB.IsArtifactInstalled(artifactName) {
 		return fmt.Errorf("artifact %s is not installed: %w", artifactName, errors.ErrArtifactNotFound)
 	}
 
-	artifact := db.FindArtifact(artifactName)
+	artifact := m.installDB.FindArtifact(artifactName)
 	if artifact == nil {
 		return fmt.Errorf("artifact %s not found in database: %w", artifactName, errors.ErrArtifactNotFound)
 	}
 
-	// Handle purge mode
-	if purge {
-		return m.uninstallWithPurge(ctx, db, artifact)
+	metadata, err := ParseMetadataFromPath(filepath.Join(artifact.ArtifactMetaDir, metadataFile))
+	if err != nil {
+		return err
+	}
+	err = m.executePreUninstallHook(artifact, metadata)
+	if err != nil {
+		return err
 	}
 
-	return m.uninstallSelectively(ctx, db, artifact)
+	script, err := m.preservePostUninstallHookScript(artifact.ArtifactMetaDir, metadata)
+	if err != nil {
+		return err
+	}
+
+	// Handle purge mode
+	if purge {
+		err = m.uninstallWithPurge(ctx, m.installDB, artifact)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = m.uninstallSelectively(ctx, m.installDB, artifact)
+	if err != nil {
+		return err
+	}
+	if script == "" {
+		return nil
+	}
+	defer func() {
+		_ = os.Remove(script)
+	}()
+
+	err = m.executePostUninstallHook(artifact, script)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // UpdateArtifact updates an installed artifact by replacing it with a new version.
 // This method uses the simple approach: uninstall the old version, then install the new version.
 // If the installation fails, the old version remains uninstalled.
-func (m ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string, newDescriptor *model.IndexArtifactDescriptor) error {
-	// Input validation
+func (m *ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string, desc *model.IndexArtifactDescriptor) error {
+	// TODO: revert logic
+	if desc == nil {
+		return errors.Wrap(errors.ErrValidation, "new descriptor cannot be nil")
+	}
+	if err := desc.Verify(); err != nil {
+		return errors.Wrap(err, "new descriptor is invalid")
+	}
 	if newArtifactPath == "" {
-		return fmt.Errorf("new artifact path cannot be empty: %w", errors.ErrValidation)
+		return errors.Wrap(errors.ErrValidation, "new artifact path cannot be empty")
 	}
-	if newDescriptor == nil {
-		return fmt.Errorf("new artifact descriptor cannot be nil: %w", errors.ErrValidation)
+
+	extractDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s-%s", desc.Name, desc.Version))
+	if err != nil {
+		return errors.Wrap(err, "failed to create extract directory")
 	}
-	if newDescriptor.Name == "" {
-		return fmt.Errorf("artifact name cannot be empty: %w", errors.ErrValidation)
+	defer func() { _ = os.RemoveAll(extractDir) }()
+
+	err = m.extractAndVerify(ctx, desc, newArtifactPath, extractDir)
+	if err != nil {
+		return err
 	}
 
 	// Load the installed database
-	db := database.NewInstalledDatabase()
-	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+	err = m.loadInstalledDB()
+	if err != nil {
 		return fmt.Errorf("failed to load installed database: %w", err)
 	}
 
-	// Check if the artifact is installed
-	if !db.IsArtifactInstalled(newDescriptor.Name) {
-		return fmt.Errorf("artifact %s is not installed: %w", newDescriptor.Name, errors.ErrArtifactNotFound)
+	// Validate the update request and get the installed artifact
+	installedArtifact, err := m.validateUpdateRequest(desc)
+	if err != nil {
+		return err
 	}
 
-	installedArtifact := db.FindArtifact(newDescriptor.Name)
-	if installedArtifact == nil {
-		return fmt.Errorf("artifact %s not found in database: %w", newDescriptor.Name, errors.ErrArtifactNotFound)
+	// Execute pre-update hook before uninstalling old version
+	if err := m.executePreUpdateHook(installedArtifact, desc); err != nil {
+		return err
 	}
 
-	// Verify the new artifact before proceeding
-	if err := m.verifier.VerifyArtifact(ctx, newDescriptor, newArtifactPath); err != nil {
-		return fmt.Errorf("failed to verify new artifact: %w", err)
+	tempDataDir, tempMetaDir, err := m.moveInstallationFiles(installedArtifact)
+	if err != nil {
+		return err
 	}
 
-	// Validate that the new artifact name matches the installed artifact name
-	if installedArtifact.Name != newDescriptor.Name {
-		return fmt.Errorf("cannot update artifact %s with artifact %s: name mismatch: %w", newDescriptor.Name, newDescriptor.Name, errors.ErrValidation)
-	}
-
-	// Check if this is actually an update (different version or URL)
-	// But allow automatic -> manual upgrades even with same version/URL
-	if installedArtifact.Version == newDescriptor.Version && installedArtifact.InstalledFrom == newDescriptor.URL {
-		// If trying to upgrade from automatic to manual, allow it
-		if installedArtifact.InstallationReason == model.InstallationReasonAutomatic {
-			// This is an automatic -> manual upgrade, proceed with installation
-			logger.Debug("Upgrading automatic installation to manual", logger.Fields{"artifact": newDescriptor.Name})
-		} else {
-			return fmt.Errorf("artifact %s is already at the latest version: %w", newDescriptor.Name, errors.ErrValidation)
+	defer func() {
+		if tempDataDir != "" {
+			_ = os.RemoveAll(tempDataDir)
 		}
+		if tempMetaDir != "" {
+			_ = os.RemoveAll(tempMetaDir)
+		}
+	}()
+
+	err = m.performInstallation(extractDir, desc, installedArtifact.InstallationReason, installedArtifact.ReverseDependencies)
+	if err != nil {
+		return err
 	}
 
-	// Check installation reason transitions
-	// Only prevent downgrades from manual to automatic, allow updates within the same reason or upgrades
-	if installedArtifact.InstallationReason == model.InstallationReasonManual {
-		// Manual installations can only be updated (version/URL changes are allowed)
-		// The installation reason stays manual
-		logger.Debug("Updating manually installed artifact", logger.Fields{"artifact": newDescriptor.Name})
-	}
-
-	// Step 1: Uninstall the old version (with purge=true for clean slate)
-	if err := m.uninstallWithPurge(ctx, db, installedArtifact); err != nil {
-		return fmt.Errorf("failed to uninstall old version of %s: %w", newDescriptor.Name, err)
-	}
-
-	// Step 2: Install the new version
-	// Note: We need to reload the database since uninstallWithPurge modifies it
-	db = database.NewInstalledDatabase()
-	if err := db.LoadDatabase(m.installedDBPath); err != nil {
-		// If we can't reload the database, the uninstall succeeded but we can't install
-		// This leaves the user in a bad state, but we should report the error
-		return fmt.Errorf("failed to reload database after uninstall: %w", err)
-	}
-
-	if err := m.InstallArtifact(ctx, newDescriptor, newArtifactPath, model.InstallationReasonManual); err != nil {
-		// Installation failed - we should try to rollback by reinstalling the old version
-		// However, we don't have the old artifact file anymore, so we can only log a warning
-		logger.Warn("Failed to install new version - old version uninstalled but cannot be restored", logger.Fields{"artifact": newDescriptor.Name, "error": err})
-		return fmt.Errorf("failed to install new version of %s: %w", newDescriptor.Name, err)
+	// Execute post-update hook after successful update
+	err = m.executePostUpdateHook(desc, installedArtifact.Version)
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
 // VerifyArtifact verifies that an artifact exists and is valid.
-func (m ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
+func (m *ManagerImpl) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor) error {
 	filePath := filepath.Join(m.artifactCacheDir, fmt.Sprintf("%s_%s_%s_%s.gotya", artifact.Name, artifact.Version, artifact.OS, artifact.Arch))
 	return m.verifier.VerifyArtifact(ctx, artifact, filePath)
 }
 
 // ReverseResolve returns the list of artifacts that depend on the given artifact recursively
-func (m ManagerImpl) ReverseResolve(_ context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error) {
+func (m *ManagerImpl) ReverseResolve(_ context.Context, req model.ResolveRequest) (model.ResolvedArtifacts, error) {
 	// Load the installed database
-	db := database.NewInstalledDatabase()
-	if err := db.LoadDatabase(m.installedDBPath); err != nil {
-		return model.ResolvedArtifacts{}, fmt.Errorf("failed to load installed database: %w", err)
+	err := m.loadInstalledDB()
+	if err != nil {
+		return model.ResolvedArtifacts{}, err
 	}
 
 	// Build reverse dependency graph and collect all dependent artifacts
-	dependentArtifacts := m.collectReverseDependencies(db, req.Name)
+	dependentArtifacts := m.collectReverseDependencies(req.Name)
 
 	// Convert to ResolvedArtifacts format
 	return m.convertToResolvedArtifacts(dependentArtifacts), nil
 }
 
 // GetOrphanedAutomaticArtifacts returns all installed artifacts that are automatic and have no reverse dependencies
-func (m ManagerImpl) GetOrphanedAutomaticArtifacts() ([]string, error) {
+func (m *ManagerImpl) GetOrphanedAutomaticArtifacts() ([]string, error) {
 	// Load the installed database
-	db := database.NewInstalledDatabase()
-	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+	if err := m.loadInstalledDB(); err != nil {
 		return nil, fmt.Errorf("failed to load installed database: %w", err)
 	}
 	var orphaned []string
 
 	// Iterate through all installed artifacts
-	for _, artifact := range db.GetInstalledArtifacts() {
+	for _, artifact := range m.installDB.GetInstalledArtifacts() {
 		// Only consider installed artifacts (not missing)
 		if artifact.Status != model.StatusInstalled {
 			continue
@@ -290,15 +297,14 @@ func (m ManagerImpl) GetOrphanedAutomaticArtifacts() ([]string, error) {
 }
 
 // GetInstalledArtifacts returns all installed artifacts
-func (m ManagerImpl) GetInstalledArtifacts() ([]*model.InstalledArtifact, error) {
+func (m *ManagerImpl) GetInstalledArtifacts() ([]*model.InstalledArtifact, error) {
 	// Load the installed database
-	db := database.NewInstalledDatabase()
-	if err := db.LoadDatabase(m.installedDBPath); err != nil {
+	if err := m.loadInstalledDB(); err != nil {
 		return nil, fmt.Errorf("failed to load installed database: %w", err)
 	}
 
 	// Get all installed artifacts
-	artifacts := db.GetInstalledArtifacts()
+	artifacts := m.installDB.GetInstalledArtifacts()
 
 	// Filter to only return actually installed artifacts (not missing ones)
 	var installed []*model.InstalledArtifact
@@ -311,26 +317,240 @@ func (m ManagerImpl) GetInstalledArtifacts() ([]*model.InstalledArtifact, error)
 	return installed, nil
 }
 
-// loadInstalledDB loads or initializes the installed artifacts database.
-func (m ManagerImpl) loadInstalledDB() (*database.InstalledManagerImpl, error) {
-	db := database.NewInstalledDatabase()
-	if err := db.LoadDatabase(m.installedDBPath); err != nil {
-		return nil, fmt.Errorf("failed to load installed database: %w", err)
+// validateUpdateRequest validates the update request parameters and checks if update is needed
+func (m *ManagerImpl) validateUpdateRequest(newDescriptor *model.IndexArtifactDescriptor) (*model.InstalledArtifact, error) {
+	// Check if the artifact is installed
+	if !m.installDB.IsArtifactInstalled(newDescriptor.Name) {
+		return nil, errors.Wrapf(errors.ErrArtifactNotFound, "artifact %s is not installed", newDescriptor.Name)
 	}
-	return db, nil
+
+	installedArtifact := m.installDB.FindArtifact(newDescriptor.Name)
+	if installedArtifact == nil {
+		return nil, errors.Wrapf(errors.ErrArtifactNotFound, "artifact %s not found in database", newDescriptor.Name)
+	}
+
+	// Validate that the new artifact name matches the installed artifact name
+	if installedArtifact.Name != newDescriptor.Name {
+		return nil, errors.Wrapf(errors.ErrValidation, "cannot update artifact %s with artifact %s: name mismatch", newDescriptor.Name, newDescriptor.Name)
+	}
+
+	// Check if this is actually an update (different version or URL)
+	if installedArtifact.Version == newDescriptor.Version && installedArtifact.InstalledFrom == newDescriptor.URL {
+		return nil, errors.Wrapf(errors.ErrValidation, "artifact %s is already at the latest version", newDescriptor.Name)
+	}
+
+	return installedArtifact, nil
 }
 
-func (m ManagerImpl) getArtifactDataInstallPath(artifactName string) string {
+// executePostUpdateHook executes the post-update hook for the artifact
+func (m *ManagerImpl) executePostUpdateHook(newDescriptor *model.IndexArtifactDescriptor, oldVersion string) error {
+	postUpdateContext := &HookContext{
+		ArtifactName:    newDescriptor.Name,
+		ArtifactVersion: newDescriptor.Version,
+		Operation:       "update",
+		MetaDir:         m.getArtifactMetaInstallPath(newDescriptor.Name),
+		DataDir:         m.getArtifactDataInstallPath(newDescriptor.Name),
+		OldVersion:      oldVersion,
+	}
+
+	// Parse metadata from newly installed artifact's metadata file for hook resolution
+	metadataPath := filepath.Join(m.getArtifactMetaInstallPath(newDescriptor.Name), metadataFile)
+	metadata, err := ParseMetadataFromPath(metadataPath)
+	if err != nil {
+		return err
+	}
+	postUpdateHookPath := m.resolveHookPath(m.getArtifactMetaInstallPath(newDescriptor.Name), "post-update", metadata)
+	if postUpdateHookPath != "" {
+		if err := m.hookExecutor.ExecuteHook(postUpdateHookPath, postUpdateContext); err != nil {
+			return errors.Wrap(err, "Hook execution failed")
+		}
+	}
+
+	return nil
+}
+
+// executePreUpdateHook executes the pre-update hook for the artifact
+func (m *ManagerImpl) executePreUpdateHook(installedArtifact *model.InstalledArtifact, newDescriptor *model.IndexArtifactDescriptor) error {
+	preUpdateContext := &HookContext{
+		ArtifactName:    newDescriptor.Name,
+		ArtifactVersion: newDescriptor.Version,
+		Operation:       "update",
+		MetaDir:         installedArtifact.ArtifactMetaDir,
+		DataDir:         installedArtifact.ArtifactDataDir,
+		OldVersion:      installedArtifact.Version,
+	}
+
+	// Parse metadata from installed artifact's metadata file for hook resolution
+	metadataPath := filepath.Join(installedArtifact.ArtifactMetaDir, metadataFile)
+	metadata, err := ParseMetadataFromPath(metadataPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse metadata for hook resolution: %w", err)
+	}
+
+	preUpdateHookPath := m.resolveHookPath(installedArtifact.ArtifactMetaDir, "pre-update", metadata)
+	if preUpdateHookPath != "" {
+		if err := m.hookExecutor.ExecuteHook(preUpdateHookPath, preUpdateContext); err != nil {
+			return fmt.Errorf("pre-update hook failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// extractAndVerify extracts and verifies the artifact to a temp directory
+func (m *ManagerImpl) extractAndVerify(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, extractDir string) error {
+	if err := m.archiveManager.ExtractAll(ctx, localPath, extractDir); err != nil {
+		return errors.Wrap(err, "failed to extract artifact")
+	}
+
+	if err := m.verifier.VerifyArtifactFromPath(ctx, desc, extractDir); err != nil {
+		return err
+	}
+	return nil
+}
+
+// handleExistingArtifact updates the installation reason for an existing artifact
+// TODO: rework logic so that nothing has to be downloaded when the artifact is already installed but it can still be set to manaual
+func (m *ManagerImpl) handleExistingArtifact(name string, reason model.InstallationReason) (bool, *model.InstalledArtifact, error) {
+	existingArtifact := m.installDB.FindArtifact(name)
+	if existingArtifact == nil {
+		return false, nil, nil
+	}
+	switch existingArtifact.Status {
+	case model.StatusInstalled:
+		// Check if this is a transition from automatic to manual installation
+		if existingArtifact.InstallationReason == model.InstallationReasonAutomatic && reason == model.InstallationReasonManual {
+			// User is explicitly installing an artifact that was previously installed as dependency
+			// Update it to manual installation
+			existingArtifact.InstallationReason = reason
+			m.installDB.AddArtifact(existingArtifact)
+			if err := m.installDB.SaveDatabase(); err != nil {
+				return false, existingArtifact, fmt.Errorf("failed to save database after updating installation reason: %w", err)
+			}
+		}
+		return true, existingArtifact, nil // Successfully updated installation reason
+	case model.StatusMissing:
+		// This is a placeholder entry, we'll replace it with the real artifact
+		// Save the reverse dependencies before removing the placeholder entry
+		m.installDB.RemoveArtifact(existingArtifact.Name)
+		return false, existingArtifact, nil
+	default:
+		return false, nil, fmt.Errorf("artifact %s has unknown status: %s: %w", existingArtifact.Name, existingArtifact.Status, errors.ErrValidation)
+	}
+}
+
+// excutePreInstallHook runs the pre-update hook for the artifact
+func (m *ManagerImpl) excutePreInstallHook(desc *model.IndexArtifactDescriptor, extractDir string) error {
+	tempMetaDir := filepath.Join(extractDir, artifactMetaDir)
+	// Execute pre-install hook from temp directory before moving files
+	hookContext := &HookContext{
+		ArtifactName:    desc.Name,
+		ArtifactVersion: desc.Version,
+		Operation:       "install",
+		TempMetaDir:     tempMetaDir,
+		FinalMetaDir:    m.getArtifactMetaInstallPath(desc.Name),
+		FinalDataDir:    m.getArtifactDataInstallPath(desc.Name),
+	}
+
+	// Parse metadata from tmpExtractedPath metadata file for hook resolution
+	metadataPath := filepath.Join(tempMetaDir, metadataFile)
+	metadata, err := ParseMetadataFromPath(metadataPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse metadata for hook resolution: %w", err)
+	}
+
+	preInstallHookPath := m.resolveHookPath(tempMetaDir, "pre-install", metadata)
+	if preInstallHookPath != "" {
+		if err := m.hookExecutor.ExecuteHook(preInstallHookPath, hookContext); err != nil {
+			return fmt.Errorf("pre-install hook failed: %w", err)
+		}
+	}
+	return nil
+}
+
+// executePostInstallHook runs the post-install hook for the artifact
+func (m *ManagerImpl) executePostInstallHook(desc *model.IndexArtifactDescriptor) error {
+	// Execute post-install hook after successful installation
+	metaPath := m.getArtifactMetaInstallPath(desc.Name)
+	if metaPath != "" {
+		postInstallContext := &HookContext{
+			ArtifactName:    desc.Name,
+			ArtifactVersion: desc.Version,
+			Operation:       "install",
+			MetaDir:         metaPath,
+			DataDir:         m.getArtifactDataInstallPath(desc.Name),
+		}
+
+		// Parse metadata from installed metadata file for hook resolution
+		metadataPath := filepath.Join(metaPath, metadataFile)
+		metadata, err := ParseMetadataFromPath(metadataPath)
+		if err != nil {
+			return fmt.Errorf("failed to parse metadata for hook resolution: %w", err)
+		}
+
+		postInstallHookPath := m.resolveHookPath(metaPath, "post-install", metadata)
+		if postInstallHookPath != "" {
+			if err := m.hookExecutor.ExecuteHook(postInstallHookPath, postInstallContext); err != nil {
+				return fmt.Errorf("post-install hook failed: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// moveInstallationFiles moves the installation files to a new location
+func (m *ManagerImpl) moveInstallationFiles(installedArtifact *model.InstalledArtifact) (string, string, error) {
+	tempMetaDir, err := os.MkdirTemp(m.artifactMetaInstallDir, fmt.Sprintf(".gotya-update-meta-temp-%s-%s", installedArtifact.Name, installedArtifact.Version))
+	if err != nil {
+		return "", "", errors.Wrap(err, "failed to create temp meta dir")
+	}
+	var tempDataDir string
+	if len(installedArtifact.DataFiles) > 0 {
+		tempDataDir, err := os.MkdirTemp(m.artifactDataInstallDir, fmt.Sprintf(".gotya-update-data-temp-%s-%s", installedArtifact.Name, installedArtifact.Version))
+		if err != nil {
+			return "", tempMetaDir, errors.Wrap(err, "failed to create temp data dir")
+		}
+		if err := fsutil.Move(installedArtifact.ArtifactDataDir, tempDataDir); err != nil {
+			return tempDataDir, tempMetaDir, errors.Wrapf(err, "failed to move artifact data from %s to %s", installedArtifact.ArtifactDataDir, tempDataDir)
+		}
+	}
+
+	if err := fsutil.Move(installedArtifact.ArtifactMetaDir, tempMetaDir); err != nil {
+		return tempDataDir, tempMetaDir, errors.Wrapf(err, "failed to move artifact meta from %s to %s", installedArtifact.ArtifactMetaDir, tempMetaDir)
+	}
+
+	return tempDataDir, tempMetaDir, nil
+}
+
+// loadInstalledDB loads or initializes the installed artifacts database.
+func (m *ManagerImpl) loadInstalledDB() error {
+	if err := m.installDB.LoadDatabase(); err != nil {
+		return fmt.Errorf("failed to load installed database: %w", err)
+	}
+	return nil
+}
+
+func (m *ManagerImpl) getArtifactDataInstallPath(artifactName string) string {
 	return filepath.Join(m.artifactDataInstallDir, artifactName)
 }
 
-func (m ManagerImpl) getArtifactMetaInstallPath(artifactName string) string {
+func (m *ManagerImpl) getArtifactMetaInstallPath(artifactName string) string {
 	return filepath.Join(m.artifactMetaInstallDir, artifactName)
 }
 
-func (m ManagerImpl) findArtifactsDependingOn(db *database.InstalledManagerImpl, targetArtifact string, result map[string]*model.InstalledArtifact) {
+// resolveHookPath resolves a hook type to its file path using metadata
+func (m *ManagerImpl) resolveHookPath(metaDir string, hookType string, metadata *Metadata) string {
+	if metadata != nil && metadata.Hooks != nil {
+		if hookFile, exists := metadata.Hooks[hookType]; exists {
+			return filepath.Join(metaDir, hookFile)
+		}
+	}
+	return ""
+}
+
+func (m *ManagerImpl) findArtifactsDependingOn(targetArtifact string, result map[string]*model.InstalledArtifact) {
 	// Iterate through all installed artifacts to find those that depend on the target
-	for _, artifact := range db.GetInstalledArtifacts() {
+	for _, artifact := range m.installDB.GetInstalledArtifacts() {
 		if artifact.Status != model.StatusInstalled {
 			continue
 		}
@@ -342,7 +562,7 @@ func (m ManagerImpl) findArtifactsDependingOn(db *database.InstalledManagerImpl,
 				if _, exists := result[artifact.Name]; !exists {
 					result[artifact.Name] = artifact
 					// Recursively find artifacts that depend on this one
-					m.findArtifactsDependingOn(db, artifact.Name, result)
+					m.findArtifactsDependingOn(artifact.Name, result)
 				}
 				break
 			}
@@ -350,7 +570,7 @@ func (m ManagerImpl) findArtifactsDependingOn(db *database.InstalledManagerImpl,
 	}
 }
 
-func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*model.InstalledArtifact) model.ResolvedArtifacts {
+func (m *ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*model.InstalledArtifact) model.ResolvedArtifacts {
 	resolved := make([]model.ResolvedArtifact, 0, len(artifacts))
 
 	for _, artifact := range artifacts {
@@ -368,29 +588,10 @@ func (m ManagerImpl) convertToResolvedArtifacts(artifacts map[string]*model.Inst
 	return model.ResolvedArtifacts{Artifacts: resolved}
 }
 
-func (m ManagerImpl) extractAndInstall(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string) (bool, error) {
-	extractDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s", desc.Name))
-	if err != nil {
-		return false, fmt.Errorf("failed to create temp directory: %w", err)
-	}
-	defer func() { _ = os.RemoveAll(extractDir) }()
-
-	if err := m.archiveManager.ExtractAll(ctx, localPath, extractDir); err != nil {
-		return false, fmt.Errorf("failed to extract artifact: %w", err)
-	}
-
-	// TODO: pre-install hooks
-
-	if err := m.installArtifactFiles(desc.Name, extractDir); err != nil {
-		return false, fmt.Errorf("failed to install artifact files: %w", err)
-	}
-	return true, nil
-}
-
-func (m ManagerImpl) collectReverseDependencies(db *database.InstalledManagerImpl, targetArtifact string) map[string]*model.InstalledArtifact {
+func (m *ManagerImpl) collectReverseDependencies(targetArtifact string) map[string]*model.InstalledArtifact {
 	result := make(map[string]*model.InstalledArtifact)
 
 	// Find all artifacts that depend on the target artifact
-	m.findArtifactsDependingOn(db, targetArtifact, result)
+	m.findArtifactsDependingOn(targetArtifact, result)
 	return result
 }

@@ -17,8 +17,10 @@ import (
 
 // InstalledManager defines the interface for managing installed packages.
 type InstalledManager interface {
-	LoadDatabase(dbPath string) error
-	SaveDatabase(dbPath string) error
+	LoadDatabaseFrom(dbPath string) error
+	LoadDatabase() error
+	SaveDatabaseTo(dbPath string) error
+	SaveDatabase() error
 	FindArtifact(name string) *model.InstalledArtifact
 	IsArtifactInstalled(name string) bool
 	AddArtifact(pkg *model.InstalledArtifact)
@@ -33,6 +35,7 @@ type InstalledManagerImpl struct {
 	FormatVersion string                     `json:"format_version"`
 	LastUpdate    time.Time                  `json:"last_update"`
 	Artifacts     []*model.InstalledArtifact `json:"artifacts"`
+	databasePath  string
 	rwMutex       sync.RWMutex
 }
 
@@ -41,8 +44,8 @@ const (
 	InitialArtifactCapacity = 100
 )
 
-// NewInstalledDatabase creates a new installed packages database.
-func NewInstalledDatabase() *InstalledManagerImpl {
+// NewInstalledManger creates a new installed packages database.
+func NewInstalledManger() *InstalledManagerImpl {
 	return &InstalledManagerImpl{
 		FormatVersion: "1",
 		LastUpdate:    time.Now(),
@@ -50,8 +53,26 @@ func NewInstalledDatabase() *InstalledManagerImpl {
 	}
 }
 
-// LoadDatabase loads the installed packages database from file.
-func (installedDB *InstalledManagerImpl) LoadDatabase(dbPath string) error {
+// NewInstalledMangerWithPath creates a new installed packages database with a specific path.
+func NewInstalledMangerWithPath(dbPath string) *InstalledManagerImpl {
+	return &InstalledManagerImpl{
+		FormatVersion: "1",
+		LastUpdate:    time.Now(),
+		Artifacts:     make([]*model.InstalledArtifact, 0, InitialArtifactCapacity),
+		databasePath:  dbPath,
+	}
+}
+
+// LoadDatabase loads the installed packages database.
+func (installedDB *InstalledManagerImpl) LoadDatabase() error {
+	if installedDB.databasePath == "" {
+		return errors.Wrap(errors.ErrInvalidPath, "database path is not set")
+	}
+	return installedDB.LoadDatabaseFrom(installedDB.databasePath)
+}
+
+// LoadDatabaseFrom loads the installed packages database from file.
+func (installedDB *InstalledManagerImpl) LoadDatabaseFrom(dbPath string) error {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
@@ -90,8 +111,16 @@ func (installedDB *InstalledManagerImpl) SetInstallationReason(name string, reas
 	return fmt.Errorf("artifact %s not found: %w", name, errors.ErrArtifactNotFound)
 }
 
-// SaveDatabase saves the installed packages database to file.
-func (installedDB *InstalledManagerImpl) SaveDatabase(dbPath string) (err error) {
+// SaveDatabase saves the installed packages database.
+func (installedDB *InstalledManagerImpl) SaveDatabase() error {
+	if installedDB.databasePath == "" {
+		return errors.Wrap(errors.ErrInvalidPath, "database path is not set")
+	}
+	return installedDB.SaveDatabaseTo(installedDB.databasePath)
+}
+
+// SaveDatabaseTo saves the installed packages database to file.
+func (installedDB *InstalledManagerImpl) SaveDatabaseTo(dbPath string) (err error) {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {

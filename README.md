@@ -3,6 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/cperrin88/gotya.svg)](https://pkg.go.dev/github.com/glorpus-work/gotya)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go](https://github.com/glorpus-work/gotya/actions/workflows/go.yml/badge.svg)](https://github.com/glorpus-work/gotya/actions/workflows/go.yml)
+[![codecov](https://codecov.io/github/glorpus-work/gotya/graph/badge.svg?token=PKR5SV44P3)](https://codecov.io/github/glorpus-work/gotya)
 
 A lightweight personal artifact/package manager (think apt, but for personal use). It provides:
 - CLI: sync indexes, search, install/uninstall, list, config, cache, version

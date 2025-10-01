@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -26,7 +27,7 @@ type createOptions struct {
 	maintainer   string
 	description  string
 	dependencies []string
-	hooks        map[string]string
+	rawHooks     []string
 }
 
 // NewArtifactCmd creates a new artifact command.
@@ -128,7 +129,7 @@ func addCreateFlags(cmd *cobra.Command, o *createOptions) {
 	cmd.Flags().StringVar(&o.maintainer, "maintainer", "", "Artifact maintainer (name <email>)")
 	cmd.Flags().StringVar(&o.description, "description", "", "Artifact description")
 	cmd.Flags().StringSliceVar(&o.dependencies, "depends", nil, "Artifact dependencies (comma-separated)")
-	cmd.Flags().StringToStringVar(&o.hooks, "hooks", nil, "Artifact hooks in format 'hooks=script.tengo' (comma-separated)")
+	cmd.Flags().StringSliceVar(&o.rawHooks, "hook", nil, "Artifact hook in format 'name=path' (can be repeated)")
 
 	// Mark required flags
 	must(cmd.MarkFlagRequired("source"))
@@ -141,6 +142,13 @@ func runCreateArtifact(o *createOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse dependencies: %w", err)
 	}
+
+	// Parse hooks
+	parsedHooks, err := parseHooks(o.rawHooks)
+	if err != nil {
+		return fmt.Errorf("failed to parse hooks: %w", err)
+	}
+
 	packer := artifact.NewPacker(
 		o.pkgName,
 		o.pkgVer,
@@ -149,7 +157,7 @@ func runCreateArtifact(o *createOptions) error {
 		o.maintainer,
 		o.description,
 		parsedDeps,
-		o.hooks,
+		parsedHooks,
 		o.sourceDir,
 		o.outputDir,
 	)
@@ -159,6 +167,27 @@ func runCreateArtifact(o *createOptions) error {
 	}
 	fmt.Printf("Successfully created artifact: %s\n", outputFile)
 	return nil
+}
+
+// parseHooks parses raw hook strings in "name=path" format into a map
+func parseHooks(rawHooks []string) (map[string]string, error) {
+	hooks := make(map[string]string)
+	for _, rawHook := range rawHooks {
+		parts := strings.SplitN(rawHook, "=", 2)
+		if len(parts) != 2 {
+			return nil, errors.Wrapf(errors.ErrValidation, "invalid hook format: %s (expected 'name=path')", rawHook)
+		}
+		hookName := strings.TrimSpace(parts[0])
+		hookPath := strings.TrimSpace(parts[1])
+		if hookName == "" {
+			return nil, errors.Wrapf(errors.ErrValidation, "hook name cannot be empty in: %s", rawHook)
+		}
+		if hookPath == "" {
+			return nil, errors.Wrapf(errors.ErrValidation, "hook path cannot be empty in: %s", rawHook)
+		}
+		hooks[hookName] = hookPath
+	}
+	return hooks, nil
 }
 
 func must(err error) {

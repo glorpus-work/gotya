@@ -22,10 +22,10 @@ func TestIndex_Generate_SimpleSuccess(t *testing.T) {
 
 	// Create artifacts
 	src1 := createSampleArtifactSource(t, tempDir)
-	_ = createArtifactViaCLI(t, src1, "alpha", "1.0.0", artifactsDir, nil)
+	_ = createArtifactViaCLI(t, src1, "alpha", "1.0.0", artifactsDir, nil, nil)
 
 	src2 := createSampleArtifactSource(t, tempDir)
-	_ = createArtifactViaCLI(t, src2, "beta", "2.0.0", artifactsDir, nil)
+	_ = createArtifactViaCLI(t, src2, "beta", "2.0.0", artifactsDir, nil, nil)
 
 	// Generate index
 	generateIndexViaCLI(t, artifactsDir, outFile, "artifacts", true)
@@ -74,7 +74,7 @@ func TestIndex_Generate_OverwriteBehavior(t *testing.T) {
 	outFile := filepath.Join(repoDir, "index.json")
 
 	src := createSampleArtifactSource(t, tempDir)
-	_ = createArtifactViaCLI(t, src, "gamma", "0.1.0", artifactsDir, nil)
+	_ = createArtifactViaCLI(t, src, "gamma", "0.1.0", artifactsDir, nil, nil)
 
 	require.NoError(t, os.MkdirAll(filepath.Dir(outFile), 0o755))
 	require.NoError(t, os.WriteFile(outFile, []byte("{}"), 0o644))

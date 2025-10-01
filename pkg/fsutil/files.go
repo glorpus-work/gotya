@@ -31,6 +31,13 @@ func Move(src, dst string) error {
 		if err := os.MkdirAll(dstDir, 0755); err != nil {
 			return pkgerrors.Wrapf(err, "failed to create destination directory %s", dstDir)
 		}
+	} else {
+		destInfo, err := os.Stat(dst)
+		if err == nil {
+			if destInfo.IsDir() {
+				dst = filepath.Join(dst, filepath.Base(src))
+			}
+		}
 	}
 
 	// Try atomic rename first (works for both files and directories)

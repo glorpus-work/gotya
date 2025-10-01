@@ -32,7 +32,7 @@ func buildRepoDirWithArtifacts(t *testing.T, root string, artifactDefs [][2]stri
 	for _, def := range artifactDefs {
 		name, version := def[0], def[1]
 		src := createSampleArtifactSource(t, root)
-		path := createArtifactViaCLI(t, src, name, version, artifactsDir, nil) // No dependencies for simple artifacts
+		path := createArtifactViaCLI(t, src, name, version, artifactsDir, nil, nil) // No dependencies for simple artifacts
 		created = append(created, path)
 	}
 
@@ -55,7 +55,7 @@ func buildRepoDirWithArtifactsAndDeps(t *testing.T, root string, artifactDefs []
 		name, version := def[0], def[1]
 		src := createSampleArtifactSource(t, root)
 		dependencies := deps[name]
-		path := createArtifactViaCLI(t, src, name, version, artifactsDir, dependencies)
+		path := createArtifactViaCLI(t, src, name, version, artifactsDir, dependencies, nil)
 		created = append(created, path)
 	}
 
@@ -71,8 +71,8 @@ func getInstalledArtifactsFromDB(t *testing.T, cfgPath string) []*model.Installe
 	cfg, err := config.LoadConfig(cfgPath)
 	require.NoError(t, err)
 
-	db := database.NewInstalledDatabase()
-	require.NoError(t, db.LoadDatabase(cfg.GetDatabasePath()))
+	db := database.NewInstalledManger()
+	require.NoError(t, db.LoadDatabaseFrom(cfg.GetDatabasePath()))
 	return db.GetInstalledArtifacts()
 }
 
@@ -95,7 +95,7 @@ func buildRepoDirWithArtifactsWithDeps(t *testing.T, root string, artifactDefs [
 			dependencies = []string{depForFirst}
 		}
 
-		path := createArtifactViaCLI(t, src, name, version, artifactsDir, dependencies)
+		path := createArtifactViaCLI(t, src, name, version, artifactsDir, dependencies, nil)
 		created = append(created, path)
 	}
 
@@ -178,7 +178,8 @@ func parseCreatedArtifactPath(t *testing.T, out string) string {
 
 // createArtifactViaCLI packs a source directory into a .gotya file using the CLI and returns the file path.
 // Dependencies should be specified as a slice of strings in the format "name:version" (e.g., "testlib:1.0.0").
-func createArtifactViaCLI(t *testing.T, src, name, version, outDir string, dependencies []string) string {
+// Hooks should be specified as a slice of strings in the format "name=path" (e.g., "pre-install=meta/pre-install.tengo").
+func createArtifactViaCLI(t *testing.T, src, name, version, outDir string, dependencies []string, hooks []string) string {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(outDir, 0o755))
 
@@ -200,6 +201,11 @@ func createArtifactViaCLI(t *testing.T, src, name, version, outDir string, depen
 	// Add dependencies if specified
 	for _, dep := range dependencies {
 		args = append(args, "--depends", dep)
+	}
+
+	// Add hooks if specified
+	for _, hook := range hooks {
+		args = append(args, "--hook", hook)
 	}
 
 	cmd.SetArgs(args)

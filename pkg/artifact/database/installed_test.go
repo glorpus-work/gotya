@@ -14,8 +14,8 @@ import (
 )
 
 func TestInstalledManager(t *testing.T) {
-	t.Run("NewInstalledDatabase", func(t *testing.T) {
-		db := NewInstalledDatabase()
+	t.Run("NewInstalledManger", func(t *testing.T) {
+		db := NewInstalledManger()
 		assert.NotNil(t, db)
 		assert.Equal(t, "1", db.FormatVersion)
 		assert.WithinDuration(t, time.Now(), db.LastUpdate, time.Second)
@@ -23,7 +23,7 @@ func TestInstalledManager(t *testing.T) {
 	})
 
 	t.Run("AddAndFindArtifact", func(t *testing.T) {
-		db := NewInstalledDatabase()
+		db := NewInstalledManger()
 		artifact := &model.InstalledArtifact{
 			Name:    "test-artifact",
 			Version: "1.0.0",
@@ -72,23 +72,23 @@ func TestInstalledManager(t *testing.T) {
 		tempDir := t.TempDir()
 		dbPath := filepath.Join(tempDir, "installed.json")
 
-		db := NewInstalledDatabase()
+		db := NewInstalledManger()
 		artifact := &model.InstalledArtifact{
 			Name:    "test-save",
 			Version: "2.0.0",
 		}
 		db.AddArtifact(artifact)
 
-		t.Run("SaveDatabase", func(t *testing.T) {
-			err := db.SaveDatabase(dbPath)
+		t.Run("SaveDatabaseTo", func(t *testing.T) {
+			err := db.SaveDatabaseTo(dbPath)
 			require.NoError(t, err)
 			_, err = os.Stat(dbPath)
 			assert.False(t, os.IsNotExist(err), "database file should exist")
 		})
 
-		t.Run("LoadDatabase", func(t *testing.T) {
-			newDB := NewInstalledDatabase()
-			err := newDB.LoadDatabase(dbPath)
+		t.Run("LoadDatabaseFrom", func(t *testing.T) {
+			newDB := NewInstalledManger()
+			err := newDB.LoadDatabaseFrom(dbPath)
 			require.NoError(t, err)
 
 			artifacts := newDB.GetInstalledArtifacts()
@@ -98,9 +98,9 @@ func TestInstalledManager(t *testing.T) {
 		})
 
 		t.Run("LoadNonExistentDatabase", func(t *testing.T) {
-			newDB := NewInstalledDatabase()
+			newDB := NewInstalledManger()
 			nonExistentPath := filepath.Join(tempDir, "nonexistent.json")
-			err := newDB.LoadDatabase(nonExistentPath)
+			err := newDB.LoadDatabaseFrom(nonExistentPath)
 			require.NoError(t, err)
 			assert.Empty(t, newDB.Artifacts)
 		})
@@ -109,20 +109,20 @@ func TestInstalledManager(t *testing.T) {
 			err := os.WriteFile(dbPath, []byte("invalid json"), 0644)
 			require.NoError(t, err)
 
-			newDB := NewInstalledDatabase()
-			err = newDB.LoadDatabase(dbPath)
+			newDB := NewInstalledManger()
+			err = newDB.LoadDatabaseFrom(dbPath)
 			require.Error(t, err)
 		})
 
 		t.Run("SaveInvalidPath", func(t *testing.T) {
 			invalidPath := "/nonexistent/path/installed.json"
-			err := db.SaveDatabase(invalidPath)
+			err := db.SaveDatabaseTo(invalidPath)
 			require.Error(t, err)
 		})
 	})
 
 	t.Run("ConcurrentAccess", func(t *testing.T) {
-		db := NewInstalledDatabase()
+		db := NewInstalledManger()
 		const numGoroutines = 10
 		done := make(chan bool, numGoroutines)
 
@@ -155,7 +155,7 @@ func TestInstalledManager_InstallationReason(t *testing.T) {
 		dbPath := filepath.Join(tempDir, "installed.json")
 
 		// Create database with artifacts having different installation reasons
-		db := NewInstalledDatabase()
+		db := NewInstalledManger()
 
 		manualArtifact := &model.InstalledArtifact{
 			Name:               "manual-artifact",
@@ -172,12 +172,12 @@ func TestInstalledManager_InstallationReason(t *testing.T) {
 		db.AddArtifact(automaticArtifact)
 
 		// Save database
-		err := db.SaveDatabase(dbPath)
+		err := db.SaveDatabaseTo(dbPath)
 		require.NoError(t, err)
 
 		// Load database in new instance
-		newDB := NewInstalledDatabase()
-		err = newDB.LoadDatabase(dbPath)
+		newDB := NewInstalledManger()
+		err = newDB.LoadDatabaseFrom(dbPath)
 		require.NoError(t, err)
 
 		// Verify installation reasons are preserved
@@ -198,7 +198,7 @@ func TestInstalledManager_InstallationReason(t *testing.T) {
 			// No InstallationReason set explicitly
 		}
 
-		db := NewInstalledDatabase()
+		db := NewInstalledManger()
 		db.AddArtifact(artifact)
 
 		found := db.FindArtifact("new-artifact")
