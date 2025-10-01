@@ -14,7 +14,6 @@ A lightweight personal artifact/package manager (think apt, but for personal use
 - Optional developer tools:
   - task (Taskfile runner) if you want to use Taskfile.yml scripts
   - golangci-lint for `task lint`
-  - act (optional) for running GitHub Actions locally via Taskfile
 
 ## Installation
 
