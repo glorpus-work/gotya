@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/fsutil"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/fsutil"
 	"gopkg.in/yaml.v3"
 )
 

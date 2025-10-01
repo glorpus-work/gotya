@@ -8,7 +8,7 @@ package model
 import (
 	"net/url"
 
-	"github.com/cperrin88/gotya/pkg/platform"
+	"github.com/glorpus-work/gotya/pkg/platform"
 	"github.com/hashicorp/go-version"
 )
 

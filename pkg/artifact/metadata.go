@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/cperrin88/gotya/pkg/model"
-	"github.com/cperrin88/gotya/pkg/platform"
+	"github.com/glorpus-work/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/platform"
 	"github.com/hashicorp/go-version"
 )
 

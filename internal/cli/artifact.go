@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cperrin88/gotya/pkg/artifact"
-	"github.com/cperrin88/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/artifact"
+	"github.com/glorpus-work/gotya/pkg/errors"
 )
 
 // createOptions holds flags for the create command.

@@ -7,8 +7,8 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // UintSlice is a slice of uint values that implements sort.Interface for sorting by value.

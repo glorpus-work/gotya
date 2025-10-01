@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/model"
-	"github.com/cperrin88/gotya/pkg/orchestrator"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/orchestrator"
 	"github.com/spf13/cobra"
 )
 

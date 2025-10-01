@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/artifact/database"
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/fsutil"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/artifact/database"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/fsutil"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // installArtifactFiles handles the actual file operations for installing an artifact

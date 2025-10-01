@@ -13,10 +13,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cperrin88/gotya/pkg/archive"
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/fsutil"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/archive"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/fsutil"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // Packer creates .gotya artifacts from input directories.

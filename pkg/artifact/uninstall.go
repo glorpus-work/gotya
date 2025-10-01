@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cperrin88/gotya/pkg/artifact/database"
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/artifact/database"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // cleanupReverseDependencies removes the artifact from all reverse dependency lists of dependent artifacts

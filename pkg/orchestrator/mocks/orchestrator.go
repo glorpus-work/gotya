@@ -13,8 +13,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	download "github.com/cperrin88/gotya/pkg/download"
-	model "github.com/cperrin88/gotya/pkg/model"
+	download "github.com/glorpus-work/gotya/pkg/download"
+	model "github.com/glorpus-work/gotya/pkg/model"
 	gomock "go.uber.org/mock/gomock"
 )
 

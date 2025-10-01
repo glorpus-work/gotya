@@ -5,8 +5,8 @@ package orchestrator
 import (
 	"context"
 
-	"github.com/cperrin88/gotya/pkg/download"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/download"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // ArtifactResolver is the subset of the index manager used by the orchestrator.

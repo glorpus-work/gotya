@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // InstalledManager defines the interface for managing installed packages.

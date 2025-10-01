@@ -1,4 +1,4 @@
-module github.com/cperrin88/gotya
+module github.com/glorpus-work/gotya
 
 go 1.24.0
 

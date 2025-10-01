@@ -3,7 +3,7 @@ package artifact
 import (
 	"context"
 
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // Manager defines the interface for artifact management operations.

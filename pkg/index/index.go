@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // ScoredArtifact represents an artifact with its relevance score for sorting

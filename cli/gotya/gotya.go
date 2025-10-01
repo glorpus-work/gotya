@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cperrin88/gotya/internal/cli"
+	"github.com/glorpus-work/gotya/internal/cli"
 	"github.com/spf13/cobra"
 )
 

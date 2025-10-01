@@ -3,7 +3,7 @@ package index
 import (
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // Index represents a package index containing artifacts and metadata.

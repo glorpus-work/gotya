@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/cperrin88/gotya/pkg/index"
+	"github.com/glorpus-work/gotya/pkg/index"
 	"github.com/spf13/cobra"
 )
 

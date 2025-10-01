@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cperrin88/gotya/internal/logger"
-	"github.com/cperrin88/gotya/pkg/artifact"
-	"github.com/cperrin88/gotya/pkg/config"
-	"github.com/cperrin88/gotya/pkg/download"
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/index"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/internal/logger"
+	"github.com/glorpus-work/gotya/pkg/artifact"
+	"github.com/glorpus-work/gotya/pkg/config"
+	"github.com/glorpus-work/gotya/pkg/download"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/index"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // ManagerFactory encapsulates the creation of various managers from configuration.

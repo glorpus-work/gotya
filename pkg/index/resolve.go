@@ -6,8 +6,8 @@ import (
 	slices2 "slices"
 	"strings"
 
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // multiResolver handles dependency resolution for multiple resolve requests.

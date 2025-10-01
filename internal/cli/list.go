@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cperrin88/gotya/pkg/artifact/database"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/artifact/database"
+	"github.com/glorpus-work/gotya/pkg/model"
 	"github.com/spf13/cobra"
 )
 

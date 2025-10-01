@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cperrin88/gotya/internal/logger"
-	"github.com/cperrin88/gotya/pkg/archive"
-	"github.com/cperrin88/gotya/pkg/artifact/database"
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/internal/logger"
+	"github.com/glorpus-work/gotya/pkg/archive"
+	"github.com/glorpus-work/gotya/pkg/artifact/database"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // ManagerImpl is the default implementation of the Manager interface for artifact operations.

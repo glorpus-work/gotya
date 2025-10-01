@@ -11,10 +11,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cperrin88/gotya/pkg/download"
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/index"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/download"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/index"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 const phaseUpdating = "updating"

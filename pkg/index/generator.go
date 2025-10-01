@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cperrin88/gotya/pkg/archive"
-	"github.com/cperrin88/gotya/pkg/artifact"
-	"github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/archive"
+	"github.com/glorpus-work/gotya/pkg/artifact"
+	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/model"
 )
 
 // Generator creates package indexes by scanning directories for artifact files.

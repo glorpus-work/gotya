@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	pkgerrors "github.com/cperrin88/gotya/pkg/errors"
-	"github.com/cperrin88/gotya/pkg/fsutil"
+	pkgerrors "github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/fsutil"
 )
 
 // ManagerImpl is a simple HTTP-based download manager with optional checksum verification

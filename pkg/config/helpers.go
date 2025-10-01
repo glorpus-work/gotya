@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cperrin88/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errors"
 )
 
 // SetValue sets a configuration value by key

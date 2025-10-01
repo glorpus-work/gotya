@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cperrin88/gotya/internal/logger"
-	"github.com/cperrin88/gotya/pkg/cache"
+	"github.com/glorpus-work/gotya/internal/logger"
+	"github.com/glorpus-work/gotya/pkg/cache"
 	"github.com/spf13/cobra"
 )
 

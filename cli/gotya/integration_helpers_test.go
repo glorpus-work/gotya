@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cperrin88/gotya/pkg/artifact/database"
-	"github.com/cperrin88/gotya/pkg/config"
-	"github.com/cperrin88/gotya/pkg/model"
+	"github.com/glorpus-work/gotya/pkg/artifact/database"
+	"github.com/glorpus-work/gotya/pkg/config"
+	"github.com/glorpus-work/gotya/pkg/model"
 	"github.com/stretchr/testify/require"
 )
 
