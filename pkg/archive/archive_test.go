@@ -707,42 +707,6 @@ func TestArchiveManager_Create_EmptySourceDir(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestArchiveManager_Create_SourceWithSpecialFiles(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping special files test on Windows")
-	}
-
-	tempDir := t.TempDir()
-
-	// Create source directory with special files
-	sourceDir := filepath.Join(tempDir, "source")
-	require.NoError(t, os.MkdirAll(sourceDir, 0755))
-
-	// Create a FIFO (named pipe) - skip on systems that don't support it
-	err := func() error {
-		// Check if Mkfifo is available by attempting to use syscall
-		// This is a simple approach - we'll skip if not available
-		return fmt.Errorf("Mkfifo not supported on this platform")
-	}()
-	if err != nil {
-		t.Logf("Could not create FIFO: %v", err)
-		t.Skip("FIFO creation not supported")
-	}
-
-	am := NewManager()
-	archivePath := filepath.Join(tempDir, "test.tar.gz")
-	ctx := context.Background()
-	err = am.Create(ctx, sourceDir, archivePath)
-	// This may succeed or fail depending on how the library handles special files
-	if err != nil {
-		t.Logf("Special files handled: %v", err)
-	} else {
-		// If it succeeds, verify archive was created
-		_, err := os.Stat(archivePath)
-		require.NoError(t, err)
-	}
-}
-
 func TestArchiveManager_ExtractFile_ParentDirCreationFailure(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping parent directory creation test on Windows")

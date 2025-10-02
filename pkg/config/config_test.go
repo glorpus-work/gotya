@@ -263,3 +263,268 @@ func TestRepositoryManagement(t *testing.T) {
 	enabled = cfg.EnableRepository("non-existent", true)
 	assert.False(t, enabled)
 }
+
+// Tests for config helpers
+
+func TestSetValue(t *testing.T) {
+	cfg := DefaultConfig()
+
+	tests := []struct {
+		name     string
+		key      string
+		value    string
+		wantErr  bool
+		validate func(*testing.T, *Config)
+	}{
+		{
+			name:  "set cache_dir",
+			key:   "cache_dir",
+			value: "/custom/cache",
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "/custom/cache", cfg.Settings.CacheDir)
+			},
+		},
+		{
+			name:  "set output_format",
+			key:   "output_format",
+			value: "json",
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "json", cfg.Settings.OutputFormat)
+			},
+		},
+		{
+			name:  "set log_level",
+			key:   "log_level",
+			value: "debug",
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "debug", cfg.Settings.LogLevel)
+			},
+		},
+		{
+			name:  "set platform.os",
+			key:   "platform.os",
+			value: "darwin",
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "darwin", cfg.Settings.Platform.OS)
+			},
+		},
+		{
+			name:  "set platform.arch",
+			key:   "platform.arch",
+			value: "arm64",
+			validate: func(t *testing.T, cfg *Config) {
+				assert.Equal(t, "arm64", cfg.Settings.Platform.Arch)
+			},
+		},
+		{
+			name:    "unknown key",
+			key:     "unknown_key",
+			value:   "value",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfgCopy := *cfg // Create a copy for each test
+
+			err := cfgCopy.SetValue(tt.key, tt.value)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "unknown configuration key")
+			} else {
+				require.NoError(t, err)
+				tt.validate(t, &cfgCopy)
+			}
+		})
+	}
+}
+
+func TestGetValue(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Settings.CacheDir = "/custom/cache"
+	cfg.Settings.OutputFormat = "json"
+	cfg.Settings.LogLevel = "debug"
+	cfg.Settings.Platform.OS = "darwin"
+	cfg.Settings.Platform.Arch = "arm64"
+
+	tests := []struct {
+		name     string
+		key      string
+		expected string
+		wantErr  bool
+	}{
+		{
+			name:     "get cache_dir",
+			key:      "cache_dir",
+			expected: "/custom/cache",
+		},
+		{
+			name:     "get output_format",
+			key:      "output_format",
+			expected: "json",
+		},
+		{
+			name:     "get log_level",
+			key:      "log_level",
+			expected: "debug",
+		},
+		{
+			name:     "get platform.os",
+			key:      "platform.os",
+			expected: "darwin",
+		},
+		{
+			name:     "get platform.arch",
+			key:      "platform.arch",
+			expected: "arm64",
+		},
+		{
+			name:    "unknown key",
+			key:     "unknown_key",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			value, err := cfg.GetValue(tt.key)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "unknown configuration key")
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, value)
+			}
+		})
+	}
+}
+
+func TestToMap(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Settings.CacheDir = "/custom/cache"
+	cfg.Settings.OutputFormat = "json"
+	cfg.Settings.LogLevel = "debug"
+
+	result := cfg.ToMap()
+
+	// Should contain key settings
+	assert.Contains(t, result, "cache_dir")
+	assert.Contains(t, result, "output_format")
+	assert.Contains(t, result, "log_level")
+	assert.Equal(t, "/custom/cache", result["cache_dir"])
+	assert.Equal(t, "json", result["output_format"])
+	assert.Equal(t, "debug", result["log_level"])
+}
+
+func TestNewDefaultConfig(t *testing.T) {
+	cfg := NewDefaultConfig()
+
+	require.NotNil(t, cfg)
+	assert.Equal(t, 24*time.Hour, cfg.Settings.CacheTTL)
+	assert.Equal(t, "text", cfg.Settings.OutputFormat)
+	assert.Equal(t, "info", cfg.Settings.LogLevel)
+}
+
+func TestToYAML(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Settings.LogLevel = "debug"
+
+	yamlData, err := cfg.ToYAML()
+	require.NoError(t, err)
+	assert.NotEmpty(t, yamlData)
+
+	// Should contain YAML content
+	assert.Contains(t, string(yamlData), "settings:")
+	assert.Contains(t, string(yamlData), "log_level: debug")
+}
+
+func TestGetDefaultConfigPath(t *testing.T) {
+	path, err := GetDefaultConfigPath()
+	require.NoError(t, err)
+	assert.NotEmpty(t, path)
+
+	// Should end with gotya/config.yaml
+	assert.True(t, strings.HasSuffix(path, filepath.Join("gotya", "config.yaml")),
+		"path should end with gotya/config.yaml, got: %s", path)
+}
+
+func TestConfig_GetIndexDir(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Settings.CacheDir = "/custom/cache"
+
+	indexDir := cfg.GetIndexDir()
+	expected := filepath.Join("/custom/cache", "indexes")
+	assert.Equal(t, expected, indexDir)
+}
+
+func TestConfig_GetArtifactCacheDir(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Settings.CacheDir = "/custom/cache"
+
+	cacheDir := cfg.GetArtifactCacheDir()
+	expected := filepath.Join("/custom/cache", "artifacts")
+	assert.Equal(t, expected, cacheDir)
+}
+
+func TestConfig_GetCacheDir(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Settings.CacheDir = "/custom/cache"
+
+	cacheDir := cfg.GetCacheDir()
+	assert.Equal(t, "/custom/cache", cacheDir)
+}
+
+func TestConfig_GetMetaDir(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Settings.MetaDir = "/custom/meta"
+
+	metaDir := cfg.GetMetaDir()
+	assert.Equal(t, "/custom/meta", metaDir)
+}
+
+func TestRepositoryConfig_GetURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		expected string
+	}{
+		{
+			name:     "valid URL",
+			url:      "https://example.com/repo",
+			expected: "https://example.com/repo",
+		},
+		{
+			name:     "URL with path",
+			url:      "https://github.com/user/repo.git",
+			expected: "https://github.com/user/repo.git",
+		},
+		{
+			name:     "invalid URL",
+			url:      "not-a-url",
+			expected: "",
+		},
+		{
+			name:     "empty URL",
+			url:      "",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &RepositoryConfig{URL: tt.url}
+			result := repo.GetURL()
+
+			if tt.expected == "" {
+				// For invalid or empty URLs, the function should return nil
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Equal(t, tt.expected, result.String())
+			}
+		})
+	}
+}
