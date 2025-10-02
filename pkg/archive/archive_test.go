@@ -145,7 +145,7 @@ func TestArchiveManager_ExtractAll_WithSymlinks(t *testing.T) {
 	// If extraction succeeded, verify the files exist
 	extractedRegular := filepath.Join(extractDir, "regular.txt")
 	_, err = os.Stat(extractedRegular)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestArchiveManager_ExtractAll_InvalidArchive(t *testing.T) {
@@ -202,7 +202,7 @@ func TestArchiveManager_ExtractFile_NonExistentFile(t *testing.T) {
 
 	// Try to extract non-existent file
 	extractPath := filepath.Join(tempDir, "extracted.txt")
-	assert.Error(t, am.ExtractFile(ctx, archivePath, "nonexistent.txt", extractPath))
+	require.Error(t, am.ExtractFile(ctx, archivePath, "nonexistent.txt", extractPath))
 
 	for {
 		err := os.Remove(archivePath)
@@ -312,7 +312,7 @@ func TestArchiveManager_ExtractAll_EmptyArchive(t *testing.T) {
 
 	// Verify extraction directory exists
 	_, err := os.Stat(extractDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestArchiveManager_ExtractAll_NestedDirectories(t *testing.T) {
@@ -437,7 +437,7 @@ func TestArchiveManager_ExtractAll_LargeFiles(t *testing.T) {
 	extractedContent, err := os.ReadFile(extractedFile)
 	require.NoError(t, err)
 
-	assert.Equal(t, len(largeContent), len(extractedContent))
+	assert.Len(t, extractedContent, len(largeContent))
 
 	// Verify content matches
 	for i := range largeContent {
@@ -474,7 +474,7 @@ func TestArchiveManager_ExtractFile_LargeFile(t *testing.T) {
 	extractedContent, err := os.ReadFile(extractPath)
 	require.NoError(t, err)
 
-	assert.Equal(t, len(largeContent), len(extractedContent))
+	assert.Len(t, extractedContent, len(largeContent))
 }
 
 func TestNewManager(t *testing.T) {
@@ -704,7 +704,7 @@ func TestArchiveManager_Create_EmptySourceDir(t *testing.T) {
 
 	// Verify archive was created (even if empty)
 	_, err := os.Stat(archivePath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestArchiveManager_Create_SourceWithSpecialFiles(t *testing.T) {
@@ -739,7 +739,7 @@ func TestArchiveManager_Create_SourceWithSpecialFiles(t *testing.T) {
 	} else {
 		// If it succeeds, verify archive was created
 		_, err := os.Stat(archivePath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }
 
@@ -799,7 +799,7 @@ func TestArchiveManager_ExtractAll_ArchiveWithInvalidEntries(t *testing.T) {
 		// Verify the file was extracted
 		extractedFile := filepath.Join(extractDir, longName)
 		_, err := os.Stat(extractedFile)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }
 
@@ -983,7 +983,7 @@ func TestArchiveManager_Create_ArchiveWithSymlinks(t *testing.T) {
 	} else {
 		// If extraction succeeds, verify files exist
 		_, err := os.Stat(filepath.Join(extractDir, "regular.txt"))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }
 
@@ -1004,7 +1004,7 @@ func TestArchiveManager_Create_FileWithLongPath(t *testing.T) {
 
 	// Verify archive was created
 	_, err := os.Stat(archivePath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestArchiveManager_ExtractAll_ArchiveWithReadOnlyFiles(t *testing.T) {
@@ -1245,9 +1245,9 @@ func TestArchiveManager_ExtractAll_ArchiveWithMultipleSymlinks(t *testing.T) {
 	} else {
 		// If extraction succeeds, verify some files exist
 		_, err := os.Stat(filepath.Join(extractDir, "file1.txt"))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = os.Stat(filepath.Join(extractDir, "file2.txt"))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }
 
@@ -1284,7 +1284,7 @@ func TestArchiveManager_Create_ArchiveWithNestedSymlinks(t *testing.T) {
 	} else {
 		// If extraction succeeds, verify files exist
 		_, err := os.Stat(filepath.Join(extractDir, "subdir", "target.txt"))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }
 
@@ -1321,6 +1321,6 @@ func TestArchiveManager_ExtractFile_SymlinkInArchive(t *testing.T) {
 	} else {
 		// If it succeeds, verify the file exists
 		_, err := os.Stat(extractPath)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }
