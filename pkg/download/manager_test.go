@@ -165,7 +165,7 @@ func TestFetch_WithChecksum(t *testing.T) {
 			_, err = m.Fetch(context.Background(), item, Options{Dir: tempDir})
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}

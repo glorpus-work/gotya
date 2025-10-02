@@ -176,7 +176,7 @@ func TestGetUserDataDir(t *testing.T) {
 			path, err := getUserDataDir()
 
 			if testCase.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				assert.True(t, strings.HasSuffix(path, testCase.wantPath) ||

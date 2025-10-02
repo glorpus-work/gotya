@@ -200,10 +200,45 @@ func TestEnsureFileDir_EmptyPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := EnsureFileDir(tt.filePath)
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
 		})
 	}
+}
+
+// TestGetAppDataDir tests the getAppDataDir function with various scenarios
+func TestGetAppDataDir(t *testing.T) {
+	// Save original environment
+	// Test with XDG_DATA_HOME set (works on Linux)
+	t.Run("with XDG_DATA_HOME", func(t *testing.T) {
+		t.Setenv("XDG_DATA_HOME", "/custom/xdg/data")
+		dir, err := getAppDataDir()
+		require.NoError(t, err)
+		assert.Equal(t, "/custom/xdg/data", dir)
+	})
+
+	// Test without XDG_DATA_HOME on Linux (if we're on Linux)
+	if runtime.GOOS == "linux" {
+		t.Run("Linux without XDG_DATA_HOME", func(t *testing.T) {
+			require.NoError(t, os.Unsetenv("XDG_DATA_HOME"))
+			dir, err := getAppDataDir()
+			require.NoError(t, err)
+			assert.Contains(t, dir, ".local/share")
+		})
+	}
+
+	// Test other platforms don't break (just ensure they return valid paths)
+	t.Run("other platforms", func(t *testing.T) {
+		require.NoError(t, os.Unsetenv("XDG_DATA_HOME"))
+		dir, err := getAppDataDir()
+		// We expect this to work in normal circumstances
+		if err != nil {
+			// If it fails, it should be due to system issues, not our code
+			assert.Contains(t, err.Error(), "failed to get user")
+		} else {
+			assert.NotEmpty(t, dir)
+		}
+	})
 }

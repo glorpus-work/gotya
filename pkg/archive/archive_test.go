@@ -156,7 +156,7 @@ func TestArchiveManager_ExtractAll_InvalidArchive(t *testing.T) {
 	// Test with non-existent archive
 	extractDir := filepath.Join(tempDir, "extracted")
 	err := am.ExtractAll(ctx, "nonexistent.tar.gz", extractDir)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveManager_ExtractAll_InvalidDestination(t *testing.T) {
@@ -180,7 +180,7 @@ func TestArchiveManager_ExtractAll_InvalidDestination(t *testing.T) {
 
 	// Try to extract to invalid destination
 	err := am.ExtractAll(ctx, archivePath, invalidDest)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveManager_ExtractFile_NonExistentFile(t *testing.T) {
@@ -219,7 +219,7 @@ func TestArchiveManager_ExtractFile_InvalidArchive(t *testing.T) {
 
 	extractPath := filepath.Join(tempDir, "extracted.txt")
 	err := am.ExtractFile(ctx, "nonexistent.tar.gz", "file.txt", extractPath)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveManager_Create_InvalidSourceDir(t *testing.T) {
@@ -229,7 +229,7 @@ func TestArchiveManager_Create_InvalidSourceDir(t *testing.T) {
 
 	archivePath := filepath.Join(tempDir, "test.tar.gz")
 	err := am.Create(ctx, "/nonexistent/directory", archivePath)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveManager_Create_InvalidOutputPath(t *testing.T) {
@@ -248,7 +248,7 @@ func TestArchiveManager_Create_InvalidOutputPath(t *testing.T) {
 	// Try to create archive in non-existent directory without parent creation
 	invalidPath := "/nonexistent/path/test.tar.gz"
 	err := am.Create(ctx, sourceDir, invalidPath)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveManager_ExtractAll_PreservesPermissions(t *testing.T) {
@@ -597,7 +597,7 @@ func TestArchiveManager_Create_ReadonlyParentDir(t *testing.T) {
 	archivePath := filepath.Join(readonlyDir, "test.tar.gz")
 	ctx := context.Background()
 	err := am.Create(ctx, sourceDir, archivePath)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveManager_ExtractAll_ReadonlyDestination(t *testing.T) {
@@ -659,7 +659,7 @@ func TestArchiveManager_ExtractFile_ReadonlyDestination(t *testing.T) {
 
 	extractPath := filepath.Join(readonlyParent, "extracted.txt")
 	err := am.ExtractFile(ctx, archivePath, "test.txt", extractPath)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveManager_ExtractAll_CorruptedArchive(t *testing.T) {
@@ -673,7 +673,7 @@ func TestArchiveManager_ExtractAll_CorruptedArchive(t *testing.T) {
 	ctx := context.Background()
 	extractDir := filepath.Join(tempDir, "extracted")
 	err := am.ExtractAll(ctx, corruptedArchive, extractDir)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveManager_ExtractFile_CorruptedArchive(t *testing.T) {
@@ -687,7 +687,7 @@ func TestArchiveManager_ExtractFile_CorruptedArchive(t *testing.T) {
 	ctx := context.Background()
 	extractPath := filepath.Join(tempDir, "extracted.txt")
 	err := am.ExtractFile(ctx, corruptedArchive, "file.txt", extractPath)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveManager_Create_EmptySourceDir(t *testing.T) {
@@ -734,7 +734,7 @@ func TestArchiveManager_ExtractFile_ParentDirCreationFailure(t *testing.T) {
 	// Try to extract to a path where parent directory creation would fail
 	extractPath := filepath.Join(readonlyParent, "subdir", "extracted.txt")
 	err := am.ExtractFile(ctx, archivePath, "test.txt", extractPath)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestArchiveManager_ExtractAll_ArchiveWithInvalidEntries(t *testing.T) {
