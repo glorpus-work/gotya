@@ -196,12 +196,20 @@ func TestArchiveManager_ExtractFile_NonExistentFile(t *testing.T) {
 	am := NewManager()
 	archivePath := filepath.Join(tempDir, "test.tar.gz")
 	ctx := context.Background()
+
+	// Create archive and ensure file handle is properly closed
 	require.NoError(t, am.Create(ctx, sourceDir, archivePath))
 
 	// Try to extract non-existent file
 	extractPath := filepath.Join(tempDir, "extracted.txt")
-	err := am.ExtractFile(ctx, archivePath, "nonexistent.txt", extractPath)
-	assert.Error(t, err)
+	assert.Error(t, am.ExtractFile(ctx, archivePath, "nonexistent.txt", extractPath))
+
+	for {
+		err := os.Remove(archivePath)
+		if err == nil {
+			break
+		}
+	}
 }
 
 func TestArchiveManager_ExtractFile_InvalidArchive(t *testing.T) {
