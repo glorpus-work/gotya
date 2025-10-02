@@ -27,7 +27,12 @@ jobs:
           cache: true
 
       - name: Run tests with coverage
+        if: matrix.os != 'windows-11-arm'
         run: go test -race -tags=integration -coverprofile="coverage.out" -covermode=atomic ./... -v
+
+      - name: Run tests with coverage without race checker
+        if: matrix.os == 'windows-11-arm'
+        run: go test -tags=integration -coverprofile="coverage.out" -covermode=atomic ./... -v
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
