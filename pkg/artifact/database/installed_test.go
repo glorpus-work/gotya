@@ -207,3 +207,77 @@ func TestInstalledManager_InstallationReason(t *testing.T) {
 		assert.Equal(t, model.InstallationReason(""), found.InstallationReason, "new artifact should have empty installation reason by default")
 	})
 }
+
+func TestFilteredArtifacts(t *testing.T) {
+	db := NewInstalledDatabase()
+
+	// Add test artifacts with different names
+	artifacts := []*model.InstalledArtifact{
+		{Name: "package-a", Version: "1.0.0"},
+		{Name: "package-b", Version: "2.0.0"},
+		{Name: "other-package", Version: "1.5.0"},
+		{Name: "another-app", Version: "3.0.0"},
+	}
+
+	for _, artifact := range artifacts {
+		db.AddArtifact(artifact)
+	}
+
+	t.Run("FilterByExactName", func(t *testing.T) {
+		filtered := db.FilteredArtifacts("package-a")
+		assert.Len(t, filtered, 1)
+		assert.Equal(t, "package-a", filtered[0].Name)
+	})
+
+	t.Run("FilterByPartialName", func(t *testing.T) {
+		filtered := db.FilteredArtifacts("package")
+		assert.Len(t, filtered, 3) // package-a, package-b, other-package
+		expectedNames := []string{"package-a", "package-b", "other-package"}
+		for i, artifact := range filtered {
+			assert.Equal(t, expectedNames[i], artifact.Name)
+		}
+	})
+
+	t.Run("FilterByNonExistentName", func(t *testing.T) {
+		filtered := db.FilteredArtifacts("nonexistent")
+		assert.Empty(t, filtered)
+	})
+
+	t.Run("FilterByEmptyString", func(t *testing.T) {
+		filtered := db.FilteredArtifacts("")
+		assert.Len(t, filtered, 4) // Should return all artifacts
+	})
+}
+
+func TestSetInstallationReason(t *testing.T) {
+	db := NewInstalledDatabase()
+
+	artifact := &model.InstalledArtifact{
+		Name:    "test-package",
+		Version: "1.0.0",
+	}
+	db.AddArtifact(artifact)
+
+	t.Run("SetValidInstallationReason", func(t *testing.T) {
+		err := db.SetInstallationReason("test-package", model.InstallationReasonManual)
+		assert.NoError(t, err)
+
+		found := db.FindArtifact("test-package")
+		require.NotNil(t, found)
+		assert.Equal(t, model.InstallationReasonManual, found.InstallationReason)
+	})
+
+	t.Run("SetInstallationReasonForNonExistentArtifact", func(t *testing.T) {
+		err := db.SetInstallationReason("nonexistent", model.InstallationReasonAutomatic)
+		assert.Error(t, err)
+	})
+
+	t.Run("SetInstallationReasonToEmpty", func(t *testing.T) {
+		err := db.SetInstallationReason("test-package", model.InstallationReason(""))
+		assert.NoError(t, err)
+
+		found := db.FindArtifact("test-package")
+		require.NotNil(t, found)
+		assert.Equal(t, model.InstallationReason(""), found.InstallationReason)
+	})
+}
