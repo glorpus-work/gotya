@@ -8,12 +8,13 @@ on:
 
 jobs:
   full-test:
-    name: Full Test (${{ matrix.os }}
+    name: Full Test (${{ matrix.os }},
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest, ubuntu-24.04-arm, windows-11-arm]
+        go-version: [ '1.24', '*' ]
 
     steps:
       - name: Check out code
@@ -22,7 +23,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version: ${{ matrix.go-version }}
           check-latest: true
           cache: true
 
@@ -38,7 +39,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.out
-          flags: unittests
+          flags: integration,unit,${{matrix.os}},${{ matrix.go-version }}
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: glorpus-work/gotya
 
