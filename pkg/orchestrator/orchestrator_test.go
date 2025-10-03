@@ -127,7 +127,7 @@ func TestInstall_DryRun(t *testing.T) {
 
 	// Setup test data
 	s1url, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	requests := []model.ResolveRequest{
+	requests := []*model.ResolveRequest{
 		{
 			Name:              "pkgA",
 			VersionConstraint: ">= 0.0.0",
@@ -159,7 +159,7 @@ func TestInstall_DryRun(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, reqs []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+		DoAndReturn(func(_ context.Context, reqs []*model.ResolveRequest) (model.ResolvedArtifacts, error) {
 			require.Len(t, reqs, 1, "should have one request for dry run")
 			assert.Equal(t, "pkgA", reqs[0].Name, "request should be for pkgA")
 			return plan, nil
@@ -217,7 +217,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	// Setup test data
 	tmp := t.TempDir()
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	requests := []model.ResolveRequest{
+	requests := []*model.ResolveRequest{
 		{
 			Name:              "pkgA",
 			VersionConstraint: "1.0.0",
@@ -233,6 +233,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 		Arch:      "amd64",
 		SourceURL: sURL,
 		Checksum:  "deadbeef",
+		Action:    model.ResolvedActionInstall,
 	}
 	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
 
@@ -255,7 +256,7 @@ func TestInstall_PrefetchAndInstall_Success(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, reqs []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+		DoAndReturn(func(_ context.Context, reqs []*model.ResolveRequest) (model.ResolvedArtifacts, error) {
 			require.Len(t, reqs, 1, "should have one request")
 			assert.Equal(t, "pkgA", reqs[0].Name, "request should be for pkgA")
 			return plan, nil
@@ -390,6 +391,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 		Arch:      "amd64",
 		SourceURL: sURL,
 		Checksum:  "abc123",
+		Action:    model.ResolvedActionInstall,
 	}
 
 	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
@@ -398,7 +400,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, reqs []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+		DoAndReturn(func(_ context.Context, reqs []*model.ResolveRequest) (model.ResolvedArtifacts, error) {
 			require.Len(t, reqs, 1, "should have one request")
 			assert.Equal(t, "pkgA", reqs[0].Name, "request should be for pkgA")
 			return plan, nil
@@ -439,7 +441,7 @@ func TestInstall_ArtifactInstallError(t *testing.T) {
 	// Execute test
 	err := torch.Install(
 		context.Background(),
-		[]model.ResolveRequest{
+		[]*model.ResolveRequest{
 			{
 				Name:              "pkgA",
 				VersionConstraint: "1.0.0",
@@ -480,7 +482,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, reqs []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+		DoAndReturn(func(_ context.Context, reqs []*model.ResolveRequest) (model.ResolvedArtifacts, error) {
 			require.Len(t, reqs, 1, "should have one request")
 			assert.Equal(t, "pkgA", reqs[0].Name, "request should be for pkgA")
 			return plan, nil
@@ -509,7 +511,7 @@ func TestInstall_MissingLocalFile_Error(t *testing.T) {
 	// Execute test
 	err := torch.Install(
 		context.Background(),
-		[]model.ResolveRequest{
+		[]*model.ResolveRequest{
 			{
 				Name:              "pkgA",
 				VersionConstraint: "1.0.0",
@@ -684,27 +686,6 @@ func TestUninstall_ForceWithNoCascade(t *testing.T) {
 	require.NoError(t, err, "uninstall with Force and NoCascade should not return an error")
 }
 
-func TestUninstall_NoReverseIndex(t *testing.T) {
-	// Setup test data
-	testReq := model.ResolveRequest{
-		Name:              "test-artifact",
-		VersionConstraint: "1.0.0",
-	}
-
-	// Create orchestrator without ReverseIndex
-	orch := &Orchestrator{
-		ReverseIndex: nil,
-	}
-
-	// Execute test
-	err := orch.Uninstall(context.Background(), testReq, UninstallOptions{})
-
-	// Verify results
-	require.Error(t, err, "should return error when ReverseIndex is nil")
-	assert.Contains(t, err.Error(), "reverse index resolver is not configured",
-		"error message should indicate missing reverse index resolver")
-}
-
 func TestUninstall_NoArtifactManager(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -791,7 +772,7 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 
 	// Setup test data - single artifact that should be manual
 	sURL, _ := url.Parse("https://example.com/pkgA-1.0.0.tgz")
-	requests := []model.ResolveRequest{
+	requests := []*model.ResolveRequest{
 		{
 			Name:              "pkgA",
 			VersionConstraint: "1.0.0",
@@ -807,6 +788,7 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 		Arch:      "amd64",
 		SourceURL: sURL,
 		Checksum:  "abc123",
+		Action:    model.ResolvedActionInstall,
 	}
 
 	plan := model.ResolvedArtifacts{Artifacts: []model.ResolvedArtifact{step}}
@@ -819,7 +801,7 @@ func TestInstall_InstallationReason_FirstArtifactManual(t *testing.T) {
 	// Setup expectations
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, reqs []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+		DoAndReturn(func(_ context.Context, reqs []*model.ResolveRequest) (model.ResolvedArtifacts, error) {
 			require.Len(t, reqs, 1, "should have one request")
 			assert.Equal(t, "pkgA", reqs[0].Name, "request should be for pkgA")
 			return plan, nil
@@ -1114,7 +1096,7 @@ func TestUpdate_DryRun(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+		DoAndReturn(func(_ context.Context, requests []*model.ResolveRequest) (model.ResolvedArtifacts, error) {
 			require.Len(t, requests, 1, "should have one request")
 			assert.Equal(t, "pkgA", requests[0].Name, "request should be for pkgA")
 			assert.Equal(t, ">= 1.0.0", requests[0].VersionConstraint, "should request version >= 1.0.0")
@@ -1188,7 +1170,7 @@ func TestUpdate_SuccessfulUpdate(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+		DoAndReturn(func(_ context.Context, requests []*model.ResolveRequest) (model.ResolvedArtifacts, error) {
 			require.Len(t, requests, 1, "should have one request")
 			assert.Equal(t, "pkgA", requests[0].Name, "request should be for pkgA")
 			assert.Equal(t, ">= 1.0.0", requests[0].VersionConstraint, "should request version >= 1.0.0")
@@ -1252,23 +1234,16 @@ func TestUpdate_NoUpdatesAvailable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Setup test data - all packages are already at latest versions
+	// Setup test data - all packages are already at latest versions (so no artifacts returned)
 	plan := model.ResolvedArtifacts{
-		Artifacts: []model.ResolvedArtifact{
-			{
-				Name:    "pkgA",
-				Version: "1.0.0",
-				Action:  model.ResolvedActionSkip,
-				Reason:  "already at the latest version",
-			},
-		},
+		Artifacts: []model.ResolvedArtifact{},
 	}
 
 	// Setup mocks
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+		DoAndReturn(func(_ context.Context, requests []*model.ResolveRequest) (model.ResolvedArtifacts, error) {
 			require.Len(t, requests, 1, "should have one request")
 			return plan, nil
 		}).
@@ -1334,7 +1309,7 @@ func TestUpdate_SpecificPackageUpdate(t *testing.T) {
 	idx := mocks.NewMockArtifactResolver(ctrl)
 	idx.EXPECT().
 		Resolve(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) {
+		DoAndReturn(func(_ context.Context, requests []*model.ResolveRequest) (model.ResolvedArtifacts, error) {
 			require.Len(t, requests, 2, "should have two requests")
 			assert.Equal(t, "pkgB", requests[0].Name, "request should be for pkgB")
 			assert.Equal(t, ">= 2.0.0", requests[0].VersionConstraint, "should request version >= 2.0.0")
