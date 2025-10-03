@@ -23,4 +23,5 @@ type Manager interface {
 	GetOrphanedAutomaticArtifacts() ([]string, error)
 	// GetInstalledArtifacts returns all installed artifacts
 	GetInstalledArtifacts() ([]*model.InstalledArtifact, error)
+	SetArtifactManuallyInstalled(artifactName string) error
 }

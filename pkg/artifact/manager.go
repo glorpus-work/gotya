@@ -43,6 +43,19 @@ func NewManager(operatingSystem, arch, artifactCacheDir, artifactInstallDir, art
 	}
 }
 
+// SetArtifactManuallyInstalled marks an artifact as manually installed.
+func (m *ManagerImpl) SetArtifactManuallyInstalled(artifactName string) error {
+	if err := m.loadInstalledDB(); err != nil {
+		return errors.Wrapf(err, "failure to change artifact install reason for %s", artifactName)
+	}
+	artifact := m.installDB.FindArtifact(artifactName)
+	if artifact == nil {
+		return errors.Wrapf(errors.ErrArtifactNotFound, "failure to change artifact install reason for %s", artifactName)
+	}
+	artifact.InstallationReason = model.InstallationReasonManual
+	return m.installDB.SaveDatabase()
+}
+
 // InstallArtifact installs an artifact from a local file path.
 func (m *ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) error {
 	// Input validation

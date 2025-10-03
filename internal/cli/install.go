@@ -79,9 +79,9 @@ func runInstall(packages []string, dryRun bool, concurrency int, cacheDir string
 	ctx := context.Background()
 
 	// Build all resolve requests
-	var requests []model.ResolveRequest
+	var requests []*model.ResolveRequest
 	for _, dep := range dependencies {
-		requests = append(requests, model.ResolveRequest{
+		requests = append(requests, &model.ResolveRequest{
 			Name:              dep.Name,
 			VersionConstraint: dep.VersionConstraint,
 			OS:                cfg.Settings.Platform.OS,

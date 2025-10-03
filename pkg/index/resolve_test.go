@@ -26,7 +26,7 @@ func TestResolve_KeepVersionPreferenceHonored_NoUnnecessaryUpdates(t *testing.T)
     ]`)
 
 	// Requests mimic orchestrator install: main request plus keep preference for installed artifacts
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "tool",
 			VersionConstraint: "1.0.0",
@@ -67,7 +67,7 @@ func TestResolve_SimpleDependencyChain(t *testing.T) {
 		{"name":"c","version":"1.0.0","url":"https://ex/c","checksum":"c1"}
 	]`)
 
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "a",
 			VersionConstraint: "1.0.0",
@@ -100,7 +100,7 @@ func TestResolve_VersionConflictResolution(t *testing.T) {
 		{"name":"common-lib","version":"2.0.0","url":"https://ex/common-2","checksum":"clib2"}
 	]`)
 
-	_, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	_, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "app",
 			VersionConstraint: "= 1.0.0",
@@ -122,7 +122,7 @@ func TestResolve_CyclicDependency(t *testing.T) {
 		{"name":"b","version":"1.0.0","dependencies":[{"name":"a","version_constraint":">= 1.0.0"}],"url":"https://ex/b","checksum":"b1"}
 	]`)
 
-	_, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	_, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "a",
 			VersionConstraint: "1.0.0",
@@ -158,7 +158,7 @@ func TestResolve_ComplexDependencyGraph(t *testing.T) {
 		],"url":"https://ex/http-2.0","checksum":"http2"}
 	]`)
 
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "app",
 			VersionConstraint: "1.0.0",
@@ -202,7 +202,7 @@ func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 	]`)
 
 	t.Run("linux/amd64", func(t *testing.T) {
-		plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 			{
 				Name:              "app",
 				VersionConstraint: "1.0.0",
@@ -220,7 +220,7 @@ func TestResolve_PlatformSpecificDependencies(t *testing.T) {
 	})
 
 	t.Run("darwin/arm64", func(t *testing.T) {
-		plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+		plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 			{
 				Name:              "app",
 				VersionConstraint: "1.0.0",
@@ -242,7 +242,7 @@ func TestResolve_NoDependencies(t *testing.T) {
 	// Test planning for a package with no dependencies
 	mgr := setupTestManager(t, `[{"name":"standalone","version":"1.0.0","url":"https://ex/standalone","checksum":"s1"}]`)
 
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "standalone",
 			VersionConstraint: "1.0.0",
@@ -260,7 +260,7 @@ func TestResolve_NonExistentPackage(t *testing.T) {
 	// Test behavior when the requested package doesn't exist
 	mgr := setupTestManager(t, `[{"name":"exists","version":"1.0.0","url":"https://ex/exists","checksum":"e1"}]`)
 
-	_, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	_, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "nonexistent",
 			VersionConstraint: "1.0.0",
@@ -286,7 +286,7 @@ func TestResolve_WithInstalledArtifacts_CompatibleVersions(t *testing.T) {
 
 	// Simulate having lib@1.0.0 already installed
 
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "app",
 			VersionConstraint: "2.0.0",
@@ -332,7 +332,7 @@ func TestResolve_WithInstalledArtifacts_IncompatibleVersions(t *testing.T) {
 	]`)
 
 	// Simulate having lib@1.0.0 already installed (incompatible with app requirement)
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "app",
 			VersionConstraint: "2.0.0",
@@ -387,7 +387,7 @@ func TestResolve_WithInstalledArtifacts_SkipWhenCompatible(t *testing.T) {
 	]`)
 
 	// Simulate having lib@1.0.0 already installed (compatible)
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "app",
 			VersionConstraint: "1.0.0",
@@ -428,7 +428,7 @@ func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
 	]`)
 
 	// Simulate having lib-a@2.0.0 and lib-b@1.0.0 already installed
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "app",
 			VersionConstraint: "3.0.0",
@@ -489,7 +489,7 @@ func TestResolve_MultipleRequestsWithMixedKeepVersion(t *testing.T) {
 	]`)
 
 	// Test with mixed KeepVersion settings
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "app",
 			VersionConstraint: "2.0.0",
@@ -561,7 +561,7 @@ func TestResolve_ConstraintPriority(t *testing.T) {
 
 	// Request app@3.0.0 which requires lib >= 2.0.0
 	// Even though we prefer to keep lib@1.0.0, the hard constraint should win
-	plan, err := mgr.Resolve(context.Background(), []model.ResolveRequest{
+	plan, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{
 		{
 			Name:              "app",
 			VersionConstraint: "3.0.0",
@@ -604,7 +604,7 @@ func TestResolve_EmptyRequestsList(t *testing.T) {
 	// Test that empty requests list returns error
 	mgr := setupTestManager(t, `[{"name":"test","version":"1.0.0","url":"https://ex/test","checksum":"test1"}]`)
 
-	_, err := mgr.Resolve(context.Background(), []model.ResolveRequest{})
+	_, err := mgr.Resolve(context.Background(), []*model.ResolveRequest{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no resolve requests provided")
 }

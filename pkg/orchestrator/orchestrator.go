@@ -274,7 +274,7 @@ func emit(h Hooks, e Event) {
 }
 
 // Install resolves and installs according to the plan (sequentially for now).
-func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequest, opts InstallOptions) error {
+func (o *Orchestrator) Install(ctx context.Context, requests []*model.ResolveRequest, opts InstallOptions) error {
 	if o.Index == nil {
 		return fmt.Errorf("index planner is not configured: %w", errors.ErrValidation)
 	}
@@ -318,7 +318,7 @@ func (o *Orchestrator) Install(ctx context.Context, requests []model.ResolveRequ
 
 // buildInstallRequests loads installed artifacts and combines them with incoming requests
 // adding keep preferences for installed packages not explicitly requested.
-func (o *Orchestrator) buildInstallRequests(requests []model.ResolveRequest) ([]model.ResolveRequest, error) {
+func (o *Orchestrator) buildInstallRequests(requests []*model.ResolveRequest) ([]*model.ResolveRequest, error) {
 	// Load currently installed artifacts for compatibility checking
 	var installedArtifacts []*model.InstalledArtifact
 	if o.ArtifactManager != nil {
@@ -329,16 +329,17 @@ func (o *Orchestrator) buildInstallRequests(requests []model.ResolveRequest) ([]
 		}
 	}
 
-	allRequests := make([]model.ResolveRequest, len(requests))
+	installedMap := make(map[string]*model.ResolveRequest)
+	for _, req := range requests {
+		installedMap[req.Name] = req
+	}
+
+	allRequests := make([]*model.ResolveRequest, len(requests))
 	copy(allRequests, requests)
 
-	installedMap := make(map[string]bool)
-	for _, req := range requests {
-		installedMap[req.Name] = true
-	}
 	for _, installed := range installedArtifacts {
-		if !installedMap[installed.Name] {
-			allRequests = append(allRequests, model.ResolveRequest{
+		if installedMap[installed.Name] == nil {
+			allRequests = append(allRequests, &model.ResolveRequest{
 				Name:              installed.Name,
 				VersionConstraint: "",
 				OS:                installed.OS,
@@ -346,6 +347,8 @@ func (o *Orchestrator) buildInstallRequests(requests []model.ResolveRequest) ([]
 				OldVersion:        installed.Version,
 				KeepVersion:       true,
 			})
+		} else {
+			installedMap[installed.Name].OldVersion = installed.Version
 		}
 	}
 	return allRequests, nil
@@ -375,17 +378,20 @@ func (o *Orchestrator) prefetchPlanArtifacts(ctx context.Context, plan model.Res
 }
 
 // executeInstallPlan installs/updates artifacts as instructed by the plan.
-func (o *Orchestrator) executeInstallPlan(ctx context.Context, plan model.ResolvedArtifacts, requests []model.ResolveRequest, fetched map[string]string) error {
-	if o.ArtifactManager == nil {
-		return fmt.Errorf("artifact installer is not configured: %w", errors.ErrValidation)
-	}
+func (o *Orchestrator) executeInstallPlan(ctx context.Context, plan model.ResolvedArtifacts, requests []*model.ResolveRequest, fetched map[string]string) error {
+	onlyUpdateReasonRequest := make([]*model.ResolveRequest, 0, len(requests))
+	onlyUpdateReasonRequest = append(onlyUpdateReasonRequest, requests...)
+
 	for _, step := range plan.Artifacts {
-		action := step.Action
-		if action == "" {
-			action = model.ResolvedActionInstall
+		reqIdx := slices.IndexFunc(onlyUpdateReasonRequest, func(req *model.ResolveRequest) bool {
+			return req.Name == step.Name
+		})
+		if reqIdx != -1 {
+			onlyUpdateReasonRequest = append(onlyUpdateReasonRequest[:reqIdx], onlyUpdateReasonRequest[reqIdx+1:]...)
 		}
+
 		var actionMsg string
-		switch action {
+		switch step.Action {
 		case model.ResolvedActionInstall:
 			actionMsg = "installing"
 		case model.ResolvedActionUpdate:
@@ -421,7 +427,7 @@ func (o *Orchestrator) executeInstallPlan(ctx context.Context, plan model.Resolv
 				break
 			}
 		}
-		switch action {
+		switch step.Action {
 		case model.ResolvedActionInstall:
 			if err := o.ArtifactManager.InstallArtifact(ctx, desc, path, reason); err != nil {
 				return err
@@ -432,6 +438,13 @@ func (o *Orchestrator) executeInstallPlan(ctx context.Context, plan model.Resolv
 			}
 		}
 	}
+
+	for _, req := range onlyUpdateReasonRequest {
+		if err := o.ArtifactManager.SetArtifactManuallyInstalled(req.Name); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -508,11 +521,11 @@ func New(idx ArtifactResolver, reverseIdx ArtifactReverseResolver, dl Downloader
 }
 
 // buildUpdateRequests composes resolver requests for an update flow.
-func buildUpdateRequests(installed, packagesToUpdate []*model.InstalledArtifact) []model.ResolveRequest {
-	reqs := make([]model.ResolveRequest, 0, len(installed))
+func buildUpdateRequests(installed, packagesToUpdate []*model.InstalledArtifact) []*model.ResolveRequest {
+	reqs := make([]*model.ResolveRequest, 0, len(installed))
 	requested := make(map[string]struct{}, len(packagesToUpdate))
 	for _, pkg := range packagesToUpdate {
-		reqs = append(reqs, model.ResolveRequest{
+		reqs = append(reqs, &model.ResolveRequest{
 			Name:              pkg.Name,
 			VersionConstraint: ">= " + pkg.Version,
 			OS:                pkg.OS,
@@ -526,7 +539,7 @@ func buildUpdateRequests(installed, packagesToUpdate []*model.InstalledArtifact)
 		if _, already := requested[inst.Name]; already {
 			continue
 		}
-		reqs = append(reqs, model.ResolveRequest{
+		reqs = append(reqs, &model.ResolveRequest{
 			Name:              inst.Name,
 			VersionConstraint: ">= 0.0.0",
 			OS:                inst.OS,

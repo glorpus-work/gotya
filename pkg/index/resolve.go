@@ -13,7 +13,7 @@ import (
 // multiResolver handles dependency resolution for multiple resolve requests.
 type multiResolver struct {
 	manager     *ManagerImpl
-	requests    []model.ResolveRequest
+	requests    []*model.ResolveRequest
 	constraints map[string][]string                       // name -> constraints (AND)
 	selected    map[string]*model.IndexArtifactDescriptor // name -> chosen descriptor
 	deps        map[string][]string                       // name -> dep names
@@ -36,7 +36,7 @@ const defaultConstraint = ">= 0.0.0"
 // - Pick the latest version (by semver) that satisfies constraints and platform filters across all indexes.
 // - Honor KeepVersion preferences where possible, but hard constraints take precedence.
 // - Error if a dependency cannot be found in any index, or if no version satisfies combined constraints.
-func (rm *ManagerImpl) Resolve(ctx context.Context, requests []model.ResolveRequest) (model.ResolvedArtifacts, error) { //nolint:revive // ctx reserved for future
+func (rm *ManagerImpl) Resolve(ctx context.Context, requests []*model.ResolveRequest) (model.ResolvedArtifacts, error) { //nolint:revive // ctx reserved for future
 	_ = ctx // reserved for future use
 
 	if len(requests) == 0 {
@@ -63,7 +63,7 @@ func (rm *ManagerImpl) Resolve(ctx context.Context, requests []model.ResolveRequ
 
 // --- Internal planning helpers ---
 
-func newMultiResolver(mgr *ManagerImpl, requests []model.ResolveRequest) *multiResolver {
+func newMultiResolver(mgr *ManagerImpl, requests []*model.ResolveRequest) *multiResolver {
 	// Build preferences map from requests
 	preferences := make(map[string]versionPreference)
 	for _, req := range requests {
