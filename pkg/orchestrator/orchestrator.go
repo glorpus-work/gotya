@@ -182,14 +182,7 @@ func (o *Orchestrator) filterPackagesForUpdate(installed []*model.InstalledArtif
 // handleDryRunUpdate processes dry run for update operations.
 func (o *Orchestrator) handleDryRunUpdate(plan model.ResolvedArtifacts) {
 	for _, step := range plan.Artifacts {
-		var phase string
-		switch step.Action {
-		case model.ResolvedActionInstall, model.ResolvedActionUpdate:
-			phase = phaseUpdating
-		default:
-			phase = "processing"
-		}
-		emit(o.Hooks, Event{Phase: phase, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
+		emit(o.Hooks, Event{Phase: phaseUpdating, ID: step.GetID(), Msg: step.Name + "@" + step.Version})
 	}
 	emit(o.Hooks, Event{Phase: "done", Msg: "update dry-run completed"})
 }
