@@ -202,7 +202,7 @@ func TestEnsureFileDir_EmptyPath(t *testing.T) {
 			if tt.expectError {
 				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

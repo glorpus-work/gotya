@@ -212,7 +212,7 @@ func TestGenerator_describeArtifact(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

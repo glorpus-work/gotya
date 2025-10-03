@@ -170,7 +170,7 @@ func TestPacker_Pack(t *testing.T) {
 			expectedOutputFile := filepath.Join(outputDir, p.name+"_"+p.version+"_"+p.os+"_"+p.arch+".gotya")
 			_, statErr := os.Stat(expectedOutputFile)
 			if tt.expectOutput {
-				assert.NoError(t, statErr, "expected output file to exist")
+				require.NoError(t, statErr, "expected output file to exist")
 			} else {
 				assert.ErrorIs(t, statErr, os.ErrNotExist)
 			}

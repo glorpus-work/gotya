@@ -167,7 +167,7 @@ func TestFetch_WithChecksum(t *testing.T) {
 			if tt.expectError {
 				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

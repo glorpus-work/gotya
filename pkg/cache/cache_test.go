@@ -186,7 +186,7 @@ func TestCleanArtifactsOnly(t *testing.T) {
 
 	// Verify index file still exists
 	_, err = os.Stat(filepath.Join(tempDir, "indexes", "test.index"))
-	assert.NoError(t, err, "index file should still exist")
+	require.NoError(t, err, "index file should still exist")
 }
 
 func TestGetInfo(t *testing.T) {

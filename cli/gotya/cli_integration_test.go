@@ -37,7 +37,7 @@ func TestVersionCommand(t *testing.T) {
 	os.Stdout = oldStdout
 
 	// Check results
-	assert.NoError(t, err, "version command should not return an error")
+	require.NoError(t, err, "version command should not return an error")
 
 	// Read the captured output
 	var buf bytes.Buffer
@@ -64,7 +64,7 @@ func TestHelpCommand(t *testing.T) {
 	os.Stdout = oldStdout
 
 	// Check results
-	assert.NoError(t, err, "help command should not return an error")
+	require.NoError(t, err, "help command should not return an error")
 
 	// Read the captured output
 	var buf bytes.Buffer
@@ -99,7 +99,7 @@ func TestConfigShowDefault(t *testing.T) {
 	os.Stdout = oldStdout
 
 	// Check results
-	assert.NoError(t, err, "config show command should not return an error")
+	require.NoError(t, err, "config show command should not return an error")
 
 	// Read the captured output
 	var buf bytes.Buffer
@@ -146,7 +146,7 @@ settings:
 	os.Stdout = oldStdout
 
 	// Check results
-	assert.NoError(t, err, "config show with custom config should not return an error")
+	require.NoError(t, err, "config show with custom config should not return an error")
 
 	// Read the captured output
 	var buf bytes.Buffer
@@ -217,7 +217,7 @@ func TestConfigSetAndGet(t *testing.T) {
 		os.Stdout = oldStdout
 
 		// Check results
-		assert.NoError(t, err, "config get should not return an error")
+		require.NoError(t, err, "config get should not return an error")
 
 		// Read the captured output
 		var buf bytes.Buffer
@@ -251,11 +251,11 @@ func TestConfigInit(t *testing.T) {
 		os.Stdout = oldStdout
 
 		// Check results
-		assert.NoError(t, err, "config init should not return an error")
+		require.NoError(t, err, "config init should not return an error")
 
 		// Verify the config file was created
 		_, err = os.Stat(configPath)
-		assert.NoError(t, err, "config file should be created")
+		require.NoError(t, err, "config file should be created")
 
 		// Read the config file
 		configData, err := os.ReadFile(configPath)

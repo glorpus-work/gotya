@@ -260,7 +260,7 @@ func TestSetInstallationReason(t *testing.T) {
 
 	t.Run("SetValidInstallationReason", func(t *testing.T) {
 		err := db.SetInstallationReason("test-package", model.InstallationReasonManual)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		found := db.FindArtifact("test-package")
 		require.NotNil(t, found)
@@ -274,7 +274,7 @@ func TestSetInstallationReason(t *testing.T) {
 
 	t.Run("SetInstallationReasonToEmpty", func(t *testing.T) {
 		err := db.SetInstallationReason("test-package", model.InstallationReason(""))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		found := db.FindArtifact("test-package")
 		require.NotNil(t, found)
