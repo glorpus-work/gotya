@@ -2203,6 +2203,85 @@ func TestInstallArtifact_MetadataDrivenHooks(t *testing.T) {
 	ctrl.Finish()
 }
 
+func TestSetArtifactManuallyInstalled_Success(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install a test artifact
+	testArtifact := filepath.Join(tempDir, "test-artifact.gotya")
+	metadata := &Metadata{
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Test artifact for manual installation tests",
+	}
+	setupTestArtifact(t, testArtifact, true, metadata)
+
+	desc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/test.gotya",
+	}
+
+	// Install the artifact with automatic reason
+	err := mgr.InstallArtifact(context.Background(), desc, testArtifact, model.InstallationReasonAutomatic)
+	require.NoError(t, err)
+
+	// Verify it was installed with automatic reason
+	db := loadInstalledDB(t, dbPath)
+	installedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, installedArtifact)
+	assert.Equal(t, model.InstallationReasonAutomatic, installedArtifact.InstallationReason, "should have automatic reason initially")
+
+	// Set as manually installed
+	err = mgr.SetArtifactManuallyInstalled(artifactName)
+	require.NoError(t, err)
+
+	// Verify installation reason was changed to manual
+	db = loadInstalledDB(t, dbPath)
+	updatedArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, updatedArtifact)
+	assert.Equal(t, model.InstallationReasonManual, updatedArtifact.InstallationReason, "should have manual reason after SetArtifactManuallyInstalled")
+
+	// Verify other properties are unchanged
+	assert.Equal(t, "1.0.0", updatedArtifact.Version)
+	assert.Equal(t, "http://example.com/test.gotya", updatedArtifact.InstalledFrom)
+	assert.Equal(t, model.StatusInstalled, updatedArtifact.Status)
+}
+
+// TestSetArtifactManuallyInstalled_ArtifactNotFound tests error when artifact doesn't exist
+func TestSetArtifactManuallyInstalled_ArtifactNotFound(t *testing.T) {
+	tempDir := t.TempDir()
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), filepath.Join(tempDir, "installed.db"))
+
+	// Try to set a non-existent artifact as manually installed
+	err := mgr.SetArtifactManuallyInstalled("non-existent-artifact")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errors.ErrArtifactNotFound)
+}
+
+// TestSetArtifactManuallyInstalled_DatabaseLoadError tests error when database loading fails
+func TestSetArtifactManuallyInstalled_DatabaseLoadError(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "corrupted.db")
+
+	// Create a corrupted database file
+	require.NoError(t, os.WriteFile(dbPath, []byte("invalid json content"), 0644))
+
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, artifactDataDir), filepath.Join(tempDir, artifactMetaDir), dbPath)
+
+	// Try to set an artifact as manually installed when database is corrupted
+	err := mgr.SetArtifactManuallyInstalled("test-artifact")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failure to change artifact install reason")
+}
+
 func writeMetadata(t *testing.T, metaDir string, metadata *Metadata) {
 	t.Helper()
 

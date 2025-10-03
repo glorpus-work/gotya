@@ -42,6 +42,7 @@ jobs:
           flags: integration,unit,${{matrix.os}}
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: glorpus-work/gotya
+          exclude: "**/mocks/*,**/*_mock.go"
 
   lint:
     name: Lint
