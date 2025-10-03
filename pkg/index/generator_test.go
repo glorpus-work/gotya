@@ -148,7 +148,7 @@ func TestGenerator_Generate(t *testing.T) {
 			err := generator.Generate(context.Background())
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
@@ -210,9 +210,9 @@ func TestGenerator_describeArtifact(t *testing.T) {
 			_, err := generator.describeArtifact(context.Background(), path)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -410,7 +410,7 @@ func TestGenerator_makeURL(t *testing.T) {
 			got, err := generator.makeURL(artifactPath)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.want, got)

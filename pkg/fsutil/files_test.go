@@ -228,3 +228,53 @@ func TestCreateFilePerm(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, content, string(fileContent))
 }
+
+// TestMoveFile tests the moveFile function for cross-filesystem moves
+func TestMoveFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	srcFile := filepath.Join(tempDir, "source.txt")
+	dstFile := filepath.Join(tempDir, "destination.txt")
+
+	// Create source file with content
+	content := "Hello, World!"
+	err := os.WriteFile(srcFile, []byte(content), 0644)
+	require.NoError(t, err)
+
+	// Test successful file move
+	err = moveFile(srcFile, dstFile)
+	require.NoError(t, err)
+
+	// Verify the file was moved correctly
+	movedContent, err := os.ReadFile(dstFile)
+	require.NoError(t, err)
+	assert.Equal(t, content, string(movedContent))
+
+	// Verify source file no longer exists
+	_, err = os.Stat(srcFile)
+	assert.True(t, os.IsNotExist(err))
+}
+
+// TestMoveFile_SourceDoesNotExist tests moveFile with non-existent source
+func TestMoveFile_SourceDoesNotExist(t *testing.T) {
+	tempDir := t.TempDir()
+
+	srcFile := filepath.Join(tempDir, "nonexistent.txt")
+	dstFile := filepath.Join(tempDir, "destination.txt")
+
+	err := moveFile(srcFile, dstFile)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to copy file")
+}
+
+// TestMoveDirectory_SourceDoesNotExist tests moveDirectory with non-existent source
+func TestMoveDirectory_SourceDoesNotExist(t *testing.T) {
+	tempDir := t.TempDir()
+
+	srcDir := filepath.Join(tempDir, "nonexistent_dir")
+	dstDir := filepath.Join(tempDir, "destination_dir")
+
+	err := moveDirectory(srcDir, dstDir)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to stat source directory")
+}

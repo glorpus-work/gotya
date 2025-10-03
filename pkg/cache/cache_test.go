@@ -186,7 +186,7 @@ func TestCleanArtifactsOnly(t *testing.T) {
 
 	// Verify index file still exists
 	_, err = os.Stat(filepath.Join(tempDir, "indexes", "test.index"))
-	assert.NoError(t, err, "index file should still exist")
+	require.NoError(t, err, "index file should still exist")
 }
 
 func TestGetInfo(t *testing.T) {
@@ -262,4 +262,136 @@ func setupTestCache(t *testing.T, baseDir string) {
 		fsutil.FileModeDefault,
 	)
 	require.NoError(t, err)
+}
+
+// Tests for cache.Operation
+
+func TestNewOperation(t *testing.T) {
+	tempDir := t.TempDir()
+	mgr := cache.NewManager(tempDir)
+
+	op := cache.NewOperation(mgr)
+	require.NotNil(t, op)
+	assert.Equal(t, tempDir, op.GetDirectory())
+}
+
+func TestOperation_Clean_All(t *testing.T) {
+	tempDir := t.TempDir()
+	setupTestCache(t, tempDir)
+
+	mgr := cache.NewManager(tempDir)
+	op := cache.NewOperation(mgr)
+
+	msg, err := op.Clean(true, false, false)
+	require.NoError(t, err)
+	assert.Contains(t, msg, "Successfully cleaned cache")
+	assert.Contains(t, msg, "Freed")
+}
+
+func TestOperation_Clean_IndexesOnly(t *testing.T) {
+	tempDir := t.TempDir()
+	setupTestCache(t, tempDir)
+
+	mgr := cache.NewManager(tempDir)
+	op := cache.NewOperation(mgr)
+
+	msg, err := op.Clean(false, true, false)
+	require.NoError(t, err)
+	assert.Contains(t, msg, "Successfully cleaned cache")
+	assert.Contains(t, msg, "Indexes:")
+}
+
+func TestOperation_Clean_PackagesOnly(t *testing.T) {
+	tempDir := t.TempDir()
+	setupTestCache(t, tempDir)
+
+	mgr := cache.NewManager(tempDir)
+	op := cache.NewOperation(mgr)
+
+	msg, err := op.Clean(false, false, true)
+	require.NoError(t, err)
+	assert.Contains(t, msg, "Successfully cleaned cache")
+	assert.Contains(t, msg, "Artifacts:")
+}
+
+func TestOperation_Clean_DefaultBehavior(t *testing.T) {
+	tempDir := t.TempDir()
+	setupTestCache(t, tempDir)
+
+	mgr := cache.NewManager(tempDir)
+	op := cache.NewOperation(mgr)
+
+	// When no flags are set, should clean both indexes and packages
+	msg, err := op.Clean(false, false, false)
+	require.NoError(t, err)
+	assert.Contains(t, msg, "Successfully cleaned cache")
+}
+
+func TestOperation_Clean_EmptyCache(t *testing.T) {
+	tempDir := t.TempDir()
+	mgr := cache.NewManager(tempDir)
+	op := cache.NewOperation(mgr)
+
+	msg, err := op.Clean(true, false, false)
+	require.NoError(t, err)
+	assert.Contains(t, msg, "No files were removed from the cache")
+}
+
+func TestOperation_GetInfo(t *testing.T) {
+	tempDir := t.TempDir()
+	setupTestCache(t, tempDir)
+
+	mgr := cache.NewManager(tempDir)
+	op := cache.NewOperation(mgr)
+
+	info, err := op.GetInfo()
+	require.NoError(t, err)
+	assert.Contains(t, info, "Cache Information:")
+	assert.Contains(t, info, "Directory:")
+	assert.Contains(t, info, "Total Size:")
+	assert.Contains(t, info, "Indexes:")
+	assert.Contains(t, info, "Artifacts:")
+	assert.Contains(t, info, "Last Cleaned:")
+	assert.Contains(t, info, tempDir)
+}
+
+func TestOperation_GetInfo_EmptyCache(t *testing.T) {
+	tempDir := t.TempDir()
+	mgr := cache.NewManager(tempDir)
+	op := cache.NewOperation(mgr)
+
+	info, err := op.GetInfo()
+	require.NoError(t, err)
+	assert.Contains(t, info, "Cache Information:")
+	assert.Contains(t, info, "0 B") // Empty cache should show 0 bytes
+}
+
+func TestOperation_GetDirectory(t *testing.T) {
+	tempDir := t.TempDir()
+	mgr := cache.NewManager(tempDir)
+	op := cache.NewOperation(mgr)
+
+	dir := op.GetDirectory()
+	assert.Equal(t, tempDir, dir)
+}
+
+func TestOperation_SetDirectory(t *testing.T) {
+	tempDir := t.TempDir()
+	mgr := cache.NewManager(tempDir)
+	op := cache.NewOperation(mgr)
+
+	newDir := filepath.Join(tempDir, "new_cache")
+	err := op.SetDirectory(newDir)
+	require.NoError(t, err)
+	assert.Equal(t, newDir, op.GetDirectory())
+}
+
+func TestOperation_SetDirectory_Empty(t *testing.T) {
+	tempDir := t.TempDir()
+	mgr := cache.NewManager(tempDir)
+	op := cache.NewOperation(mgr)
+
+	err := op.SetDirectory("")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cache directory cannot be empty")
 }

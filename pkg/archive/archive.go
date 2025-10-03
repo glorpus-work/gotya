@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/glorpus-work/gotya/pkg/fsutil"
 	"github.com/mholt/archives"
 )
 
@@ -193,7 +194,7 @@ func (am *Manager) writeRegularFile(fsys fs.FS, path, targetPath string, info fs
 		return fmt.Errorf("failed to create parent directory for %s: %w", path, err)
 	}
 
-	dstFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm())
+	dstFile, err := fsutil.CreateFilePerm(targetPath, info.Mode().Perm())
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", targetPath, err)
 	}

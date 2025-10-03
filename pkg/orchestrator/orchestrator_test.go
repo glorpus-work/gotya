@@ -63,14 +63,14 @@ func TestSyncAll_NoReposOrNilURL(t *testing.T) {
 	// Test with nil repos
 	t.Run("nil repos", func(t *testing.T) {
 		err := orch.SyncAll(context.Background(), nil, t.TempDir(), Options{})
-		assert.NoError(t, err, "should not return error for nil repos")
+		require.NoError(t, err, "should not return error for nil repos")
 	})
 
 	// Test with repos containing nil URL
 	t.Run("nil URL in repos", func(t *testing.T) {
 		repos := []*index.Repository{{Name: "r1", URL: nil}}
 		err := orch.SyncAll(context.Background(), repos, t.TempDir(), Options{})
-		assert.NoError(t, err, "should not return error for repos with nil URL")
+		require.NoError(t, err, "should not return error for repos with nil URL")
 	})
 }
 
@@ -118,7 +118,7 @@ func TestSyncAll_EmptyRepos(t *testing.T) {
 		Options{},
 	)
 
-	assert.NoError(t, err, "should not return error for empty repos")
+	require.NoError(t, err, "should not return error for empty repos")
 }
 
 func TestInstall_DryRun(t *testing.T) {

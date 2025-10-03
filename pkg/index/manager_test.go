@@ -38,7 +38,7 @@ func TestManager_GetIndex_ErrorWhenMissing(t *testing.T) {
 	m := NewManager(repos, dir)
 	idx, err := m.GetIndex("r1")
 	assert.Nil(t, idx)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestManager_FindArtifacts_SingleRepo(t *testing.T) {
