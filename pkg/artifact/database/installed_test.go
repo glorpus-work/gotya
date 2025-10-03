@@ -209,7 +209,7 @@ func TestInstalledManager_InstallationReason(t *testing.T) {
 }
 
 func TestFilteredArtifacts(t *testing.T) {
-	db := NewInstalledDatabase()
+	db := NewInstalledManger()
 
 	// Add test artifacts with different names
 	artifacts := []*model.InstalledArtifact{
@@ -250,7 +250,7 @@ func TestFilteredArtifacts(t *testing.T) {
 }
 
 func TestSetInstallationReason(t *testing.T) {
-	db := NewInstalledDatabase()
+	db := NewInstalledManger()
 
 	artifact := &model.InstalledArtifact{
 		Name:    "test-package",
