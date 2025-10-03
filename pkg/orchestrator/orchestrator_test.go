@@ -686,27 +686,6 @@ func TestUninstall_ForceWithNoCascade(t *testing.T) {
 	require.NoError(t, err, "uninstall with Force and NoCascade should not return an error")
 }
 
-func TestUninstall_NoReverseIndex(t *testing.T) {
-	// Setup test data
-	testReq := model.ResolveRequest{
-		Name:              "test-artifact",
-		VersionConstraint: "1.0.0",
-	}
-
-	// Create orchestrator without ReverseIndex
-	orch := &Orchestrator{
-		ReverseIndex: nil,
-	}
-
-	// Execute test
-	err := orch.Uninstall(context.Background(), testReq, UninstallOptions{})
-
-	// Verify results
-	require.Error(t, err, "should return error when ReverseIndex is nil")
-	assert.Contains(t, err.Error(), "reverse index resolver is not configured",
-		"error message should indicate missing reverse index resolver")
-}
-
 func TestUninstall_NoArtifactManager(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

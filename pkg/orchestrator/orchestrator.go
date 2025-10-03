@@ -396,8 +396,6 @@ func (o *Orchestrator) executeInstallPlan(ctx context.Context, plan model.Resolv
 			actionMsg = "installing"
 		case model.ResolvedActionUpdate:
 			actionMsg = phaseUpdating
-		default:
-			actionMsg = "processing"
 		}
 		emit(o.Hooks, Event{Phase: actionMsg, ID: step.GetID(), Msg: step.Name + "@" + step.Version + " (" + step.Reason + ")"})
 
@@ -450,10 +448,6 @@ func (o *Orchestrator) executeInstallPlan(ctx context.Context, plan model.Resolv
 
 // Uninstall resolves and uninstalls according to the reverse dependency plan (reverse order for dependencies).
 func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, opts UninstallOptions) error {
-	if o.ReverseIndex == nil {
-		return fmt.Errorf("reverse index resolver is not configured: %w", errors.ErrValidation)
-	}
-
 	emit(o.Hooks, Event{Phase: "planning", Msg: req.Name})
 
 	// If both NoCascade and Force are true, skip reverse dependency resolution
@@ -554,9 +548,6 @@ func buildUpdateRequests(installed, packagesToUpdate []*model.InstalledArtifact)
 // executeUpdatePlan runs the resolved update and install steps during update flow.
 func (o *Orchestrator) executeUpdatePlan(ctx context.Context, plan model.ResolvedArtifacts, fetched map[string]string) (updatedCount, newlyInstalledCount int, err error) {
 	for _, step := range plan.Artifacts {
-		if step.Action != model.ResolvedActionInstall && step.Action != model.ResolvedActionUpdate {
-			continue
-		}
 		path := ""
 		if fetched != nil {
 			path = fetched[step.GetID()]
