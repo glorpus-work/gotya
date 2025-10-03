@@ -1252,16 +1252,9 @@ func TestUpdate_NoUpdatesAvailable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	// Setup test data - all packages are already at latest versions
+	// Setup test data - all packages are already at latest versions (so no artifacts returned)
 	plan := model.ResolvedArtifacts{
-		Artifacts: []model.ResolvedArtifact{
-			{
-				Name:    "pkgA",
-				Version: "1.0.0",
-				Action:  model.ResolvedActionSkip,
-				Reason:  "already at the latest version",
-			},
-		},
+		Artifacts: []model.ResolvedArtifact{},
 	}
 
 	// Setup mocks

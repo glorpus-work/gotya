@@ -68,8 +68,6 @@ const (
 	ResolvedActionInstall ResolvedAction = "install"
 	// ResolvedActionUpdate indicates an existing artifact should be updated.
 	ResolvedActionUpdate ResolvedAction = "update"
-	// ResolvedActionSkip indicates the artifact is already at the correct version.
-	ResolvedActionSkip ResolvedAction = "skip"
 
 	// StatusInstalled indicates the artifact is fully installed.
 	StatusInstalled ArtifactStatus = "installed"

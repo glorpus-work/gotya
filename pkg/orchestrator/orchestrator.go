@@ -186,8 +186,6 @@ func (o *Orchestrator) handleDryRunUpdate(plan model.ResolvedArtifacts) {
 		switch step.Action {
 		case model.ResolvedActionInstall, model.ResolvedActionUpdate:
 			phase = phaseUpdating
-		case model.ResolvedActionSkip:
-			phase = "skipping"
 		default:
 			phase = "processing"
 		}
@@ -392,9 +390,6 @@ func (o *Orchestrator) executeInstallPlan(ctx context.Context, plan model.Resolv
 			actionMsg = "installing"
 		case model.ResolvedActionUpdate:
 			actionMsg = phaseUpdating
-		case model.ResolvedActionSkip:
-			emit(o.Hooks, Event{Phase: "skipping", ID: step.GetID(), Msg: step.Reason})
-			continue
 		default:
 			actionMsg = "processing"
 		}
@@ -546,10 +541,6 @@ func buildUpdateRequests(installed, packagesToUpdate []*model.InstalledArtifact)
 // executeUpdatePlan runs the resolved update and install steps during update flow.
 func (o *Orchestrator) executeUpdatePlan(ctx context.Context, plan model.ResolvedArtifacts, fetched map[string]string) (updatedCount, newlyInstalledCount int, err error) {
 	for _, step := range plan.Artifacts {
-		if step.Action == model.ResolvedActionSkip {
-			emit(o.Hooks, Event{Phase: "skipping", ID: step.GetID(), Msg: step.Reason})
-			continue
-		}
 		if step.Action != model.ResolvedActionInstall && step.Action != model.ResolvedActionUpdate {
 			continue
 		}

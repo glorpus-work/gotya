@@ -256,19 +256,22 @@ func (r *multiResolver) resolveArtifacts(order []string) []model.ResolvedArtifac
 			continue
 		}
 
-		// Determine the action to take
+		// Skip artifacts that are already at the required version
+		if pref, hasPref := r.preferences[name]; hasPref && pref.oldVersion != "" {
+			if pref.oldVersion == d.Version {
+				// Artifact is already at correct version - skip it entirely
+				continue
+			}
+		}
+
+		// Determine the action to take for artifacts that need changes
 		action := model.ResolvedActionInstall
 		reason := "new artifact installation"
 
 		// Check if this artifact has a preference (indicating it was already installed)
 		if pref, hasPref := r.preferences[name]; hasPref && pref.oldVersion != "" {
-			if pref.oldVersion == d.Version {
-				action = model.ResolvedActionSkip
-				reason = "already at the required version"
-			} else {
-				action = model.ResolvedActionUpdate
-				reason = fmt.Sprintf("updating from %s to %s", pref.oldVersion, d.Version)
-			}
+			action = model.ResolvedActionUpdate
+			reason = fmt.Sprintf("updating from %s to %s", pref.oldVersion, d.Version)
 		}
 
 		steps = append(steps, model.ResolvedArtifact{

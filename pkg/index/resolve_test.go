@@ -43,26 +43,18 @@ func TestResolve_KeepVersionPreferenceHonored_NoUnnecessaryUpdates(t *testing.T)
 	})
 
 	require.NoError(t, err)
-	require.Len(t, plan.Artifacts, 2)
+	require.Len(t, plan.Artifacts, 1)
 
 	// Find entries by name to avoid depending on topo order
-	var libStep, toolStep *model.ResolvedArtifact
+	var toolStep *model.ResolvedArtifact
 	for i := range plan.Artifacts {
-		if plan.Artifacts[i].Name == "lib" {
-			libStep = &plan.Artifacts[i]
-		}
 		if plan.Artifacts[i].Name == "tool" {
 			toolStep = &plan.Artifacts[i]
 		}
 	}
-	require.NotNil(t, libStep)
 	require.NotNil(t, toolStep)
 
-	// Expectation: resolver should keep lib at 1.0.0 (skip) and install tool@1.0.0
-	assert.Equal(t, "1.0.0", libStep.Version)
-	assert.Equal(t, model.ResolvedActionSkip, libStep.Action)
-	assert.Contains(t, libStep.Reason, "already at the required version")
-
+	// Expectation: resolver should skip lib entirely (not include it) and install tool@1.0.0
 	assert.Equal(t, "1.0.0", toolStep.Version)
 	assert.Equal(t, model.ResolvedActionInstall, toolStep.Action)
 }
@@ -313,25 +305,17 @@ func TestResolve_WithInstalledArtifacts_CompatibleVersions(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Len(t, plan.Artifacts, 2)
+	require.Len(t, plan.Artifacts, 1)
 
-	// With KeepVersion=true and constraint ">= 1.0.0", prefer keeping lib@1.0.0
+	// With KeepVersion=true and constraint ">= 1.0.0", prefer keeping lib@1.0.0 (skip it entirely)
 	// Validate by finding entries by name
-	var libStep, appStep *model.ResolvedArtifact
+	var appStep *model.ResolvedArtifact
 	for i := range plan.Artifacts {
-		if plan.Artifacts[i].Name == "lib" {
-			libStep = &plan.Artifacts[i]
-		}
 		if plan.Artifacts[i].Name == "app" {
 			appStep = &plan.Artifacts[i]
 		}
 	}
-	require.NotNil(t, libStep)
 	require.NotNil(t, appStep)
-
-	assert.Equal(t, "1.0.0", libStep.Version)
-	assert.Equal(t, model.ResolvedActionSkip, libStep.Action)
-	assert.Contains(t, libStep.Reason, "already at the required version")
 
 	assert.Equal(t, "2.0.0", appStep.Version)
 	assert.Equal(t, model.ResolvedActionInstall, appStep.Action)
@@ -422,15 +406,12 @@ func TestResolve_WithInstalledArtifacts_SkipWhenCompatible(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Len(t, plan.Artifacts, 2)
+	require.Len(t, plan.Artifacts, 1)
 
-	// Should skip lib since it's already at the correct version
-	assert.Equal(t, "lib@1.0.0", plan.Artifacts[0].GetID())
-	assert.Equal(t, model.ResolvedActionSkip, plan.Artifacts[0].Action)
-	assert.Contains(t, plan.Artifacts[0].Reason, "already at the required version")
-
-	assert.Equal(t, "app@1.0.0", plan.Artifacts[1].GetID())
-	assert.Equal(t, model.ResolvedActionInstall, plan.Artifacts[1].Action)
+	// Should skip lib entirely since it's already at the correct version
+	// Only app should be in the resolved artifacts
+	assert.Equal(t, "app@1.0.0", plan.Artifacts[0].GetID())
+	assert.Equal(t, model.ResolvedActionInstall, plan.Artifacts[0].Action)
 }
 
 func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
@@ -474,13 +455,11 @@ func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Len(t, plan.Artifacts, 3)
+	require.Len(t, plan.Artifacts, 2)
 
-	var libAAction, libBAction, appAction model.ResolvedAction
+	var libBAction, appAction model.ResolvedAction
 	for _, artifact := range plan.Artifacts {
 		switch artifact.Name {
-		case "lib-a":
-			libAAction = artifact.Action
 		case "lib-b":
 			libBAction = artifact.Action
 		case "app":
@@ -488,9 +467,9 @@ func TestResolve_WithInstalledArtifacts_ComplexScenario(t *testing.T) {
 		}
 	}
 
-	assert.Equal(t, model.ResolvedActionSkip, libAAction, "lib-a should be kept")
-	assert.Equal(t, model.ResolvedActionUpdate, libBAction, "lib-b should be updated to latest version")
+	assert.Equal(t, model.ResolvedActionUpdate, libBAction, "lib-b should be updated")
 	assert.Equal(t, model.ResolvedActionInstall, appAction, "app should be installed")
+	// lib-a should be skipped entirely since it's already at correct version
 }
 
 func TestResolve_MultipleRequestsWithMixedKeepVersion(t *testing.T) {
@@ -546,14 +525,12 @@ func TestResolve_MultipleRequestsWithMixedKeepVersion(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Len(t, plan.Artifacts, 4)
+	require.Len(t, plan.Artifacts, 3)
 
 	// Verify actions based on KeepVersion settings
-	var libAAction, libBAction, libCAction, appAction model.ResolvedAction
+	var libBAction, libCAction, appAction model.ResolvedAction
 	for _, artifact := range plan.Artifacts {
 		switch artifact.Name {
-		case "lib-a":
-			libAAction = artifact.Action
 		case "lib-b":
 			libBAction = artifact.Action
 		case "lib-c":
@@ -563,8 +540,7 @@ func TestResolve_MultipleRequestsWithMixedKeepVersion(t *testing.T) {
 		}
 	}
 
-	// lib-a should be updated (even with KeepVersion=true, latest version wins)
-	assert.Equal(t, model.ResolvedActionSkip, libAAction, "lib-a should be kept")
+	// lib-a should be skipped entirely (not in the list)
 	// lib-b should be updated (KeepVersion=false)
 	assert.Equal(t, model.ResolvedActionUpdate, libBAction, "lib-b should be updated")
 	// lib-c should be updated (KeepVersion=true, dependency version wins)
