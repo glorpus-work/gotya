@@ -137,6 +137,12 @@ func TestFuzzyMatchScore(t *testing.T) {
 		score := fuzzyMatchScore("", "package-a")
 		assert.Equal(t, 90, score) // Empty string is considered a prefix match (bug in algorithm)
 	})
+
+	t.Run("PartialWordMatch", func(t *testing.T) {
+		score := fuzzyMatchScore("a pp", "another-app")
+		assert.Equal(t, 50, score)
+	})
+
 }
 
 func TestWriteIndexToFile(t *testing.T) {
