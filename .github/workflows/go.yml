@@ -39,7 +39,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.out
-          flags: integration,unit,${{matrix.os}},${{ matrix.go-version }}
+          flags: integration,unit,${{matrix.os}}
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: glorpus-work/gotya
 
