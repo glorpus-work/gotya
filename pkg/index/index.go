@@ -22,7 +22,7 @@ import (
 // ScoredArtifact represents an artifact with its relevance score for sorting
 type ScoredArtifact struct {
 	Artifact *model.IndexArtifactDescriptor
-	Score    float64
+	Score    int
 }
 
 // GetFormatVersion returns the format version.
@@ -136,20 +136,20 @@ func (idx *Index) FuzzySearchArtifacts(query string) []*model.IndexArtifactDescr
 }
 
 // fuzzyMatchScore calculates a similarity score between query and target.
-// Returns 0 if no match, higher scores for better matches.
-func fuzzyMatchScore(query, target string) float64 {
+// Returns 0 if no match, higher scores for better matches (0-100 range).
+func fuzzyMatchScore(query, target string) int {
 	if query == target {
-		return 1.0 // Exact match
+		return 100 // Exact match
 	}
 
 	// Simple fuzzy matching: check if query is contained in target
 	if strings.Contains(target, query) {
 		// Bonus for prefix matches
 		if strings.HasPrefix(target, query) {
-			return 0.9
+			return 90
 		}
 		// Penalty for substring matches (less specific)
-		return 0.7
+		return 70
 	}
 
 	// Check for partial word matches
@@ -159,12 +159,12 @@ func fuzzyMatchScore(query, target string) float64 {
 	for _, qWord := range queryWords {
 		for _, tWord := range targetWords {
 			if strings.Contains(tWord, qWord) {
-				return 0.5
+				return 50
 			}
 		}
 	}
 
-	return 0.0 // No match
+	return 0 // No match
 }
 
 // WriteIndexToFile writes the index to the specified file path.

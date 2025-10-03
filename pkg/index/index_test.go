@@ -110,32 +110,32 @@ func TestFuzzySearchArtifacts(t *testing.T) {
 func TestFuzzyMatchScore(t *testing.T) {
 	t.Run("ExactMatch", func(t *testing.T) {
 		score := fuzzyMatchScore("package-a", "package-a")
-		assert.Equal(t, 1.0, score)
+		assert.Equal(t, 100, score)
 	})
 
 	t.Run("PrefixMatch", func(t *testing.T) {
 		score := fuzzyMatchScore("pack", "package-a")
-		assert.Equal(t, 0.9, score)
+		assert.Equal(t, 90, score)
 	})
 
 	t.Run("SubstringMatch", func(t *testing.T) {
 		score := fuzzyMatchScore("age", "package-a")
-		assert.Equal(t, 0.7, score)
+		assert.Equal(t, 70, score)
 	})
 
 	t.Run("WordMatch", func(t *testing.T) {
 		score := fuzzyMatchScore("app", "another-app")
-		assert.Equal(t, 0.7, score) // substring match, not word match
+		assert.Equal(t, 70, score) // substring match, not word match
 	})
 
 	t.Run("NoMatch", func(t *testing.T) {
 		score := fuzzyMatchScore("xyz", "package-a")
-		assert.Equal(t, 0.0, score)
+		assert.Equal(t, 0, score)
 	})
 
 	t.Run("EmptyQuery", func(t *testing.T) {
 		score := fuzzyMatchScore("", "package-a")
-		assert.Equal(t, 0.9, score) // Empty string is considered a prefix match (bug in algorithm)
+		assert.Equal(t, 90, score) // Empty string is considered a prefix match (bug in algorithm)
 	})
 }
 
