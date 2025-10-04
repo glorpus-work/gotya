@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"context"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -607,4 +609,201 @@ repositories:
 	assert.Contains(t, err.Error(), "packageA")
 	assert.Contains(t, err.Error(), "2.0.0")
 	assert.Contains(t, err.Error(), "3.0.0")
+}
+
+func TestInstall_WithAuthentication(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Build a repo with one artifact
+	defs := [][2]string{{"authapp", "1.0.0"}}
+	repoDir, _ := buildRepoDirWithArtifacts(t, tempDir, defs)
+
+	// Create a server that requires basic authentication
+	username := "testuser"
+	password := "testpass"
+	authHandler := func(h http.Handler) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			user, pass, ok := r.BasicAuth()
+			if !ok || user != username || pass != password {
+				w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			h.ServeHTTP(w, r)
+		}
+	}
+
+	// Start server with authentication
+	srv := httptest.NewServer(authHandler(http.FileServer(http.Dir(repoDir))))
+	defer srv.Close()
+
+	// Debug: Print the server URL and expected URL
+	t.Logf("Server URL: %s", srv.URL)
+	t.Logf("Expected index URL in config: %s/index.json", srv.URL)
+	t.Logf("Expected artifact URL pattern: %s/artifacts/*", srv.URL)
+
+	// Write config with authentication
+	cfgPath := filepath.Join(tempDir, "config.yaml")
+	cacheDir := filepath.Join(tempDir, "cache")
+	installDir := filepath.Join(tempDir, "install")
+	metaDir := filepath.Join(tempDir, "meta")
+	stateDir := filepath.Join(tempDir, "state")
+
+	yamlContent := `settings:
+  cache_dir: ` + cacheDir + `
+  install_dir: ` + installDir + `
+  meta_dir: ` + metaDir + `
+  state_dir: ` + stateDir + `
+  http_timeout: 5s
+  max_concurrent_syncs: 2
+repositories:
+  - name: authrepo
+    url: ` + srv.URL + `/index.json
+    enabled: true
+    priority: 1
+    auth:
+      basic:
+        username: ` + username + `
+        password: ` + password + `
+`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yamlContent), 0o600))
+
+	// Create the state directory structure
+	require.NoError(t, os.MkdirAll(filepath.Join(stateDir, "gotya", "state"), 0o755))
+
+	// Test successful sync and install with authentication
+	t.Run("SuccessWithAuth", func(t *testing.T) {
+		// First sync to download the index
+		syncCmd := newRootCmd()
+		syncCmd.SetArgs([]string{"--config", cfgPath, "sync"})
+		require.NoError(t, syncCmd.ExecuteContext(context.Background()))
+
+		// Run install
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"--config", cfgPath, "install", "authapp"})
+		require.NoError(t, cmd.ExecuteContext(context.Background()))
+
+		// Verify the artifact was installed by querying the DB
+		installed := getInstalledArtifactsFromDB(t, cfgPath)
+		var found bool
+		for _, a := range installed {
+			if a.Name == "authapp" && a.Version == "1.0.0" {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "authapp@1.0.0 should be installed")
+	})
+
+	// Test failure without authentication
+	t.Run("FailWithoutAuth", func(t *testing.T) {
+		// Build a repo with one artifact
+		defs := [][2]string{{"noauthapp", "1.0.0"}}
+		noAuthTempDir := t.TempDir()
+		repoDir, _ := buildRepoDirWithArtifacts(t, noAuthTempDir, defs)
+
+		// Create a server that requires basic authentication
+		username := "testuser"
+		password := "testpass"
+		authHandler := func(h http.Handler) http.HandlerFunc {
+			return func(w http.ResponseWriter, r *http.Request) {
+				user, pass, ok := r.BasicAuth()
+				if !ok || user != username || pass != password {
+					w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+					return
+				}
+				h.ServeHTTP(w, r)
+			}
+		}
+
+		// Start server with authentication
+		srv := httptest.NewServer(authHandler(http.FileServer(http.Dir(repoDir))))
+		defer srv.Close()
+
+		// Create config without authentication
+		noAuthConfig := `settings:
+  cache_dir: ` + noAuthTempDir + `/cache
+  install_dir: ` + noAuthTempDir + `/install
+  meta_dir: ` + noAuthTempDir + `/meta
+  state_dir: ` + noAuthTempDir + `/state
+  http_timeout: 5s
+  max_concurrent_syncs: 2
+repositories:
+  - name: noauthrepo
+    url: ` + srv.URL + `/index.json
+    enabled: true
+    priority: 1
+`
+		noAuthCfgPath := filepath.Join(noAuthTempDir, "noauth-config.yaml")
+		require.NoError(t, os.WriteFile(noAuthCfgPath, []byte(noAuthConfig), 0o600))
+
+		// Create the state directory structure
+		require.NoError(t, os.MkdirAll(filepath.Join(noAuthTempDir, "state", "gotya", "state"), 0o755))
+
+		// Try to sync without auth - should fail
+		syncCmd := newRootCmd()
+		syncCmd.SetArgs([]string{"--config", noAuthCfgPath, "sync"})
+		err := syncCmd.ExecuteContext(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "401")
+	})
+
+	// Test failure with wrong authentication
+	t.Run("FailWithWrongAuth", func(t *testing.T) {
+		// Build a repo with one artifact
+		defs := [][2]string{{"wrongauthapp", "1.0.0"}}
+		wrongAuthTempDir := t.TempDir()
+		repoDir, _ := buildRepoDirWithArtifacts(t, wrongAuthTempDir, defs)
+
+		// Create a server that requires basic authentication
+		username := "testuser"
+		password := "testpass"
+		authHandler := func(h http.Handler) http.HandlerFunc {
+			return func(w http.ResponseWriter, r *http.Request) {
+				user, pass, ok := r.BasicAuth()
+				if !ok || user != username || pass != password {
+					w.Header().Set("WWW-Authenticate", `Basic realm="test"`)
+					http.Error(w, "Unauthorized", http.StatusUnauthorized)
+					return
+				}
+				h.ServeHTTP(w, r)
+			}
+		}
+
+		// Start server with authentication
+		srv := httptest.NewServer(authHandler(http.FileServer(http.Dir(repoDir))))
+		defer srv.Close()
+
+		// Create config with wrong authentication
+		wrongAuthConfig := `settings:
+  cache_dir: ` + wrongAuthTempDir + `/cache
+  install_dir: ` + wrongAuthTempDir + `/install
+  meta_dir: ` + wrongAuthTempDir + `/meta
+  state_dir: ` + wrongAuthTempDir + `/state
+  http_timeout: 5s
+  max_concurrent_syncs: 2
+repositories:
+  - name: wrongauthrepo
+    url: ` + srv.URL + `/index.json
+    enabled: true
+    priority: 1
+    auth:
+      basic:
+        username: wronguser
+        password: wrongpass
+`
+		wrongAuthCfgPath := filepath.Join(wrongAuthTempDir, "wrongauth-config.yaml")
+		require.NoError(t, os.WriteFile(wrongAuthCfgPath, []byte(wrongAuthConfig), 0o600))
+
+		// Create the state directory structure
+		require.NoError(t, os.MkdirAll(filepath.Join(wrongAuthTempDir, "state", "gotya", "state"), 0o755))
+
+		// Try to sync with wrong auth - should fail
+		syncCmd := newRootCmd()
+		syncCmd.SetArgs([]string{"--config", wrongAuthCfgPath, "sync"})
+		err := syncCmd.ExecuteContext(context.Background())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "401")
+	})
 }

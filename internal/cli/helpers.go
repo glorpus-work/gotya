@@ -58,7 +58,9 @@ func (f *ManagerFactory) CreateArtifactManager() artifact.Manager {
 
 // CreateDownloadManager creates a download manager from the configuration.
 func (f *ManagerFactory) CreateDownloadManager() download.Manager {
-	return download.NewManager(f.config.Settings.HTTPTimeout, "")
+	dm := download.NewManager(f.config.Settings.HTTPTimeout, "")
+	dm.SetAuthenticators(f.config.ToAuthMap())
+	return dm
 }
 
 // This is a bridge function that the CLI commands can use.

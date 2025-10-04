@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/glorpus-work/gotya/pkg/auth"
 	pkgerrors "github.com/glorpus-work/gotya/pkg/errors"
 	"github.com/glorpus-work/gotya/pkg/fsutil"
 )
@@ -22,8 +23,9 @@ import (
 // and basic de-duplication. It is intentionally minimal and can be extended later
 // with retries, backoff, mirror selection, and content-addressed storage.
 type ManagerImpl struct {
-	client    *http.Client
-	userAgent string
+	client         *http.Client
+	userAgent      string
+	authenticators map[string]auth.Authenticator
 }
 
 // NewManager creates a new download manager with the given timeout and user agent.
@@ -35,6 +37,11 @@ func NewManager(timeout time.Duration, userAgent string) *ManagerImpl {
 		client:    &http.Client{Timeout: timeout},
 		userAgent: userAgent,
 	}
+}
+
+// SetAuthenticators sets the authenticators for the manager. The mapping is url prefix to authenticator.
+func (m *ManagerImpl) SetAuthenticators(authenticators map[string]auth.Authenticator) {
+	m.authenticators = authenticators
 }
 
 // FetchAll downloads multiple items concurrently and returns a map of item IDs to downloaded file paths.
@@ -198,6 +205,9 @@ func (m *ManagerImpl) doRequest(ctx context.Context, item Item) (*http.Response,
 	if err != nil {
 		return nil, pkgerrors.Wrap(err, "failed to create request")
 	}
+	if err := m.applyAuthenticators(req, item.URL.String()); err != nil {
+		return nil, pkgerrors.Wrap(err, "failed to apply authenticators")
+	}
 	req.Header.Set("User-Agent", m.userAgent)
 	resp, err := m.client.Do(req)
 	if err != nil {
@@ -208,6 +218,15 @@ func (m *ManagerImpl) doRequest(ctx context.Context, item Item) (*http.Response,
 		return nil, fmt.Errorf("unexpected status code: %d: %w", resp.StatusCode, pkgerrors.ErrDownloadFailed)
 	}
 	return resp, nil
+}
+
+func (m *ManagerImpl) applyAuthenticators(req *http.Request, url string) error {
+	for prefix, authenticator := range m.authenticators {
+		if strings.HasPrefix(url, prefix) {
+			return authenticator.Apply(req)
+		}
+	}
+	return nil
 }
 
 func writeBodyToTemp(resp *http.Response, absPath string) (string, error) {
