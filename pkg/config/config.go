@@ -30,10 +30,11 @@ type Config struct {
 
 // RepositoryConfig represents a single index configuration.
 type RepositoryConfig struct {
-	Name     string `yaml:"name"`
-	URL      string `yaml:"url"`
-	Enabled  bool   `yaml:"enabled"`
-	Priority uint   `yaml:"priority"`
+	Name     string      `yaml:"name"`
+	URL      string      `yaml:"url"`
+	Enabled  bool        `yaml:"enabled"`
+	Priority uint        `yaml:"priority"`
+	Auth     *AuthConfig `yaml:"auth,omitempty"`
 }
 
 // PlatformConfig represents platform-specific configuration.
