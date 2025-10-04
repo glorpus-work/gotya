@@ -7,6 +7,8 @@ package download
 import (
 	"context"
 	"net/url"
+
+	"github.com/glorpus-work/gotya/pkg/auth"
 )
 
 // Manager defines the interface for downloading remote artifacts (indexes, packages, etc.).
@@ -20,6 +22,9 @@ type Manager interface {
 	// Fetch downloads a single item to a deterministic location (within opts.Dir).
 	// It returns the absolute local file path.
 	Fetch(ctx context.Context, item Item, opts Options) (string, error)
+
+	// SetAuthenticators sets the authenticators for the manager. The mapping is url prefix to authenticator.
+	SetAuthenticators(authenticators map[string]auth.Authenticator)
 }
 
 // Item represents one remote resource to download.

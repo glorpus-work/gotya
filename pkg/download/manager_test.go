@@ -8,9 +8,11 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/glorpus-work/gotya/pkg/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -246,6 +248,145 @@ func TestFetchAll_Concurrent(t *testing.T) {
 				content, err := os.ReadFile(path)
 				require.NoError(t, err, "failed to read file for item %d", i)
 				require.Equal(t, serverResponses[item.ID], string(content), "content mismatch for item %d", i)
+			}
+		})
+	}
+}
+
+func TestFetch_WithAuthentication(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupServer func() (*httptest.Server, string)
+		setupAuth   func(serverURL string) map[string]auth.Authenticator
+		expectError bool
+	}{
+		{
+			name: "basic auth success",
+			setupServer: func() (*httptest.Server, string) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					username, password, ok := r.BasicAuth()
+					if !ok || username != "user" || password != "pass" {
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte("authenticated content"))
+				}))
+				return server, server.URL
+			},
+			setupAuth: func(serverURL string) map[string]auth.Authenticator {
+				return map[string]auth.Authenticator{
+					serverURL: &auth.BasicAuth{
+						Username: "user",
+						Password: "pass",
+					},
+				}
+			},
+			expectError: false,
+		},
+		{
+			name: "header auth success",
+			setupServer: func() (*httptest.Server, string) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Header.Get("X-API-Key") != "secret-key" {
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte("authenticated content"))
+				}))
+				return server, server.URL
+			},
+			setupAuth: func(serverURL string) map[string]auth.Authenticator {
+				return map[string]auth.Authenticator{
+					serverURL: &auth.HeaderAuth{
+						Headers: map[string]string{
+							"X-API-Key": "secret-key",
+						},
+					},
+				}
+			},
+			expectError: false,
+		},
+		{
+			name: "bearer token auth success",
+			setupServer: func() (*httptest.Server, string) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					authHeader := r.Header.Get("Authorization")
+					if authHeader != "Bearer test-token-123" {
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte("authenticated content"))
+				}))
+				return server, server.URL
+			},
+			setupAuth: func(serverURL string) map[string]auth.Authenticator {
+				return map[string]auth.Authenticator{
+					serverURL: &auth.BearerAuth{
+						Token: "test-token-123",
+					},
+				}
+			},
+			expectError: false,
+		},
+		{
+			name: "no matching authenticator",
+			setupServer: func() (*httptest.Server, string) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte("authenticated content"))
+				}))
+				// Return a different URL for the authenticator to ensure no match
+				return server, server.URL
+			},
+			setupAuth: func(_ string) map[string]auth.Authenticator {
+				return map[string]auth.Authenticator{
+					"http://other.example.com": &auth.BasicAuth{
+						Username: "user",
+						Password: "pass",
+					},
+				}
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server, authURL := tt.setupServer()
+			defer server.Close()
+
+			testURL, err := url.Parse(server.URL)
+			require.NoError(t, err)
+
+			item := Item{
+				ID:  "test-auth",
+				URL: testURL,
+			}
+
+			tempDir := t.TempDir()
+			m := NewManager(time.Second, "test")
+
+			// Set up authenticators with the test server's URL
+			authenticators := tt.setupAuth(authURL)
+			m.SetAuthenticators(authenticators)
+
+			_, err = m.Fetch(context.Background(), item, Options{Dir: tempDir})
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				// Verify the file was created with the expected content
+				files, err := os.ReadDir(tempDir)
+				require.NoError(t, err)
+				require.Len(t, files, 1, "Expected exactly one file in the temp directory")
+
+				content, err := os.ReadFile(filepath.Join(tempDir, files[0].Name()))
+				require.NoError(t, err)
+				require.Equal(t, "authenticated content", string(content))
 			}
 		})
 	}
