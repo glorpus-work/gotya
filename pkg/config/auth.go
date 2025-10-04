@@ -1,7 +1,11 @@
 // Package config provides configuration structures and utilities for the application.
 package config
 
-import "github.com/glorpus-work/gotya/pkg/auth"
+import (
+	"strings"
+
+	"github.com/glorpus-work/gotya/pkg/auth"
+)
 
 // AuthConfigContainer defines the interface for authentication configuration types that can be converted to an Authenticator.
 type AuthConfigContainer interface {
@@ -53,7 +57,7 @@ func (b *BearerAuth) ToAuthenticator() auth.Authenticator {
 	}
 }
 
-// ToAuthMap converts the repository authentication configurations to a map of repository names to Authenticators.
+// ToAuthMap converts the repository authentication configurations to a map of URL prefixes to Authenticators.
 // Returns nil if no authentication configurations are found.
 func (c *Config) ToAuthMap() map[string]auth.Authenticator {
 	results := make(map[string]auth.Authenticator, len(c.Repositories))
@@ -61,17 +65,27 @@ func (c *Config) ToAuthMap() map[string]auth.Authenticator {
 		if repo.Auth == nil {
 			continue
 		}
-		switch {
-		case repo.Auth.BasicAuth != nil:
-			results[repo.Name] = repo.Auth.BasicAuth.ToAuthenticator()
-		case repo.Auth.HeaderAuth != nil:
-			results[repo.Name] = repo.Auth.HeaderAuth.ToAuthenticator()
-		case repo.Auth.BearerAuth != nil:
-			results[repo.Name] = repo.Auth.BearerAuth.ToAuthenticator()
-		default:
-			return nil
-		}
 
+		// Use the repository URL as the key for authentication matching
+		if repo.URL != "" {
+			// For URLs that end with /index.json, use the base URL as the prefix
+			// This allows authentication to work for both index.json and artifact downloads
+			urlPrefix := repo.URL
+			if strings.HasSuffix(repo.URL, "/index.json") {
+				urlPrefix = strings.TrimSuffix(repo.URL, "/index.json")
+			}
+
+			switch {
+			case repo.Auth.BasicAuth != nil:
+				results[urlPrefix] = repo.Auth.BasicAuth.ToAuthenticator()
+			case repo.Auth.HeaderAuth != nil:
+				results[urlPrefix] = repo.Auth.HeaderAuth.ToAuthenticator()
+			case repo.Auth.BearerAuth != nil:
+				results[urlPrefix] = repo.Auth.BearerAuth.ToAuthenticator()
+			default:
+				return nil
+			}
+		}
 	}
 
 	if len(results) == 0 {
