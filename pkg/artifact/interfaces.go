@@ -1,3 +1,4 @@
+//go:generate mockgen -destination=./mocks/interfaces.go . ArchiveExtractor
 package artifact
 
 import (
@@ -24,4 +25,10 @@ type Manager interface {
 	// GetInstalledArtifacts returns all installed artifacts
 	GetInstalledArtifacts() ([]*model.InstalledArtifact, error)
 	SetArtifactManuallyInstalled(artifactName string) error
+}
+
+// ArchiveExtractor defines the interface for extracting artifacts from archives.
+type ArchiveExtractor interface {
+	ExtractAll(ctx context.Context, archivePath, destDir string) error
+	ExtractFile(ctx context.Context, archivePath, filePath, destPath string) error
 }
