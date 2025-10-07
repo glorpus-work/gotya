@@ -24,6 +24,7 @@ linters:
   settings:
     funlen:
       lines: -1
+      statements: 50
     decorder:
       disable-dec-order-check: false
     gocritic:

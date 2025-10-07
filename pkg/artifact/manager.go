@@ -22,7 +22,7 @@ type ManagerImpl struct {
 	artifactDataInstallDir string
 	artifactMetaInstallDir string
 	verifier               *Verifier
-	archiveManager         *archive.Manager
+	archiveExtractor       ArchiveExtractor
 	hookExecutor           HookExecutor
 	installDB              database.InstalledManager
 }
@@ -37,7 +37,7 @@ func NewManager(operatingSystem, arch, artifactCacheDir, artifactInstallDir, art
 		artifactDataInstallDir: artifactInstallDir,
 		artifactMetaInstallDir: artifactMetaInstallDir,
 		verifier:               NewVerifier(),
-		archiveManager:         archive.NewManager(),
+		archiveExtractor:       archive.NewManager(),
 		hookExecutor:           NewHookExecutor(),
 		installDB:              database.NewInstalledMangerWithPath(installedDBPath),
 	}
@@ -192,7 +192,6 @@ func (m *ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string
 // This method uses the simple approach: uninstall the old version, then install the new version.
 // If the installation fails, the old version remains uninstalled.
 func (m *ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string, desc *model.IndexArtifactDescriptor) error {
-	// TODO: revert logic
 	if desc == nil {
 		return errors.Wrap(errors.ErrValidation, "new descriptor cannot be nil")
 	}
@@ -231,12 +230,18 @@ func (m *ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string
 		return err
 	}
 
-	tempDataDir, tempMetaDir, err := m.moveInstallationFiles(installedArtifact)
+	tempDataDir, tempMetaDir, err := m.backupInstallationFiles(installedArtifact)
 	if err != nil {
 		return err
 	}
+	oldArtifact := m.copyDBArtifact(installedArtifact)
+	m.installDB.RemoveArtifact(installedArtifact.Name)
 
 	defer func() {
+		if err != nil {
+			_ = m.restoreInstallationFiles(tempDataDir, tempMetaDir, installedArtifact)
+			m.restoreDBArtifact(oldArtifact)
+		}
 		if tempDataDir != "" {
 			_ = os.RemoveAll(tempDataDir)
 		}
@@ -412,7 +417,7 @@ func (m *ManagerImpl) executePreUpdateHook(installedArtifact *model.InstalledArt
 
 // extractAndVerify extracts and verifies the artifact to a temp directory
 func (m *ManagerImpl) extractAndVerify(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, extractDir string) error {
-	if err := m.archiveManager.ExtractAll(ctx, localPath, extractDir); err != nil {
+	if err := m.archiveExtractor.ExtractAll(ctx, localPath, extractDir); err != nil {
 		return errors.Wrap(err, "failed to extract artifact")
 	}
 
@@ -511,8 +516,8 @@ func (m *ManagerImpl) executePostInstallHook(desc *model.IndexArtifactDescriptor
 	return nil
 }
 
-// moveInstallationFiles moves the installation files to a new location
-func (m *ManagerImpl) moveInstallationFiles(installedArtifact *model.InstalledArtifact) (string, string, error) {
+// backupInstallationFiles moves the installation files to a new location
+func (m *ManagerImpl) backupInstallationFiles(installedArtifact *model.InstalledArtifact) (string, string, error) {
 	tempMetaDir, err := os.MkdirTemp(m.artifactMetaInstallDir, fmt.Sprintf(".gotya-update-meta-temp-%s-%s", installedArtifact.Name, installedArtifact.Version))
 	if err != nil {
 		return "", "", errors.Wrap(err, "failed to create temp meta dir")
@@ -533,6 +538,36 @@ func (m *ManagerImpl) moveInstallationFiles(installedArtifact *model.InstalledAr
 	}
 
 	return tempDataDir, tempMetaDir, nil
+}
+
+func (m *ManagerImpl) restoreInstallationFiles(tempDataDir, tempMetaDir string, installedArtifact *model.InstalledArtifact) error {
+	_ = os.Remove(installedArtifact.ArtifactMetaDir)
+	if err := fsutil.Move(filepath.Join(tempMetaDir, installedArtifact.Name), installedArtifact.ArtifactMetaDir); err != nil {
+		return errors.Wrapf(err, "failed to move artifact meta from %s to %s", tempMetaDir, m.artifactMetaInstallDir)
+	}
+	if len(tempDataDir) > 0 {
+		_ = os.Remove(installedArtifact.ArtifactDataDir)
+		if err := fsutil.Move(filepath.Join(tempDataDir, installedArtifact.Name), installedArtifact.ArtifactDataDir); err != nil {
+			return errors.Wrapf(err, "failed to move artifact data from %s to %s", tempDataDir, m.artifactDataInstallDir)
+		}
+	}
+	return nil
+}
+
+func (m *ManagerImpl) copyDBArtifact(artifact *model.InstalledArtifact) *model.InstalledArtifact {
+	return &model.InstalledArtifact{
+		Name:                artifact.Name,
+		Version:             artifact.Version,
+		InstallationReason:  artifact.InstallationReason,
+		ReverseDependencies: artifact.ReverseDependencies,
+		Status:              artifact.Status,
+		ArtifactMetaDir:     artifact.ArtifactMetaDir,
+		ArtifactDataDir:     artifact.ArtifactDataDir,
+	}
+}
+
+func (m *ManagerImpl) restoreDBArtifact(artifact *model.InstalledArtifact) {
+	m.installDB.AddArtifact(artifact)
 }
 
 // loadInstalledDB loads or initializes the installed artifacts database.

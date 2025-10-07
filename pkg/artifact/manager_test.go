@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/glorpus-work/gotya/pkg/artifact/database"
+	mock_artifact "github.com/glorpus-work/gotya/pkg/artifact/mocks"
 	"github.com/glorpus-work/gotya/pkg/errors"
 	"github.com/glorpus-work/gotya/pkg/model"
 	"github.com/stretchr/testify/assert"
@@ -1093,6 +1094,106 @@ func TestUpdateArtifact_DowngradeVersion(t *testing.T) {
 	updatedInstalled := db.FindArtifact(artifactName)
 	require.NotNil(t, updatedInstalled)
 	assert.Equal(t, "1.0.0", updatedInstalled.Version)
+}
+
+// TestUpdateArtifact_RollbackOnExtractionFailure tests that UpdateArtifact rolls back to the old version when extraction fails
+func TestUpdateArtifact_RollbackOnExtractionFailure(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "installed.db")
+	mgr := NewManager("linux", "amd64", tempDir, filepath.Join(tempDir, "install", artifactDataDir), filepath.Join(tempDir, "install", artifactMetaDir), dbPath)
+	artifactName := "test-artifact"
+
+	// Create and install the original version (v1.0.0)
+	originalArtifact := filepath.Join(tempDir, "original.gotya")
+	originalMetadata := &Metadata{
+		Name:        artifactName,
+		Version:     "1.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Original version",
+	}
+	setupTestArtifact(t, originalArtifact, true, originalMetadata)
+
+	originalDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "1.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/v1.0.0.gotya",
+	}
+
+	// Install the original version
+	err := mgr.InstallArtifact(context.Background(), originalDesc, originalArtifact, model.InstallationReasonManual)
+	require.NoError(t, err)
+
+	// Verify original version is installed
+	db := loadInstalledDB(t, dbPath)
+	originalInstalled := db.FindArtifact(artifactName)
+	require.NotNil(t, originalInstalled)
+	assert.Equal(t, "1.0.0", originalInstalled.Version)
+	assert.Equal(t, "http://example.com/v1.0.0.gotya", originalInstalled.InstalledFrom)
+	originalMetaDir := originalInstalled.ArtifactMetaDir
+	originalDataDir := originalInstalled.ArtifactDataDir
+
+	// Verify original files exist
+	assert.DirExists(t, originalMetaDir)
+	assert.DirExists(t, originalDataDir)
+	assert.FileExists(t, filepath.Join(originalMetaDir, "artifact.json"))
+
+	// Create a mock ArchiveExtractor that fails during extraction
+	mockExtractor := mock_artifact.NewMockArchiveExtractor(ctrl)
+	mockExtractor.EXPECT().
+		ExtractAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(fmt.Errorf("extraction failed: simulated error"))
+
+	// Replace the archive extractor with the mock
+	mgr.archiveExtractor = mockExtractor
+
+	// Create the updated version artifact file (v2.0.0)
+	updatedArtifact := filepath.Join(tempDir, "updated.gotya")
+	updatedMetadata := &Metadata{
+		Name:        artifactName,
+		Version:     "2.0.0",
+		OS:          "linux",
+		Arch:        "amd64",
+		Maintainer:  "test@example.com",
+		Description: "Updated version",
+	}
+	setupTestArtifact(t, updatedArtifact, true, updatedMetadata)
+
+	updatedDesc := &model.IndexArtifactDescriptor{
+		Name:    artifactName,
+		Version: "2.0.0",
+		OS:      "linux",
+		Arch:    "amd64",
+		URL:     "http://example.com/v2.0.0.gotya",
+	}
+
+	// Attempt to update - this should fail due to extraction error
+	err = mgr.UpdateArtifact(context.Background(), updatedArtifact, updatedDesc)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "extraction failed")
+
+	// Verify rollback: original version should still be installed
+	db = loadInstalledDB(t, dbPath)
+	rolledBackArtifact := db.FindArtifact(artifactName)
+	require.NotNil(t, rolledBackArtifact, "artifact should still exist after rollback")
+	assert.Equal(t, "1.0.0", rolledBackArtifact.Version, "version should be rolled back to 1.0.0")
+	assert.Equal(t, "http://example.com/v1.0.0.gotya", rolledBackArtifact.InstalledFrom, "URL should be rolled back")
+	assert.Equal(t, model.StatusInstalled, rolledBackArtifact.Status, "status should remain installed")
+
+	// Verify original files are restored
+	assert.DirExists(t, originalMetaDir, "original meta directory should be restored")
+	assert.DirExists(t, originalDataDir, "original data directory should be restored")
+	assert.FileExists(t, filepath.Join(originalMetaDir, "artifact.json"), "original metadata file should be restored")
+
+	// Verify the artifact is still functional (can be uninstalled)
+	err = mgr.UninstallArtifact(context.Background(), artifactName, false)
+	require.NoError(t, err, "rolled back artifact should be uninstallable")
 }
 
 // TestUpdateArtifact_SameURLDifferentVersion tests updating with same URL but different version
