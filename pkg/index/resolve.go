@@ -6,7 +6,7 @@ import (
 	slices2 "slices"
 	"strings"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
 
@@ -40,7 +40,7 @@ func (rm *ManagerImpl) Resolve(ctx context.Context, requests []*model.ResolveReq
 	_ = ctx // reserved for future use
 
 	if len(requests) == 0 {
-		return model.ResolvedArtifacts{}, fmt.Errorf("no resolve requests provided: %w", errors.ErrValidation)
+		return model.ResolvedArtifacts{}, fmt.Errorf("no resolve requests provided: %w", errutils.ErrValidation)
 	}
 
 	// Normalize version constraints
@@ -130,7 +130,7 @@ func (r *multiResolver) resolveAll() error {
 
 func (r *multiResolver) resolveNode(name string) error {
 	if _, ok := r.visiting[name]; ok {
-		return fmt.Errorf("dependency cycle detected involving %s: %w", name, errors.ErrValidation)
+		return fmt.Errorf("dependency cycle detected involving %s: %w", name, errutils.ErrValidation)
 	}
 	r.visiting[name] = struct{}{}
 	defer delete(r.visiting, name)
@@ -173,7 +173,7 @@ func (r *multiResolver) resolveNode(name string) error {
 		r.selected[name] = desc
 		// refresh deps list
 		if desc == nil {
-			return errors.Wrapf(errors.ErrArtifactNotFound, "failed to resolve artifact %s: no descriptor returned", name)
+			return errutils.Wrapf(errutils.ErrArtifactNotFound, "failed to resolve artifact %s: no descriptor returned", name)
 		}
 		r.deps[name] = nil
 		for _, d := range desc.Dependencies {

@@ -8,7 +8,7 @@ package model
 import (
 	"net/url"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/platform"
 	"github.com/hashicorp/go-version"
 )
@@ -102,7 +102,7 @@ func (a *IndexArtifactDescriptor) GetURL() *url.URL {
 // Verify checks if this artifact descriptor is valid.
 func (a *IndexArtifactDescriptor) Verify() error {
 	if a.Name == "" || a.Version == "" || a.URL == "" {
-		return errors.ErrValidation
+		return errutils.ErrValidation
 
 	}
 	return nil

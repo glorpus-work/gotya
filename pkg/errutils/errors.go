@@ -1,4 +1,4 @@
-// Package errors provides a comprehensive error handling system for the gotya package manager.
+// Package errutils provides a comprehensive error handling system for the gotya package manager.
 // It defines common error types, provides error wrapping functionality, and offers utilities
 // for creating and working with domain-specific errors. The package follows Go's error handling
 // best practices and provides consistent error messages across the application.
@@ -9,7 +9,7 @@
 // - Helper functions for creating specific error types
 // - Support for error categorization and comparison
 // - Utilities for file and JSON operation errors
-package errors
+package errutils
 
 import (
 	"fmt"

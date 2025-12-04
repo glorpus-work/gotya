@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/fsutil"
 )
 
@@ -25,12 +25,12 @@ func NewManager(directory string) *DefaultManager {
 func NewDefaultManager() (*DefaultManager, error) {
 	cacheDir, err := fsutil.GetCacheDir()
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get user cache directory")
+		return nil, errutils.Wrapf(err, "failed to get user cache directory")
 	}
 
 	// Ensure the cache directory exists with appropriate permissions
 	if err := os.MkdirAll(cacheDir, os.FileMode(CacheDirPerm)); err != nil {
-		return nil, errors.Wrapf(err, "failed to create cache directory")
+		return nil, errutils.Wrapf(err, "failed to create cache directory")
 	}
 
 	return NewManager(cacheDir), nil
@@ -48,7 +48,7 @@ func (cm *DefaultManager) Clean(options CleanOptions) (*CleanResult, error) {
 	if options.All || options.Indexes {
 		size, err := cm.cleanIndexCache()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to clean index cache")
+			return nil, errutils.Wrapf(err, "failed to clean index cache")
 		}
 		result.IndexFreed = size
 		result.TotalFreed += size
@@ -57,7 +57,7 @@ func (cm *DefaultManager) Clean(options CleanOptions) (*CleanResult, error) {
 	if options.All || options.Artifacts {
 		size, err := cm.cleanArtifactCache()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to clean artifact cache")
+			return nil, errutils.Wrapf(err, "failed to clean artifact cache")
 		}
 		result.ArtifactFreed = size
 		result.TotalFreed += size
@@ -77,7 +77,7 @@ func (cm *DefaultManager) GetInfo() (*Info, error) {
 	indexDir := filepath.Join(cm.directory, "indexes")
 	indexSize, indexFiles, err := getDirSizeAndFiles(indexDir)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, errors.Wrapf(err, "failed to get index cache info")
+		return nil, errutils.Wrapf(err, "failed to get index cache info")
 	}
 	info.IndexSize = indexSize
 	info.IndexFiles = indexFiles
@@ -86,7 +86,7 @@ func (cm *DefaultManager) GetInfo() (*Info, error) {
 	pkgDir := filepath.Join(cm.directory, "packages")
 	pkgSize, pkgFiles, err := getDirSizeAndFiles(pkgDir)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, errors.Wrapf(err, "failed to get artifact cache info")
+		return nil, errutils.Wrapf(err, "failed to get artifact cache info")
 	}
 	info.ArtifactSize = pkgSize
 	info.ArtifactFiles = pkgFiles
@@ -141,17 +141,17 @@ func cleanDirectory(dir string) (int64, error) {
 		return nil
 	})
 	if err != nil {
-		return 0, errors.Wrapf(err, "error walking directory %s", dir)
+		return 0, errutils.Wrapf(err, "error walking directory %s", dir)
 	}
 
 	// Remove the directory
 	if err := os.RemoveAll(dir); err != nil {
-		return 0, errors.Wrapf(err, "failed to remove directory %s", dir)
+		return 0, errutils.Wrapf(err, "failed to remove directory %s", dir)
 	}
 
 	// Recreate empty directory with cache-specific permissions
 	if err := os.MkdirAll(dir, os.FileMode(CacheDirPerm)); err != nil {
-		return totalSize, errors.Wrapf(err, "failed to recreate directory %s", dir)
+		return totalSize, errutils.Wrapf(err, "failed to recreate directory %s", dir)
 	}
 
 	return totalSize, nil
@@ -178,7 +178,7 @@ func getDirSizeAndFiles(dir string) (size int64, count int, err error) {
 		return nil
 	})
 	if err != nil {
-		err = errors.Wrapf(err, "error walking directory %s", dir)
+		err = errutils.Wrapf(err, "error walking directory %s", dir)
 	}
 	return size, count, err
 }

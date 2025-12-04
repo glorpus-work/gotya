@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	pkgerrors "github.com/glorpus-work/gotya/pkg/errors"
+	pkgerrors "github.com/glorpus-work/gotya/pkg/errutils"
 )
 
 // Move moves a file or directory from src to dst.

@@ -8,7 +8,7 @@ import (
 	"github.com/d5/tengo/v2"
 	"github.com/d5/tengo/v2/stdlib"
 	"github.com/glorpus-work/gotya/internal/logger"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 )
 
 // HookExecutor manages the execution of Tengo script hooks
@@ -42,7 +42,7 @@ func NewHookExecutor() *HookExecutorImpl {
 // ExecuteHook executes a Tengo script hook with the provided context
 func (he *HookExecutorImpl) ExecuteHook(hookPath string, context *HookContext) error {
 	if _, err := os.Stat(hookPath); os.IsNotExist(err) {
-		return errors.Wrapf(errors.ErrValidation, "hook script %s does not exist", hookPath)
+		return errutils.Wrapf(errutils.ErrValidation, "hook script %s does not exist", hookPath)
 	}
 
 	logger.Debug("Executing hook script", logger.Fields{
@@ -68,7 +68,7 @@ func (he *HookExecutorImpl) ExecuteHook(hookPath string, context *HookContext) e
 
 	// Execute the script
 	if _, err := script.Run(); err != nil {
-		return errors.Wrapf(err, "hook script execution failed for %s", hookPath)
+		return errutils.Wrapf(err, "hook script execution failed for %s", hookPath)
 	}
 
 	logger.Debug("Hook script executed successfully", logger.Fields{

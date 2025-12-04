@@ -8,7 +8,7 @@ import (
 
 	"github.com/glorpus-work/gotya/pkg/archive"
 	"github.com/glorpus-work/gotya/pkg/artifact/database"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/fsutil"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
@@ -46,11 +46,11 @@ func NewManager(operatingSystem, arch, artifactCacheDir, artifactInstallDir, art
 // SetArtifactManuallyInstalled marks an artifact as manually installed.
 func (m *ManagerImpl) SetArtifactManuallyInstalled(artifactName string) error {
 	if err := m.loadInstalledDB(); err != nil {
-		return errors.Wrapf(err, "failure to change artifact install reason for %s", artifactName)
+		return errutils.Wrapf(err, "failure to change artifact install reason for %s", artifactName)
 	}
 	artifact := m.installDB.FindArtifact(artifactName)
 	if artifact == nil {
-		return errors.Wrapf(errors.ErrArtifactNotFound, "failure to change artifact install reason for %s", artifactName)
+		return errutils.Wrapf(errutils.ErrArtifactNotFound, "failure to change artifact install reason for %s", artifactName)
 	}
 	artifact.InstallationReason = model.InstallationReasonManual
 	return m.installDB.SaveDatabase()
@@ -60,13 +60,13 @@ func (m *ManagerImpl) SetArtifactManuallyInstalled(artifactName string) error {
 func (m *ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, reason model.InstallationReason) error {
 	// Input validation
 	if desc == nil {
-		return errors.Wrap(errors.ErrValidation, "artifact descriptor cannot be nil")
+		return errutils.Wrap(errutils.ErrValidation, "artifact descriptor cannot be nil")
 	}
 	if err := desc.Verify(); err != nil {
-		return errors.Wrap(err, "invalid artifact descriptor")
+		return errutils.Wrap(err, "invalid artifact descriptor")
 	}
 	if localPath == "" {
-		return errors.Wrap(errors.ErrValidation, "local path cannot be empty")
+		return errutils.Wrap(errutils.ErrValidation, "local path cannot be empty")
 	}
 
 	var installed bool
@@ -129,7 +129,7 @@ func (m *ManagerImpl) InstallArtifact(ctx context.Context, desc *model.IndexArti
 func (m *ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string, purge bool) error {
 	// Input validation
 	if artifactName == "" {
-		return fmt.Errorf("artifact name cannot be empty: %w", errors.ErrValidation)
+		return fmt.Errorf("artifact name cannot be empty: %w", errutils.ErrValidation)
 	}
 
 	// Load the installed database
@@ -139,12 +139,12 @@ func (m *ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string
 
 	// Check if the artifact is installed
 	if !m.installDB.IsArtifactInstalled(artifactName) {
-		return fmt.Errorf("artifact %s is not installed: %w", artifactName, errors.ErrArtifactNotFound)
+		return fmt.Errorf("artifact %s is not installed: %w", artifactName, errutils.ErrArtifactNotFound)
 	}
 
 	artifact := m.installDB.FindArtifact(artifactName)
 	if artifact == nil {
-		return fmt.Errorf("artifact %s not found in database: %w", artifactName, errors.ErrArtifactNotFound)
+		return fmt.Errorf("artifact %s not found in database: %w", artifactName, errutils.ErrArtifactNotFound)
 	}
 
 	metadata, err := ParseMetadataFromPath(filepath.Join(artifact.ArtifactMetaDir, metadataFile))
@@ -193,18 +193,18 @@ func (m *ManagerImpl) UninstallArtifact(ctx context.Context, artifactName string
 // If the installation fails, the old version remains uninstalled.
 func (m *ManagerImpl) UpdateArtifact(ctx context.Context, newArtifactPath string, desc *model.IndexArtifactDescriptor) error {
 	if desc == nil {
-		return errors.Wrap(errors.ErrValidation, "new descriptor cannot be nil")
+		return errutils.Wrap(errutils.ErrValidation, "new descriptor cannot be nil")
 	}
 	if err := desc.Verify(); err != nil {
-		return errors.Wrap(err, "new descriptor is invalid")
+		return errutils.Wrap(err, "new descriptor is invalid")
 	}
 	if newArtifactPath == "" {
-		return errors.Wrap(errors.ErrValidation, "new artifact path cannot be empty")
+		return errutils.Wrap(errutils.ErrValidation, "new artifact path cannot be empty")
 	}
 
 	extractDir, err := os.MkdirTemp("", fmt.Sprintf("gotya-extract-%s-%s", desc.Name, desc.Version))
 	if err != nil {
-		return errors.Wrap(err, "failed to create extract directory")
+		return errutils.Wrap(err, "failed to create extract directory")
 	}
 	defer func() { _ = os.RemoveAll(extractDir) }()
 
@@ -339,22 +339,22 @@ func (m *ManagerImpl) GetInstalledArtifacts() ([]*model.InstalledArtifact, error
 func (m *ManagerImpl) validateUpdateRequest(newDescriptor *model.IndexArtifactDescriptor) (*model.InstalledArtifact, error) {
 	// Check if the artifact is installed
 	if !m.installDB.IsArtifactInstalled(newDescriptor.Name) {
-		return nil, errors.Wrapf(errors.ErrArtifactNotFound, "artifact %s is not installed", newDescriptor.Name)
+		return nil, errutils.Wrapf(errutils.ErrArtifactNotFound, "artifact %s is not installed", newDescriptor.Name)
 	}
 
 	installedArtifact := m.installDB.FindArtifact(newDescriptor.Name)
 	if installedArtifact == nil {
-		return nil, errors.Wrapf(errors.ErrArtifactNotFound, "artifact %s not found in database", newDescriptor.Name)
+		return nil, errutils.Wrapf(errutils.ErrArtifactNotFound, "artifact %s not found in database", newDescriptor.Name)
 	}
 
 	// Validate that the new artifact name matches the installed artifact name
 	if installedArtifact.Name != newDescriptor.Name {
-		return nil, errors.Wrapf(errors.ErrValidation, "cannot update artifact %s with artifact %s: name mismatch", newDescriptor.Name, newDescriptor.Name)
+		return nil, errutils.Wrapf(errutils.ErrValidation, "cannot update artifact %s with artifact %s: name mismatch", newDescriptor.Name, newDescriptor.Name)
 	}
 
 	// Check if this is actually an update (different version or URL)
 	if installedArtifact.Version == newDescriptor.Version && installedArtifact.InstalledFrom == newDescriptor.URL {
-		return nil, errors.Wrapf(errors.ErrValidation, "artifact %s is already at the latest version", newDescriptor.Name)
+		return nil, errutils.Wrapf(errutils.ErrValidation, "artifact %s is already at the latest version", newDescriptor.Name)
 	}
 
 	return installedArtifact, nil
@@ -380,7 +380,7 @@ func (m *ManagerImpl) executePostUpdateHook(newDescriptor *model.IndexArtifactDe
 	postUpdateHookPath := m.resolveHookPath(m.getArtifactMetaInstallPath(newDescriptor.Name), "post-update", metadata)
 	if postUpdateHookPath != "" {
 		if err := m.hookExecutor.ExecuteHook(postUpdateHookPath, postUpdateContext); err != nil {
-			return errors.Wrap(err, "Hook execution failed")
+			return errutils.Wrap(err, "Hook execution failed")
 		}
 	}
 
@@ -418,7 +418,7 @@ func (m *ManagerImpl) executePreUpdateHook(installedArtifact *model.InstalledArt
 // extractAndVerify extracts and verifies the artifact to a temp directory
 func (m *ManagerImpl) extractAndVerify(ctx context.Context, desc *model.IndexArtifactDescriptor, localPath string, extractDir string) error {
 	if err := m.archiveExtractor.ExtractAll(ctx, localPath, extractDir); err != nil {
-		return errors.Wrap(err, "failed to extract artifact")
+		return errutils.Wrap(err, "failed to extract artifact")
 	}
 
 	if err := m.verifier.VerifyArtifactFromPath(ctx, desc, extractDir); err != nil {
@@ -453,7 +453,7 @@ func (m *ManagerImpl) handleExistingArtifact(name string, reason model.Installat
 		m.installDB.RemoveArtifact(existingArtifact.Name)
 		return false, existingArtifact, nil
 	default:
-		return false, nil, fmt.Errorf("artifact %s has unknown status: %s: %w", existingArtifact.Name, existingArtifact.Status, errors.ErrValidation)
+		return false, nil, fmt.Errorf("artifact %s has unknown status: %s: %w", existingArtifact.Name, existingArtifact.Status, errutils.ErrValidation)
 	}
 }
 
@@ -520,21 +520,21 @@ func (m *ManagerImpl) executePostInstallHook(desc *model.IndexArtifactDescriptor
 func (m *ManagerImpl) backupInstallationFiles(installedArtifact *model.InstalledArtifact) (string, string, error) {
 	tempMetaDir, err := os.MkdirTemp(m.artifactMetaInstallDir, fmt.Sprintf(".gotya-update-meta-temp-%s-%s", installedArtifact.Name, installedArtifact.Version))
 	if err != nil {
-		return "", "", errors.Wrap(err, "failed to create temp meta dir")
+		return "", "", errutils.Wrap(err, "failed to create temp meta dir")
 	}
 	var tempDataDir string
 	if len(installedArtifact.DataFiles) > 0 {
 		tempDataDir, err := os.MkdirTemp(m.artifactDataInstallDir, fmt.Sprintf(".gotya-update-data-temp-%s-%s", installedArtifact.Name, installedArtifact.Version))
 		if err != nil {
-			return "", tempMetaDir, errors.Wrap(err, "failed to create temp data dir")
+			return "", tempMetaDir, errutils.Wrap(err, "failed to create temp data dir")
 		}
 		if err := fsutil.Move(installedArtifact.ArtifactDataDir, tempDataDir); err != nil {
-			return tempDataDir, tempMetaDir, errors.Wrapf(err, "failed to move artifact data from %s to %s", installedArtifact.ArtifactDataDir, tempDataDir)
+			return tempDataDir, tempMetaDir, errutils.Wrapf(err, "failed to move artifact data from %s to %s", installedArtifact.ArtifactDataDir, tempDataDir)
 		}
 	}
 
 	if err := fsutil.Move(installedArtifact.ArtifactMetaDir, tempMetaDir); err != nil {
-		return tempDataDir, tempMetaDir, errors.Wrapf(err, "failed to move artifact meta from %s to %s", installedArtifact.ArtifactMetaDir, tempMetaDir)
+		return tempDataDir, tempMetaDir, errutils.Wrapf(err, "failed to move artifact meta from %s to %s", installedArtifact.ArtifactMetaDir, tempMetaDir)
 	}
 
 	return tempDataDir, tempMetaDir, nil
@@ -543,12 +543,12 @@ func (m *ManagerImpl) backupInstallationFiles(installedArtifact *model.Installed
 func (m *ManagerImpl) restoreInstallationFiles(tempDataDir, tempMetaDir string, installedArtifact *model.InstalledArtifact) error {
 	_ = os.Remove(installedArtifact.ArtifactMetaDir)
 	if err := fsutil.Move(filepath.Join(tempMetaDir, installedArtifact.Name), installedArtifact.ArtifactMetaDir); err != nil {
-		return errors.Wrapf(err, "failed to move artifact meta from %s to %s", tempMetaDir, m.artifactMetaInstallDir)
+		return errutils.Wrapf(err, "failed to move artifact meta from %s to %s", tempMetaDir, m.artifactMetaInstallDir)
 	}
 	if len(tempDataDir) > 0 {
 		_ = os.Remove(installedArtifact.ArtifactDataDir)
 		if err := fsutil.Move(filepath.Join(tempDataDir, installedArtifact.Name), installedArtifact.ArtifactDataDir); err != nil {
-			return errors.Wrapf(err, "failed to move artifact data from %s to %s", tempDataDir, m.artifactDataInstallDir)
+			return errutils.Wrapf(err, "failed to move artifact data from %s to %s", tempDataDir, m.artifactDataInstallDir)
 		}
 	}
 	return nil

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/fsutil"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
@@ -20,7 +20,7 @@ func (m *ManagerImpl) installArtifactFiles(artifactName, extractDir string) erro
 
 	// Check if metadata directory exists
 	if _, err := os.Stat(metaSrcDir); os.IsNotExist(err) {
-		return fmt.Errorf("metadata directory not found in artifact: %w", errors.ErrFileNotFound)
+		return fmt.Errorf("metadata directory not found in artifact: %w", errutils.ErrFileNotFound)
 	}
 
 	err := os.MkdirAll(m.artifactMetaInstallDir, 0o755)

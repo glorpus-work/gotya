@@ -8,7 +8,7 @@ import (
 
 	"github.com/glorpus-work/gotya/internal/logger"
 	"github.com/glorpus-work/gotya/pkg/config"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/spf13/cobra"
 )
 
@@ -164,7 +164,7 @@ func runConfigInit(force bool) error {
 
 	// Check if config file already exists
 	if _, err := os.Stat(configPath); err == nil && !force {
-		return fmt.Errorf("configuration file already exists at %s (use --force to overwrite): %w", configPath, errors.ErrConfigFileExists)
+		return fmt.Errorf("configuration file already exists at %s (use --force to overwrite): %w", configPath, errutils.ErrConfigFileExists)
 	}
 
 	// Create default config
