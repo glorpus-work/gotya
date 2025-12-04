@@ -4,8 +4,8 @@ go 1.24.0
 
 require (
 	github.com/d5/tengo/v2 v2.17.0
-	github.com/hashicorp/go-version v1.7.0
 	github.com/mholt/archives v0.1.5
+	github.com/hashicorp/go-version v1.8.0
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
