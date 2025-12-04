@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/glorpus-work/gotya/internal/logger"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 )
 
 // Operation represents an operation that can be performed on the cache.
@@ -42,7 +42,7 @@ func (op *Operation) Clean(all, indexes, packages bool) (string, error) {
 
 	result, err := op.manager.Clean(options)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to clean cache")
+		return "", errutils.Wrap(err, "failed to clean cache")
 	}
 
 	// Generate a human-readable result message
@@ -66,7 +66,7 @@ func (op *Operation) Clean(all, indexes, packages bool) (string, error) {
 func (op *Operation) GetInfo() (string, error) {
 	info, err := op.manager.GetInfo()
 	if err != nil {
-		return "", errors.Wrap(err, "failed to get cache info")
+		return "", errutils.Wrap(err, "failed to get cache info")
 	}
 
 	lastCleaned := "never"
@@ -98,7 +98,7 @@ func (op *Operation) GetDirectory() string {
 // SetDirectory sets a new cache directory.
 func (op *Operation) SetDirectory(dir string) error {
 	if dir == "" {
-		return errors.Wrap(errors.ErrInvalidConfigPath, "cache directory cannot be empty")
+		return errutils.Wrap(errutils.ErrInvalidConfigPath, "cache directory cannot be empty")
 	}
 
 	logger.Debug("Setting cache directory", logger.Fields{"directory": dir})

@@ -7,7 +7,7 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
 
@@ -76,7 +76,7 @@ func (rm *ManagerImpl) FindArtifacts(name string) (map[string][]*model.IndexArti
 	}
 
 	if len(packages) == 0 {
-		return nil, errors.ErrArtifactNotFound
+		return nil, errutils.ErrArtifactNotFound
 	}
 	return packages, nil
 }
@@ -178,7 +178,7 @@ func (rm *ManagerImpl) filterAndGroupByPriority(repoArtifacts map[string][]*mode
 			}
 			repo, err := rm.getRepository(idxName)
 			if err != nil {
-				return nil, errors.ErrRepositoryNotFoundWithName(idxName)
+				return nil, errutils.ErrRepositoryNotFoundWithName(idxName)
 			}
 			if repoPrioArtifacts[repo.Priority] == nil {
 				repoPrioArtifacts[repo.Priority] = make([]*model.IndexArtifactDescriptor, 0, 5)
@@ -214,7 +214,7 @@ func (rm *ManagerImpl) getRepository(name string) (*Repository, error) {
 		return r.Name == name
 	})
 	if idx == -1 {
-		return nil, errors.ErrRepositoryNotFoundWithName(name)
+		return nil, errutils.ErrRepositoryNotFoundWithName(name)
 	}
 	return rm.repositories[idx], nil
 }

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
 
@@ -44,12 +44,12 @@ func (idx *Index) GetArtifacts() []*model.IndexArtifactDescriptor {
 func ParseIndex(data []byte) (*Index, error) {
 	var index Index
 	if err := json.Unmarshal(data, &index); err != nil {
-		return nil, errors.Wrap(err, "failed to parse index")
+		return nil, errutils.Wrap(err, "failed to parse index")
 	}
 
 	// Validate format version
 	if index.FormatVersion == "" {
-		return nil, fmt.Errorf("missing format version in index: %w", errors.ErrValidation)
+		return nil, fmt.Errorf("missing format version in index: %w", errutils.ErrValidation)
 	}
 
 	return &index, nil
@@ -59,7 +59,7 @@ func ParseIndex(data []byte) (*Index, error) {
 func ParseIndexFromReader(reader io.Reader) (*Index, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read index data")
+		return nil, errutils.Wrap(err, "failed to read index data")
 	}
 
 	return ParseIndex(data)
@@ -69,7 +69,7 @@ func ParseIndexFromReader(reader io.Reader) (*Index, error) {
 func ParseIndexFromFile(filePath string) (*Index, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Cannot open index file %s for parsing", filePath)
+		return nil, errutils.Wrapf(err, "Cannot open index file %s for parsing", filePath)
 	}
 	defer func() { _ = file.Close() }()
 	return ParseIndexFromReader(file)
@@ -79,7 +79,7 @@ func ParseIndexFromFile(filePath string) (*Index, error) {
 func (idx *Index) ToJSON() ([]byte, error) {
 	data, err := json.MarshalIndent(idx, "", "  ")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal index to JSON")
+		return nil, errutils.Wrap(err, "failed to marshal index to JSON")
 	}
 	return data, nil
 }

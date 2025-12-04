@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
 
@@ -66,7 +66,7 @@ func NewInstalledMangerWithPath(dbPath string) *InstalledManagerImpl {
 // LoadDatabase loads the installed packages database.
 func (installedDB *InstalledManagerImpl) LoadDatabase() error {
 	if installedDB.databasePath == "" {
-		return errors.Wrap(errors.ErrInvalidPath, "database path is not set")
+		return errutils.Wrap(errutils.ErrInvalidPath, "database path is not set")
 	}
 	return installedDB.LoadDatabaseFrom(installedDB.databasePath)
 }
@@ -76,7 +76,7 @@ func (installedDB *InstalledManagerImpl) LoadDatabaseFrom(dbPath string) error {
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
-		return fmt.Errorf("database path must be absolute: %s: %w", dbPath, errors.ErrInvalidPath)
+		return fmt.Errorf("database path must be absolute: %s: %w", dbPath, errutils.ErrInvalidPath)
 	}
 
 	// Check if file exists with cleaned path
@@ -108,13 +108,13 @@ func (installedDB *InstalledManagerImpl) SetInstallationReason(name string, reas
 		}
 	}
 
-	return fmt.Errorf("artifact %s not found: %w", name, errors.ErrArtifactNotFound)
+	return fmt.Errorf("artifact %s not found: %w", name, errutils.ErrArtifactNotFound)
 }
 
 // SaveDatabase saves the installed packages database.
 func (installedDB *InstalledManagerImpl) SaveDatabase() error {
 	if installedDB.databasePath == "" {
-		return errors.Wrap(errors.ErrInvalidPath, "database path is not set")
+		return errutils.Wrap(errutils.ErrInvalidPath, "database path is not set")
 	}
 	return installedDB.SaveDatabaseTo(installedDB.databasePath)
 }
@@ -124,7 +124,7 @@ func (installedDB *InstalledManagerImpl) SaveDatabaseTo(dbPath string) (err erro
 	// Clean and validate the database path
 	cleanPath := filepath.Clean(dbPath)
 	if !filepath.IsAbs(cleanPath) {
-		return fmt.Errorf("database path must be absolute: %s: %w", dbPath, errors.ErrInvalidPath)
+		return fmt.Errorf("database path must be absolute: %s: %w", dbPath, errutils.ErrInvalidPath)
 	}
 
 	// Get the directory of the database file

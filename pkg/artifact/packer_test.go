@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +63,7 @@ func TestPacker_Pack(t *testing.T) {
 			packer: &Packer{
 				name: "test-package",
 			},
-			expectedErr:  errors.ErrInvalidPath,
+			expectedErr:  errutils.ErrInvalidPath,
 			expectOutput: false,
 		},
 		{
@@ -83,7 +83,7 @@ func TestPacker_Pack(t *testing.T) {
 			packer: &Packer{
 				name: "test-package",
 			},
-			expectedErr:  errors.ErrInvalidPath,
+			expectedErr:  errutils.ErrInvalidPath,
 			expectOutput: false,
 		},
 		{
@@ -104,7 +104,7 @@ func TestPacker_Pack(t *testing.T) {
 				name:  "test-package",
 				hooks: map[string]string{},
 			},
-			expectedErr:  errors.ErrInvalidPath,
+			expectedErr:  errutils.ErrInvalidPath,
 			expectOutput: false,
 		},
 		{
@@ -271,7 +271,7 @@ func TestPackSymlinks(t *testing.T) {
 				require.Error(t, err)
 				assert.Empty(t, outputFile)
 				// New error semantics: ensure it wraps ErrInvalidPath
-				require.ErrorIs(t, err, errors.ErrInvalidPath)
+				require.ErrorIs(t, err, errutils.ErrInvalidPath)
 				// Keep a minimal message check to ensure context is present when provided
 				if tt.errMessage != "" {
 					assert.Contains(t, err.Error(), tt.errMessage)

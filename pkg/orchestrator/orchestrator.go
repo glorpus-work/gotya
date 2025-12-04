@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/glorpus-work/gotya/pkg/download"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/index"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
@@ -23,7 +23,7 @@ const phaseUpdating = "updating"
 // The caller decides which repositories to pass (e.g., enabled-only). No TTL/autosync logic here.
 func (o *Orchestrator) SyncAll(ctx context.Context, repos []*index.Repository, indexDir string, opts Options) error {
 	if o.DL == nil {
-		return fmt.Errorf("download manager is not configured: %w", errors.ErrValidation)
+		return fmt.Errorf("download manager is not configured: %w", errutils.ErrValidation)
 	}
 
 	items := make([]download.Item, 0, len(repos))
@@ -72,7 +72,7 @@ func (o *Orchestrator) SyncAll(ctx context.Context, repos []*index.Repository, i
 // Returns the list of artifacts that were successfully cleaned up.
 func (o *Orchestrator) Cleanup(ctx context.Context) ([]string, error) {
 	if o.ArtifactManager == nil {
-		return nil, fmt.Errorf("artifact manager is not configured: %w", errors.ErrValidation)
+		return nil, fmt.Errorf("artifact manager is not configured: %w", errutils.ErrValidation)
 	}
 
 	// Get orphaned automatic artifacts
@@ -104,7 +104,7 @@ func (o *Orchestrator) Cleanup(ctx context.Context) ([]string, error) {
 // Update resolves and updates packages to their latest compatible versions.
 func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 	if o.ArtifactManager == nil {
-		return fmt.Errorf("artifact manager is not configured: %w", errors.ErrValidation)
+		return fmt.Errorf("artifact manager is not configured: %w", errutils.ErrValidation)
 	}
 
 	emit(o.Hooks, Event{Phase: "planning", Msg: "analyzing installed packages"})
@@ -126,7 +126,7 @@ func (o *Orchestrator) Update(ctx context.Context, opts UpdateOptions) error {
 	}
 
 	if o.Index == nil {
-		return fmt.Errorf("index resolver is not configured: %w", errors.ErrNoRepositories)
+		return fmt.Errorf("index resolver is not configured: %w", errutils.ErrNoRepositories)
 	}
 
 	// Resolve the update plan
@@ -166,7 +166,7 @@ func (o *Orchestrator) filterPackagesForUpdate(installed []*model.InstalledArtif
 			if pkg, ok := packageMap[name]; ok {
 				packagesToUpdate = append(packagesToUpdate, pkg)
 			} else {
-				return nil, fmt.Errorf("package %s is not installed: %w", name, errors.ErrArtifactNotFound)
+				return nil, fmt.Errorf("package %s is not installed: %w", name, errutils.ErrArtifactNotFound)
 			}
 		}
 	} else {
@@ -269,7 +269,7 @@ func emit(h Hooks, e Event) {
 // Install resolves and installs according to the plan (sequentially for now).
 func (o *Orchestrator) Install(ctx context.Context, requests []*model.ResolveRequest, opts InstallOptions) error {
 	if o.Index == nil {
-		return fmt.Errorf("index planner is not configured: %w", errors.ErrValidation)
+		return fmt.Errorf("index planner is not configured: %w", errutils.ErrValidation)
 	}
 
 	emit(o.Hooks, Event{Phase: "planning", Msg: fmt.Sprintf("installing %d packages", len(requests))})
@@ -299,7 +299,7 @@ func (o *Orchestrator) Install(ctx context.Context, requests []*model.ResolveReq
 	}
 
 	if o.ArtifactManager == nil {
-		return fmt.Errorf("artifact installer is not configured: %w", errors.ErrValidation)
+		return fmt.Errorf("artifact installer is not configured: %w", errutils.ErrValidation)
 	}
 
 	if err := o.executeInstallPlan(ctx, plan, requests, fetched); err != nil {
@@ -397,7 +397,7 @@ func (o *Orchestrator) executeInstallPlan(ctx context.Context, plan model.Resolv
 			path = fetched[step.GetID()]
 		}
 		if path == "" {
-			return fmt.Errorf("no local file available for step %s; downloads are required for install: %w", step.GetID(), errors.ErrDownloadFailed)
+			return fmt.Errorf("no local file available for step %s; downloads are required for install: %w", step.GetID(), errutils.ErrDownloadFailed)
 		}
 		desc := &model.IndexArtifactDescriptor{
 			Name:     step.Name,
@@ -467,7 +467,7 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 
 		// Check NoCascade option
 		if opts.NoCascade && len(artifacts.Artifacts) > 1 {
-			return fmt.Errorf("artifact %s has %d reverse dependencies; use --force to uninstall anyway: %w", req.Name, len(artifacts.Artifacts)-1, errors.ErrValidation)
+			return fmt.Errorf("artifact %s has %d reverse dependencies; use --force to uninstall anyway: %w", req.Name, len(artifacts.Artifacts)-1, errutils.ErrValidation)
 		}
 	}
 
@@ -481,7 +481,7 @@ func (o *Orchestrator) Uninstall(ctx context.Context, req model.ResolveRequest, 
 	}
 
 	if o.ArtifactManager == nil {
-		return fmt.Errorf("artifact uninstaller is not configured: %w", errors.ErrValidation)
+		return fmt.Errorf("artifact uninstaller is not configured: %w", errutils.ErrValidation)
 	}
 
 	// Process artifacts in reverse order to handle dependencies properly
@@ -546,7 +546,7 @@ func (o *Orchestrator) executeUpdatePlan(ctx context.Context, plan model.Resolve
 			path = fetched[step.GetID()]
 		}
 		if path == "" {
-			return 0, 0, fmt.Errorf("no local file available for update step %s: %w", step.GetID(), errors.ErrDownloadFailed)
+			return 0, 0, fmt.Errorf("no local file available for update step %s: %w", step.GetID(), errutils.ErrDownloadFailed)
 		}
 		desc := &model.IndexArtifactDescriptor{
 			Name:     step.Name,

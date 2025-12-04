@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/model"
 	"github.com/mholt/archives"
 )
@@ -28,19 +28,19 @@ func NewVerifier() *Verifier {
 // This method extracts the artifact first and then verifies it.
 func (v *Verifier) VerifyArtifact(ctx context.Context, artifact *model.IndexArtifactDescriptor, filePath string) error {
 	if _, err := os.Stat(filePath); err != nil {
-		return errors.ErrArtifactNotFound
+		return errutils.ErrArtifactNotFound
 	}
 
 	// Create a temporary directory for extraction
 	tempDir, err := os.MkdirTemp("", "gotya-verify-*")
 	if err != nil {
-		return errors.Wrap(err, "failed to create temp directory")
+		return errutils.Wrap(err, "failed to create temp directory")
 	}
 	defer func() { _ = os.RemoveAll(tempDir) }() // Clean up temp directory
 
 	// Extract the archive to the temporary directory
 	if err := v.extractArchive(ctx, filePath, tempDir); err != nil {
-		return errors.Wrap(err, "failed to extract archive")
+		return errutils.Wrap(err, "failed to extract archive")
 	}
 
 	// Verify the extracted artifact
@@ -53,27 +53,27 @@ func (v *Verifier) VerifyArtifact(ctx context.Context, artifact *model.IndexArti
 func (v *Verifier) VerifyArtifactFromPath(_ context.Context, artifact *model.IndexArtifactDescriptor, dirPath string) error {
 	// Check if the directory exists
 	if _, err := os.Stat(dirPath); err != nil {
-		return errors.ErrArtifactNotFound
+		return errutils.ErrArtifactNotFound
 	}
 
 	// Open the metadata file from the extracted directory
 	metadataPath := filepath.Join(dirPath, artifactMetaDir, metadataFile)
 	metadataFile, err := os.Open(metadataPath)
 	if err != nil {
-		return errors.Wrap(err, "failed to open metadata file")
+		return errutils.Wrap(err, "failed to open metadata file")
 	}
 	defer func() { _ = metadataFile.Close() }()
 
 	metadata := &Metadata{}
 	if err := json.NewDecoder(metadataFile).Decode(metadata); err != nil {
-		return errors.Wrap(err, "failed to decode metadata")
+		return errutils.Wrap(err, "failed to decode metadata")
 	}
 
 	// Only verify against descriptor if provided
 	if artifact != nil {
 		if metadata.Name != artifact.Name || metadata.Version != artifact.Version ||
 			metadata.GetOS() != artifact.GetOS() || metadata.GetArch() != artifact.GetArch() {
-			return errors.Wrapf(errors.ErrArtifactInvalid,
+			return errutils.Wrapf(errutils.ErrArtifactInvalid,
 				"metadata mismatch - expected Name: %s, Version: %s, OS: %s, Arch: %s but got Name: %s, Version: %s, OS: %s, Arch: %s",
 				artifact.Name, artifact.Version, artifact.GetOS(), artifact.GetArch(),
 				metadata.Name, metadata.Version, metadata.GetOS(), metadata.GetArch())
@@ -189,7 +189,7 @@ func (v *Verifier) verifyArtifactContentsFromPath(dirPath string, metadata *Meta
 
 	entries, err := os.ReadDir(dataDirPath)
 	if err != nil {
-		return errors.Wrap(err, "failed to read data directory")
+		return errutils.Wrap(err, "failed to read data directory")
 	}
 
 	for _, entry := range entries {
@@ -199,7 +199,7 @@ func (v *Verifier) verifyArtifactContentsFromPath(dirPath string, metadata *Meta
 		artifactFile := filepath.ToSlash(filepath.Join(artifactDataDir, entry.Name()))
 		val, ok := metadata.Hashes[artifactFile]
 		if !ok {
-			return errors.Wrapf(errors.ErrArtifactInvalid, "hash for file %s not found", artifactFile)
+			return errutils.Wrapf(errutils.ErrArtifactInvalid, "hash for file %s not found", artifactFile)
 		}
 
 		h := sha256.New()
@@ -207,19 +207,19 @@ func (v *Verifier) verifyArtifactContentsFromPath(dirPath string, metadata *Meta
 		filePath := filepath.Join(dataDirPath, entry.Name())
 		file, err := os.Open(filePath)
 		if err != nil {
-			return errors.Wrap(err, "failed to open file")
+			return errutils.Wrap(err, "failed to open file")
 		}
 
 		if _, err := io.Copy(h, file); err != nil {
-			return errors.Wrap(err, "failed to copy file")
+			return errutils.Wrap(err, "failed to copy file")
 		}
 
 		if err := file.Close(); err != nil {
-			return errors.Wrap(err, "failed to close file")
+			return errutils.Wrap(err, "failed to close file")
 		}
 
 		if fmt.Sprintf("%x", h.Sum(nil)) != val {
-			return errors.Wrapf(errors.ErrArtifactInvalid, "Hashsum mismatch %x, %s", h.Sum(nil), val)
+			return errutils.Wrapf(errutils.ErrArtifactInvalid, "Hashsum mismatch %x, %s", h.Sum(nil), val)
 		}
 	}
 

@@ -15,7 +15,7 @@ import (
 
 	"github.com/glorpus-work/gotya/pkg/archive"
 	"github.com/glorpus-work/gotya/pkg/artifact"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
 
@@ -74,23 +74,23 @@ func (g *Generator) WithBaseline(baselinePath string) *Generator {
 func (g *Generator) Validate() error {
 	// Check source directory exists and is readable
 	if g.Dir == "" {
-		return errors.Wrapf(errors.ErrInvalidPath, "source directory is required")
+		return errutils.Wrapf(errutils.ErrInvalidPath, "source directory is required")
 	}
 	if g.OutputPath == "" {
-		return errors.Wrapf(errors.ErrInvalidPath, "output path is required")
+		return errutils.Wrapf(errutils.ErrInvalidPath, "output path is required")
 	}
 
 	// Check source directory exists and is accessible
 	if fi, err := os.Stat(g.Dir); os.IsNotExist(err) {
-		return errors.Wrapf(errors.ErrInvalidPath, "source directory does not exist: %s", g.Dir)
+		return errutils.Wrapf(errutils.ErrInvalidPath, "source directory does not exist: %s", g.Dir)
 	} else if !fi.IsDir() {
-		return errors.Wrapf(errors.ErrInvalidPath, "source is not a directory: %s", g.Dir)
+		return errutils.Wrapf(errutils.ErrInvalidPath, "source is not a directory: %s", g.Dir)
 	}
 
 	// Check output file doesn't exist (unless force is set)
 	if !g.ForceOverwrite {
 		if _, err := os.Stat(g.OutputPath); err == nil {
-			return errors.Wrapf(errors.ErrAlreadyExists,
+			return errutils.Wrapf(errutils.ErrAlreadyExists,
 				"output file exists (use ForceOverwrite to overwrite): %s", g.OutputPath)
 		}
 	}
@@ -99,7 +99,7 @@ func (g *Generator) Validate() error {
 	outputDir := filepath.Dir(g.OutputPath)
 	if outputDir != "." {
 		if err := os.MkdirAll(outputDir, 0o755); err != nil {
-			return errors.Wrapf(err, "failed to create output directory: %s", outputDir)
+			return errutils.Wrapf(err, "failed to create output directory: %s", outputDir)
 		}
 	}
 
@@ -107,7 +107,7 @@ func (g *Generator) Validate() error {
 	testFile := filepath.Join(outputDir, ".gotya_test_"+time.Now().Format("20060102150405"))
 	f, err := os.Create(testFile)
 	if err != nil {
-		return errors.Wrapf(err, "output directory is not writable: %s", outputDir)
+		return errutils.Wrapf(err, "output directory is not writable: %s", outputDir)
 	}
 	_ = f.Close()
 	_ = os.Remove(testFile) // Clean up test file
@@ -172,19 +172,19 @@ func (g *Generator) Generate(ctx context.Context) error {
 
 	// Count artifacts to provide better error messages
 	if _, err := g.CountArtifacts(); err != nil {
-		return errors.Wrap(err, "failed to count artifacts")
+		return errutils.Wrap(err, "failed to count artifacts")
 	}
 
 	// Load baseline index if specified
 	baselineIndex, err := g.loadBaselineIndex()
 	if err != nil {
-		return errors.Wrap(err, "failed to load baseline index")
+		return errutils.Wrap(err, "failed to load baseline index")
 	}
 
 	// Process artifacts from the directory
 	artifacts, err := g.processArtifacts(ctx, baselineIndex)
 	if err != nil {
-		return errors.Wrap(err, "failed to process artifacts")
+		return errutils.Wrap(err, "failed to process artifacts")
 	}
 
 	// If we have artifacts, create and write the index
@@ -258,7 +258,7 @@ func (g *Generator) processArtifacts(ctx context.Context, baseline *Index) ([]*m
 		key := fmt.Sprintf("%s@%s", desc.Name, desc.Version)
 		if existing, exists := artifacts[key]; exists {
 			if !artifactsEqual(desc, existing) {
-				return fmt.Errorf("conflict for artifact %s@%s: metadata differs from baseline: %w", desc.Name, desc.Version, errors.ErrIndexConflict)
+				return fmt.Errorf("conflict for artifact %s@%s: metadata differs from baseline: %w", desc.Name, desc.Version, errutils.ErrIndexConflict)
 			}
 		}
 		artifacts[key] = desc
@@ -341,13 +341,13 @@ func (g *Generator) describeArtifact(ctx context.Context, filePath string) (*mod
 func (g *Generator) writeIndex(index *Index) error {
 	// Ensure the output directory exists
 	if err := os.MkdirAll(filepath.Dir(g.OutputPath), 0o755); err != nil {
-		return errors.Wrapf(err, "failed to create output directory for %s", g.OutputPath)
+		return errutils.Wrapf(err, "failed to create output directory for %s", g.OutputPath)
 	}
 
 	// Create the output file
 	f, err := os.Create(g.OutputPath)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create output file %s", g.OutputPath)
+		return errutils.Wrapf(err, "failed to create output file %s", g.OutputPath)
 	}
 	defer func() { _ = f.Close() }()
 
@@ -355,7 +355,7 @@ func (g *Generator) writeIndex(index *Index) error {
 	enc := json.NewEncoder(f)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(index); err != nil {
-		return errors.Wrapf(err, "failed to encode index to %s", g.OutputPath)
+		return errutils.Wrapf(err, "failed to encode index to %s", g.OutputPath)
 	}
 
 	return nil

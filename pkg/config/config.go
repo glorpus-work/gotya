@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/fsutil"
 	"gopkg.in/yaml.v3"
 )
@@ -126,13 +126,13 @@ func DefaultConfig() *Config {
 func LoadConfig(path string) (*Config, error) {
 	// Validate the config file path
 	if path == "" {
-		return nil, errors.ErrEmptyConfigPath
+		return nil, errutils.ErrEmptyConfigPath
 	}
 
 	// Ensure the path is clean and absolute
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, errors.Wrap(errors.ErrInvalidConfigPath, err.Error())
+		return nil, errutils.Wrap(errutils.ErrInvalidConfigPath, err.Error())
 	}
 
 	// Check if file exists and is accessible
@@ -141,7 +141,7 @@ func LoadConfig(path string) (*Config, error) {
 		if os.IsNotExist(err) {
 			return DefaultConfig(), nil
 		}
-		return nil, errors.Wrapf(err, "failed to open config file: %s", path)
+		return nil, errutils.Wrapf(err, "failed to open config file: %s", path)
 	}
 	defer func() { _ = file.Close() }()
 
@@ -152,12 +152,12 @@ func LoadConfig(path string) (*Config, error) {
 func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 	data, err := io.ReadAll(reader)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read config data")
+		return nil, errutils.Wrap(err, "failed to read config data")
 	}
 
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, errors.Wrap(errors.ErrConfigParse, err.Error())
+		return nil, errutils.Wrap(errutils.ErrConfigParse, err.Error())
 	}
 
 	// Apply defaults and validate
@@ -165,7 +165,7 @@ func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 
 	// Validate configuration
 	if err := config.Validate(); err != nil {
-		return nil, errors.Wrap(errors.ErrConfigValidation, err.Error())
+		return nil, errutils.Wrap(errutils.ErrConfigValidation, err.Error())
 	}
 
 	return &config, nil
@@ -175,25 +175,25 @@ func LoadConfigFromReader(reader io.Reader) (*Config, error) {
 func (c *Config) SaveConfig(path string) error {
 	// Validate the config file path
 	if path == "" {
-		return errors.ErrEmptyConfigPath
+		return errutils.ErrEmptyConfigPath
 	}
 
 	// Ensure the path is clean and absolute
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return errors.Wrap(errors.ErrInvalidConfigPath, err.Error())
+		return errutils.Wrap(errutils.ErrInvalidConfigPath, err.Error())
 	}
 
 	// Ensure the directory exists with secure permissions (0755)
 	if err := os.MkdirAll(filepath.Dir(absPath), fsutil.DirModeDefault); err != nil {
-		return errors.Wrap(errors.ErrConfigDirectory, err.Error())
+		return errutils.Wrap(errutils.ErrConfigDirectory, err.Error())
 	}
 
 	// Create temporary file with secure permissions (0600)
 	tempPath := absPath + ".tmp"
 	file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, fsutil.FileModeDefault)
 	if err != nil {
-		return errors.Wrap(errors.ErrConfigFileCreate, err.Error())
+		return errutils.Wrap(errutils.ErrConfigFileCreate, err.Error())
 	}
 
 	// Write YAML data
@@ -203,7 +203,7 @@ func (c *Config) SaveConfig(path string) error {
 	if err := encoder.Encode(c); err != nil {
 		_ = file.Close()
 		_ = os.Remove(tempPath)
-		return errors.Wrap(errors.ErrConfigEncode, err.Error())
+		return errutils.Wrap(errutils.ErrConfigEncode, err.Error())
 	}
 
 	_ = encoder.Close()
@@ -213,13 +213,13 @@ func (c *Config) SaveConfig(path string) error {
 	if err := os.Rename(tempPath, absPath); err != nil {
 		// Clean up temp file if rename fails
 		_ = os.Remove(tempPath)
-		return errors.Wrap(errors.ErrConfigFileRename, err.Error())
+		return errutils.Wrap(errutils.ErrConfigFileRename, err.Error())
 	}
 
 	// Ensure the final file has the correct permissions (0644)
 	if err := os.Chmod(absPath, fsutil.FileModeDefault); err != nil {
 		// This is not fatal, but we should log it
-		return errors.Wrap(errors.ErrConfigFileChmod, err.Error())
+		return errutils.Wrap(errutils.ErrConfigFileChmod, err.Error())
 	}
 
 	return nil
@@ -229,7 +229,7 @@ func (c *Config) SaveConfig(path string) error {
 func (c *Config) ToYAML() ([]byte, error) {
 	data, err := yaml.Marshal(c)
 	if err != nil {
-		return nil, errors.Wrap(errors.ErrConfigMarshal, err.Error())
+		return nil, errutils.Wrap(errutils.ErrConfigMarshal, err.Error())
 	}
 	return data, nil
 }
@@ -237,7 +237,7 @@ func (c *Config) ToYAML() ([]byte, error) {
 // Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
 	if c == nil {
-		return errors.ErrConfigValidation
+		return errutils.ErrConfigValidation
 	}
 	if err := validateRepositories(c.Repositories); err != nil {
 		return err
@@ -252,13 +252,13 @@ func validateRepositories(repos []*RepositoryConfig) error {
 	repoNames := make(map[string]bool)
 	for i, repo := range repos {
 		if repo.Name == "" {
-			return errors.ErrEmptyRepositoryNameWithIndex(i)
+			return errutils.ErrEmptyRepositoryNameWithIndex(i)
 		}
 		if repo.URL == "" {
-			return errors.ErrRepositoryURLEmptyWithName(repo.Name)
+			return errutils.ErrRepositoryURLEmptyWithName(repo.Name)
 		}
 		if repoNames[repo.Name] {
-			return errors.ErrRepositoryExistsWithName(repo.Name)
+			return errutils.ErrRepositoryExistsWithName(repo.Name)
 		}
 		repoNames[repo.Name] = true
 	}
@@ -267,21 +267,21 @@ func validateRepositories(repos []*RepositoryConfig) error {
 
 func validateSettings(s Settings) error {
 	if s.HTTPTimeout < 0 {
-		return errors.ErrHTTPTimeoutNegative
+		return errutils.ErrHTTPTimeoutNegative
 	}
 	if s.CacheTTL < 0 {
-		return errors.ErrCacheTTLNegative
+		return errutils.ErrCacheTTLNegative
 	}
 	if s.MaxConcurrent < 1 {
-		return errors.ErrMaxConcurrentInvalid
+		return errutils.ErrMaxConcurrentInvalid
 	}
 	validFormats := map[string]bool{"text": true, "json": true}
 	if !validFormats[s.OutputFormat] {
-		return errors.ErrInvalidOutputFormatWithDetails(s.OutputFormat)
+		return errutils.ErrInvalidOutputFormatWithDetails(s.OutputFormat)
 	}
 	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
 	if !validLevels[strings.ToLower(s.LogLevel)] {
-		return errors.ErrInvalidLogLevelWithDetails(s.LogLevel)
+		return errutils.ErrInvalidLogLevelWithDetails(s.LogLevel)
 	}
 	return nil
 }
@@ -304,7 +304,7 @@ func (c *Config) AddRepository(name, url string, enabled bool) error {
 	// Check if index already exists
 	for _, repo := range c.Repositories {
 		if repo.Name == name {
-			return errors.ErrRepositoryExistsWithName(name)
+			return errutils.ErrRepositoryExistsWithName(name)
 		}
 	}
 

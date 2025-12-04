@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 )
 
 // SetValue sets a configuration value by key
@@ -33,7 +33,7 @@ func (c *Config) SetValue(key, value string) error {
 			c.Settings.Platform.Arch = value
 		}
 	default:
-		return fmt.Errorf("unknown configuration key: %s: %w", key, errors.ErrUnknownConfigKey)
+		return fmt.Errorf("unknown configuration key: %s: %w", key, errutils.ErrUnknownConfigKey)
 	}
 	return nil
 }
@@ -52,7 +52,7 @@ func (c *Config) GetValue(key string) (string, error) {
 	case "platform.arch":
 		return c.Settings.Platform.Arch, nil
 	default:
-		return "", fmt.Errorf("unknown configuration key: %s: %w", key, errors.ErrUnknownConfigKey)
+		return "", fmt.Errorf("unknown configuration key: %s: %w", key, errutils.ErrUnknownConfigKey)
 	}
 }
 

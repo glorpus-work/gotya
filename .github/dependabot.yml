@@ -10,7 +10,7 @@ updates:
     # Create a pull request for Go module updates
     open-pull-requests-limit: 10
     assignees:
-      - "cperry24"  # Replace with your GitHub username
+      - "cperrin88"  # Replace with your GitHub username
     labels:
       - "dependencies"
       - "go"
@@ -25,4 +25,4 @@ updates:
       - "github-actions"
       - "dependencies"
     assignees:
-      - "cperry24"  # Replace with your GitHub username
+      - "cperrin88"  # Replace with your GitHub username

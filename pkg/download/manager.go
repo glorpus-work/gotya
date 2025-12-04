@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/glorpus-work/gotya/pkg/auth"
-	pkgerrors "github.com/glorpus-work/gotya/pkg/errors"
+	pkgerrors "github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/fsutil"
 )
 
