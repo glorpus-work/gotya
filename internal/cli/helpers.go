@@ -8,7 +8,7 @@ import (
 	"github.com/glorpus-work/gotya/pkg/artifact"
 	"github.com/glorpus-work/gotya/pkg/config"
 	"github.com/glorpus-work/gotya/pkg/download"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/index"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
@@ -133,14 +133,14 @@ func ParseDependencies(deps []string) ([]model.Dependency, error) {
 		parts := strings.SplitN(depStr, ":", 2)
 		name := strings.TrimSpace(parts[0])
 		if name == "" {
-			return nil, fmt.Errorf("invalid dependency format: empty package name in '%s': %w", depStr, errors.ErrValidation)
+			return nil, fmt.Errorf("invalid dependency format: empty package name in '%s': %w", depStr, errutils.ErrValidation)
 		}
 
 		var versionConstraint string
 		if len(parts) == 2 {
 			versionConstraint = strings.TrimSpace(parts[1])
 			if versionConstraint == "" {
-				return nil, fmt.Errorf("invalid dependency format: empty version constraint for package '%s': %w", name, errors.ErrValidation)
+				return nil, fmt.Errorf("invalid dependency format: empty version constraint for package '%s': %w", name, errutils.ErrValidation)
 			}
 		} else {
 			// Default version constraint if none provided

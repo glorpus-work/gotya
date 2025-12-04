@@ -12,7 +12,7 @@ import (
 
 	"github.com/glorpus-work/gotya/pkg/artifact/database"
 	mock_artifact "github.com/glorpus-work/gotya/pkg/artifact/mocks"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -337,7 +337,7 @@ func TestInstallArtifact_EmptyArtifactName(t *testing.T) {
 
 	err := mgr.InstallArtifact(context.Background(), desc, "/nonexistent/path.gotya", model.InstallationReasonManual)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errors.ErrValidation)
+	assert.ErrorIs(t, err, errutils.ErrValidation)
 }
 
 // TestInstallArtifact_EmptyDescriptor tests installation with nil descriptor
@@ -960,7 +960,7 @@ func TestUpdateArtifact_EmptyNewArtifactPath(t *testing.T) {
 
 	err := mgr.UpdateArtifact(context.Background(), "", desc)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errors.ErrValidation)
+	assert.ErrorIs(t, err, errutils.ErrValidation)
 }
 
 // TestUpdateArtifact_EmptyDescriptor tests updating with nil descriptor
@@ -970,7 +970,7 @@ func TestUpdateArtifact_EmptyDescriptor(t *testing.T) {
 
 	err := mgr.UpdateArtifact(context.Background(), "/path/to/artifact.gotya", nil)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errors.ErrValidation)
+	assert.ErrorIs(t, err, errutils.ErrValidation)
 }
 
 // TestUpdateArtifact_DifferentArtifactName tests updating with mismatched artifact name
@@ -1315,7 +1315,7 @@ func TestVerifyArtifact_NonExistentFile(t *testing.T) {
 	// Try to verify a non-existent artifact
 	err := mgr.VerifyArtifact(context.Background(), desc)
 	require.Error(t, err)
-	assert.Equal(t, errors.ErrArtifactNotFound, err)
+	assert.Equal(t, errutils.ErrArtifactNotFound, err)
 }
 
 // TestVerifyArtifact_InvalidMetadata tests verifying an artifact with mismatched metadata
@@ -2364,7 +2364,7 @@ func TestSetArtifactManuallyInstalled_ArtifactNotFound(t *testing.T) {
 	// Try to set a non-existent artifact as manually installed
 	err := mgr.SetArtifactManuallyInstalled("non-existent-artifact")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, errors.ErrArtifactNotFound)
+	assert.ErrorIs(t, err, errutils.ErrArtifactNotFound)
 }
 
 // TestSetArtifactManuallyInstalled_DatabaseLoadError tests error when database loading fails

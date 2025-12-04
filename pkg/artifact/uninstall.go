@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/glorpus-work/gotya/pkg/artifact/database"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/fsutil"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
@@ -88,7 +88,7 @@ func (m *ManagerImpl) executePostUninstallHook(artifact *model.InstalledArtifact
 	}
 
 	if err := m.hookExecutor.ExecuteHook(preservedScriptDir, postUninstallContext); err != nil {
-		return errors.Wrap(err, "failed to execute post-uninstall hook")
+		return errutils.Wrap(err, "failed to execute post-uninstall hook")
 	}
 	return nil
 }
@@ -136,7 +136,7 @@ func (m *ManagerImpl) uninstallSelectively(_ context.Context, db database.Instal
 func (m *ManagerImpl) deleteFile(path string, dirsToCheck map[string]bool) error {
 	if err := os.Remove(path); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("file not found: %s: %w", path, errors.ErrFileNotFound)
+			return fmt.Errorf("file not found: %s: %w", path, errutils.ErrFileNotFound)
 		}
 		return fmt.Errorf("failed to remove file %s: %w", path, err)
 	}

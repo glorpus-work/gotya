@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/glorpus-work/gotya/pkg/artifact"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 )
 
 // createOptions holds flags for the create command.
@@ -80,7 +80,7 @@ including file hashes and metadata structure.`,
 			}
 
 			if filePath == "" {
-				return fmt.Errorf("missing required argument: file path: %w", errors.ErrValidation)
+				return fmt.Errorf("missing required argument: file path: %w", errutils.ErrValidation)
 			}
 
 			// Convert to absolute path
@@ -91,7 +91,7 @@ including file hashes and metadata structure.`,
 
 			// Check if file exists
 			if _, err := os.Stat(absPath); os.IsNotExist(err) {
-				return fmt.Errorf("artifact file not found: %s: %w", absPath, errors.ErrFileNotFound)
+				return fmt.Errorf("artifact file not found: %s: %w", absPath, errutils.ErrFileNotFound)
 			}
 
 			log.Printf("Verifying artifact: %s\n", absPath)
@@ -175,15 +175,15 @@ func parseHooks(rawHooks []string) (map[string]string, error) {
 	for _, rawHook := range rawHooks {
 		parts := strings.SplitN(rawHook, "=", 2)
 		if len(parts) != 2 {
-			return nil, errors.Wrapf(errors.ErrValidation, "invalid hook format: %s (expected 'name=path')", rawHook)
+			return nil, errutils.Wrapf(errutils.ErrValidation, "invalid hook format: %s (expected 'name=path')", rawHook)
 		}
 		hookName := strings.TrimSpace(parts[0])
 		hookPath := strings.TrimSpace(parts[1])
 		if hookName == "" {
-			return nil, errors.Wrapf(errors.ErrValidation, "hook name cannot be empty in: %s", rawHook)
+			return nil, errutils.Wrapf(errutils.ErrValidation, "hook name cannot be empty in: %s", rawHook)
 		}
 		if hookPath == "" {
-			return nil, errors.Wrapf(errors.ErrValidation, "hook path cannot be empty in: %s", rawHook)
+			return nil, errutils.Wrapf(errutils.ErrValidation, "hook path cannot be empty in: %s", rawHook)
 		}
 		hooks[hookName] = hookPath
 	}

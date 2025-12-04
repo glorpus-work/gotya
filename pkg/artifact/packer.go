@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/glorpus-work/gotya/pkg/archive"
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/fsutil"
 	"github.com/glorpus-work/gotya/pkg/model"
 )
@@ -128,11 +128,11 @@ func (p *Packer) verify() error {
 // - All hook scripts in the meta directory are referenced
 func (p *Packer) checkInput() error {
 	if _, err := os.Stat(p.inputDir); err != nil {
-		return errors.Wrapf(errors.ErrInvalidPath, "input directory %s does not exist", p.inputDir)
+		return errutils.Wrapf(errutils.ErrInvalidPath, "input directory %s does not exist", p.inputDir)
 	}
 
 	if _, err := os.Stat(filepath.Join(p.inputDir, artifactMetaDir, metadataFile)); err == nil {
-		return errors.Wrapf(errors.ErrInvalidPath, "artifact.json already exists in input directory")
+		return errutils.Wrapf(errutils.ErrInvalidPath, "artifact.json already exists in input directory")
 	}
 
 	rootDir, err := os.ReadDir(p.inputDir)
@@ -141,7 +141,7 @@ func (p *Packer) checkInput() error {
 	}
 	for _, entry := range rootDir {
 		if !slices.Contains(allowedTopLevelFiles, entry.Name()) {
-			return errors.Wrapf(errors.ErrInvalidPath, "file %s is not allowed in input directory", entry.Name())
+			return errutils.Wrapf(errutils.ErrInvalidPath, "file %s is not allowed in input directory", entry.Name())
 		}
 	}
 
@@ -152,10 +152,10 @@ func (p *Packer) checkInput() error {
 		}
 		for _, entry := range metaDir {
 			if !strings.HasSuffix(entry.Name(), ".tengo") {
-				return errors.Wrapf(errors.ErrInvalidPath, "file %s is not allowed in meta directory", entry.Name())
+				return errutils.Wrapf(errutils.ErrInvalidPath, "file %s is not allowed in meta directory", entry.Name())
 			}
 			if !slices.Contains(slices.Collect(maps.Values(p.hooks)), entry.Name()) {
-				return errors.Wrapf(errors.ErrInvalidPath, "hook %s is not referenced", entry.Name())
+				return errutils.Wrapf(errutils.ErrInvalidPath, "hook %s is not referenced", entry.Name())
 			}
 		}
 	}
@@ -168,11 +168,11 @@ func (p *Packer) checkInput() error {
 func (p *Packer) copyInputDir() error {
 	absInputDir, err := filepath.Abs(p.inputDir)
 	if err != nil {
-		return errors.Wrap(err, "error getting absolute path of input directory")
+		return errutils.Wrap(err, "error getting absolute path of input directory")
 	}
 	err = filepath.WalkDir(absInputDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return errors.Wrapf(err, "error accessing path %s", path)
+			return errutils.Wrapf(err, "error accessing path %s", path)
 		}
 		if path == p.inputDir {
 			return nil
@@ -180,7 +180,7 @@ func (p *Packer) copyInputDir() error {
 
 		relPath, err := filepath.Rel(absInputDir, path)
 		if err != nil {
-			return errors.Wrapf(err, "error getting relative path of %s", path)
+			return errutils.Wrapf(err, "error getting relative path of %s", path)
 		}
 		tempPath := filepath.Join(p.tempDir, relPath)
 		switch d.Type() & os.ModeType {
@@ -200,7 +200,7 @@ func (p *Packer) copyInputDir() error {
 
 func (p *Packer) copyDirEntryDir(tempPath, sourcePath string) error {
 	if err := os.Mkdir(tempPath, fsutil.DirModeDefault); err != nil {
-		return errors.Wrapf(err, "error creating directory %s", sourcePath)
+		return errutils.Wrapf(err, "error creating directory %s", sourcePath)
 	}
 	return nil
 }
@@ -208,20 +208,20 @@ func (p *Packer) copyDirEntryDir(tempPath, sourcePath string) error {
 func (p *Packer) copyDirEntrySymlink(absInputDir, sourcePath, tempPath string) error {
 	target, err := os.Readlink(sourcePath)
 	if err != nil {
-		return errors.Wrapf(err, "error reading symlink %s", sourcePath)
+		return errutils.Wrapf(err, "error reading symlink %s", sourcePath)
 	}
 	if filepath.IsAbs(target) {
-		return errors.Wrapf(errors.ErrInvalidPath, "symlink %s is absolute", sourcePath)
+		return errutils.Wrapf(errutils.ErrInvalidPath, "symlink %s is absolute", sourcePath)
 	}
 	absTarget, err := filepath.Abs(target)
 	if err != nil {
-		return errors.Wrapf(err, "error getting absolute path of symlink %s", sourcePath)
+		return errutils.Wrapf(err, "error getting absolute path of symlink %s", sourcePath)
 	}
 	if !strings.HasPrefix(absTarget, absInputDir) {
-		return errors.Wrapf(errors.ErrInvalidPath, "symlink %s points outside the input directory", sourcePath)
+		return errutils.Wrapf(errutils.ErrInvalidPath, "symlink %s points outside the input directory", sourcePath)
 	}
 	if err := os.Symlink(target, tempPath); err != nil {
-		return errors.Wrapf(err, "error creating symlink %s", sourcePath)
+		return errutils.Wrapf(err, "error creating symlink %s", sourcePath)
 	}
 	return nil
 }
@@ -229,20 +229,20 @@ func (p *Packer) copyDirEntrySymlink(absInputDir, sourcePath, tempPath string) e
 func (p *Packer) copyDirEntryFile(sourcePath, relPath, tempPath string) error {
 	out, err := fsutil.CreateFilePerm(tempPath, fsutil.FileModeDefault)
 	if err != nil {
-		return errors.Wrapf(err, "error creating file %s", sourcePath)
+		return errutils.Wrapf(err, "error creating file %s", sourcePath)
 	}
 
 	in, err := os.Open(sourcePath)
 	if err != nil {
 		_ = out.Close()
-		return errors.Wrapf(err, "error opening file %s", sourcePath)
+		return errutils.Wrapf(err, "error opening file %s", sourcePath)
 	}
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, in); err != nil {
 		_ = in.Close()
 		_ = out.Close()
-		return errors.Wrapf(err, "error copying file %s", sourcePath)
+		return errutils.Wrapf(err, "error copying file %s", sourcePath)
 	}
 
 	// Normalize to forward slashes for archive-internal paths
@@ -257,7 +257,7 @@ func (p *Packer) copyDirEntryFile(sourcePath, relPath, tempPath string) error {
 	if _, err := io.Copy(out, in); err != nil {
 		_ = in.Close()
 		_ = out.Close()
-		return errors.Wrapf(err, "error copying file %s", sourcePath)
+		return errutils.Wrapf(err, "error copying file %s", sourcePath)
 	}
 	// Close both files to avoid handle leaks (important on Windows)
 	if err := in.Close(); err != nil {
@@ -274,7 +274,7 @@ func (p *Packer) copyDirEntryFile(sourcePath, relPath, tempPath string) error {
 func (p *Packer) createMetadataFile() error {
 	metaJSON, err := json.MarshalIndent(p.metadata, "", "  ")
 	if err != nil {
-		return errors.Wrap(err, "error marshaling metadata")
+		return errutils.Wrap(err, "error marshaling metadata")
 	}
 	metaJSON = append(metaJSON, '\n')
 

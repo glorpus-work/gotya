@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/glorpus-work/gotya/pkg/errors"
+	"github.com/glorpus-work/gotya/pkg/errutils"
 	"github.com/glorpus-work/gotya/pkg/model"
 	"github.com/glorpus-work/gotya/pkg/orchestrator"
 	"github.com/spf13/cobra"
@@ -59,7 +59,7 @@ func runInstall(packages []string, dryRun bool, concurrency int, cacheDir string
 	// Verify interfaces
 	planner, ok := indexManager.(orchestrator.ArtifactResolver)
 	if !ok {
-		return fmt.Errorf("index manager does not support planning (missing Resolve method): %w", errors.ErrValidation)
+		return fmt.Errorf("index manager does not support planning (missing Resolve method): %w", errutils.ErrValidation)
 	}
 
 	// Create progress hooks
