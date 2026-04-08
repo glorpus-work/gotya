@@ -39,7 +39,7 @@ jobs:
         run: grep -vE "/mocks/|_mock.go" coverage.out > coverage_clean.out
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage_clean.out
           flags: "integration,unit,${{matrix.os}},go-${{matrix.go-version}}"
